@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  VENDOR
+  ADMIN
+  SUPER_ADMIN
+  SUPPORT
+  @@map("user_role")
+}
+
+enum StoreStatus {
+  PENDING_DOCUMENTS
+  PENDING_REVIEW
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+  LICENSE_EXPIRED
+  @@map("store_status")
+}
+
+enum OrderStatus {
+  AWAITING_OFFERS
+  AWAITING_PAYMENT
+  PREPARATION
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  RETURNED
+  DISPUTED
+  RETURN_REQUESTED
+  RETURN_APPROVED
+  REFUNDED
+  RESOLVED
+  @@map("order_status")
+}
+
+enum ActorType {
+  SYSTEM
+  ADMIN
+  CUSTOMER
+  VENDOR
+  @@map("actor_type")
+}
+
+enum DocType {
+  CR
+  LICENSE
+  ID
+  IBAN
+  AUTH_LETTER
+  @@map("doc_type")
+}
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique
+  phone           String?
+  passwordHash    String    @map("password_hash")
+  role            UserRole  @default(CUSTOMER)
+  name            String?
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
+  otpCode         String?   @map("otp_code")
+  otpExpiresAt    DateTime? @map("otp_expires_at") @db.Timestamptz
+  
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  // Relations
+  store           Store?
+  orders          Order[]
+  
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Store {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId         String      @unique @map("owner_id") @db.Uuid
+  name            String
+  slug            String?     @unique
+  description     String?
+  category        String?
+  status          StoreStatus @default(PENDING_DOCUMENTS)
+  licenseExpiry   DateTime?   @map("license_expiry") @db.Date
+  balance         Decimal     @default(0) @db.Decimal(14, 2)
+  rating          Decimal     @default(0) @db.Decimal(3, 2)
+  
+  // Location
+  address         String?
+  lat             Decimal?    @db.Decimal(10, 8)
+  lng             Decimal?    @db.Decimal(11, 8)
+
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime    @default(now()) @map("updated_at") @db.Timestamptz
+
+  // Relations
+  owner           User             @relation(fields: [ownerId], references: [id])
+  documents       StoreDocument[]
+  orders          Order[]
+  offers          Offer[]
+  
+  @@index([status])
+  @@map("stores")
+}
+
+model StoreDocument {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId        String    @map("store_id") @db.Uuid
+  docType        DocType   @map("doc_type")
+  fileUrl        String?   @map("file_url")
+  status         String    @default("pending") // pending | approved | rejected
+  rejectedReason String?   @map("rejected_reason")
+  expiresAt      DateTime? @map("expires_at") @db.Date
+  
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, docType])
+  @@map("store_documents")
+}
+
+model Order {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderNumber       String      @unique @map("order_number")
+  customerId        String      @map("customer_id") @db.Uuid
+  storeId           String?     @map("store_id") @db.Uuid
+  status            OrderStatus @default(AWAITING_OFFERS)
+  
+  // Vehicle Details
+  vehicleMake       String      @map("vehicle_make")
+  vehicleModel      String      @map("vehicle_model")
+  vehicleYear       Int         @map("vehicle_year") @db.SmallInt
+  vin               String?
+  
+  // Part Details
+  partName          String      @map("part_name")
+  partDescription   String?     @map("part_description")
+  partImages        Json?       @default("[]") @map("part_images")
+  
+  // Preferences
+  conditionPref     String?     @map("condition_pref")
+  warrantyPreferred Boolean?    @default(false) @map("warranty_preferred")
+  
+  // Financials
+  totalAmount       Decimal?    @map("total_amount") @db.Decimal(14, 2)
+  
+  // Timestamps
+  offersDeadlineAt  DateTime?   @map("offers_deadline_at") @db.Timestamptz
+  paymentDeadlineAt DateTime?   @map("payment_deadline_at") @db.Timestamptz
+  
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @default(now()) @map("updated_at") @db.Timestamptz
+
+  // Relations
+  customer          User        @relation(fields: [customerId], references: [id])
+  store             Store?      @relation(fields: [storeId], references: [id])
+  offers            Offer[]
+  auditLogs         AuditLog[]
+  
+  // Active Offer Relation
+  acceptedOfferId   String?     @unique @map("offer_id") @db.Uuid
+  acceptedOffer     Offer?      @relation("AcceptedOffer", fields: [acceptedOfferId], references: [id])
+
+  @@index([customerId])
+  @@index([storeId])
+  @@index([status])
+  @@map("orders")
+}
+
+model Offer {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId      String    @map("order_id") @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  
+  unitPrice    Decimal   @map("unit_price") @db.Decimal(14, 2)
+  weightKg     Decimal   @map("weight_kg") @db.Decimal(8, 2)
+  shippingCost Decimal   @default(0) @map("shipping_cost") @db.Decimal(14, 2)
+  hasWarranty  Boolean   @default(false) @map("has_warranty")
+  deliveryDays String?   @map("delivery_days")
+  condition    String?
+  notes        String?
+  offerImage   String?   @map("offer_image")
+  status       String    @default("pending") // pending | accepted | rejected
+  
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  // Relation back to Order if accepted
+  acceptedByOrder Order? @relation("AcceptedOffer")
+
+  @@index([orderId])
+  @@index([storeId])
+  @@map("offers")
+}
+
+model AuditLog {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId       String?   @map("order_id") @db.Uuid
+  action        String
+  entity        String
+  actorType     ActorType @map("actor_type")
+  actorId       String?   @map("actor_id")
+  actorName     String?   @map("actor_name")
+  previousState String?   @map("previous_state")
+  newState      String?   @map("new_state")
+  reason        String?
+  metadata      Json?
+  timestamp     DateTime  @default(now()) @db.Timestamptz
+
+  order         Order?    @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model StaticPage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String   @unique
+  titleAr   String?  @map("title_ar")
+  titleEn   String?  @map("title_en")
+  contentAr String?  @map("content_ar")
+  contentEn String?  @map("content_en")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  @@map("static_pages")
+}
