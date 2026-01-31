@@ -9,6 +9,7 @@ import { StoresModule } from './stores/stores.module';
 import { StaticPagesModule } from './static-pages/static-pages.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { OffersModule } from './offers/offers.module';
+import { AppController } from './app.controller';
 
 @Module({
     imports: [
@@ -25,7 +26,8 @@ import { OffersModule } from './offers/offers.module';
         DashboardModule,
         OffersModule,
     ],
-    controllers: [],
+    controllers: [AppController],
     providers: [],
 })
 export class AppModule { }
+
