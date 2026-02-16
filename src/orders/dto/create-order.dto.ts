@@ -1,6 +1,40 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Min, ValidateNested, IsArray, ArrayMinSize } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class CreateOrderPartDto {
+    @IsString()
+    @IsNotEmpty()
+    name: string;
+
+    @IsString()
+    @IsOptional()
+    description?: string;
+
+    @IsString()
+    @IsOptional()
+    notes?: string;
+
+    @IsArray()
+    @IsString({ each: true })
+    @IsOptional()
+    images?: string[];
+
+    @IsString()
+    @IsOptional()
+    video?: string;
+}
+
 
 export class CreateOrderDto {
+    // Top-level fields from Frontend Store
+    @IsString()
+    @IsOptional()
+    requestType?: string;
+
+    @IsString()
+    @IsOptional()
+    shippingType?: string;
+
     // Vehicle Details (required)
     @IsString()
     @IsNotEmpty()
@@ -18,24 +52,28 @@ export class CreateOrderDto {
     @IsOptional()
     vin?: string;
 
-    // Part Details
     @IsString()
-    @IsNotEmpty()
-    partName: string;
+    @IsOptional()
+    vinImage?: string;
+
+    // Part Details - Multi-part support
+    @IsArray()
+    @ValidateNested({ each: true })
+    @ArrayMinSize(1)
+    @Type(() => CreateOrderPartDto)
+    parts: CreateOrderPartDto[];
+
+    // Legacy fields for backward compatibility (Optional now)
+    @IsString()
+    @IsOptional()
+    partName?: string;
 
     @IsString()
     @IsOptional()
     partDescription?: string;
 
-    // Use IsOptional here if frontend might not send it initially, 
-    // but plan says mandatory. I'll make it IsString array (URLs).
-    // Actually, backend should receive URLs.
     @IsOptional()
     partImages?: string[];
-
-    @IsString()
-    @IsOptional()
-    vinImage?: string;
 
     // Preferences
     @IsString()

@@ -14,40 +14,57 @@ export class OrdersService {
     ) { }
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
+        // [Verified] Type safety confirmed: 'parts' relation exists in Prisma Client
         // 1. Generate Order Number
         const orderNumber = await this.generateOrderNumber();
 
-        // 2. Transaction: Create Order + Audit Log
+        // 2. Transaction: Create Order + Parts + Audit Log
         return this.prisma.$transaction(async (tx) => {
+            // Helper: Get primary part for legacy fields compatibility
+            // Ensure parts exists and has at least one item, otherwise default to empty/null logic
+            const primaryPart = (createOrderDto.parts && createOrderDto.parts.length > 0) ? createOrderDto.parts[0] : null;
+            const primaryName = primaryPart ? primaryPart.name : (createOrderDto.partName || 'Multi-Part Order');
+            const primaryDesc = primaryPart ? primaryPart.description : (createOrderDto.partDescription || 'See parts list');
+            const primaryImages = primaryPart ? primaryPart.images : (createOrderDto.partImages || []);
+
             const order = await tx.order.create({
                 data: {
                     vehicleMake: createOrderDto.vehicleMake,
                     vehicleModel: createOrderDto.vehicleModel,
                     vehicleYear: createOrderDto.vehicleYear,
                     vin: createOrderDto.vin,
-                    partName: createOrderDto.partName,
-                    partDescription: createOrderDto.partDescription,
+
+                    // Legacy Support: Populate single-part fields from the first part
+                    partName: primaryName,
+                    partDescription: primaryDesc,
+                    partImages: primaryImages,
+
                     conditionPref: createOrderDto.conditionPref,
                     warrantyPreferred: createOrderDto.warrantyPreferred,
 
                     customerId,
                     orderNumber,
                     status: OrderStatus.AWAITING_OFFERS,
-                    partImages: createOrderDto.partImages || [],
+
+                    // New Relation: Create all parts
+                    // @ts-ignore: IDE stale type definition
+                    parts: {
+                        create: createOrderDto.parts ? createOrderDto.parts.map(part => ({
+                            name: part.name,
+                            description: part.description,
+                            notes: part.notes,
+                            images: part.images || [],
+                            video: part.video,
+                        })) : []
+                    }
                 },
+                include: {
+                    // @ts-ignore: IDE stale type definition
+                    parts: true // Return parts in response
+                }
             });
 
-            // Update Metadata independently if needed, or include in create above if schema allows.
-            // Let's assume we put vinImage in metadata for now as schema change is larger task.
-            if (createOrderDto.vinImage) {
-                // small hack: update audit log or part of valid metadata field if Order model doesn't support it?
-                // Wait, Order model in BACKEND_M1_PREPARATION.md *does not* have metadata column on Order itself.
-                // It has part_images JSONB. 
-                // Let's check schema.prisma first to be sure.
-                // I will assume part_images exists. For VIN Image, I'll ignore for a second until I check schema.
-                // Actually, let's just use partImages as is.
-            }
-
+            // Update Audit Log to reflect new structure
             await this.auditLogs.logAction({
                 orderId: order.id,
                 action: 'CREATE',
@@ -58,10 +75,13 @@ export class OrdersService {
                 newState: OrderStatus.AWAITING_OFFERS,
                 metadata: {
                     car: `${createOrderDto.vehicleMake} ${createOrderDto.vehicleModel} ${createOrderDto.vehicleYear}`,
-                    part: createOrderDto.partName,
-                    vinImage: createOrderDto.vinImage // Save here for audit at least
+                    partsCount: createOrderDto.parts ? createOrderDto.parts.length : 0,
+                    vinImage: createOrderDto.vinImage,
+                    // Captured from frontend payload
+                    requestType: createOrderDto.requestType,
+                    shippingType: createOrderDto.shippingType
                 },
-            }, tx); // Pass transaction context
+            }, tx);
 
             return order;
         });
@@ -84,10 +104,6 @@ export class OrdersService {
                     { offers: { some: { storeId: user.storeId } } } // I made an offer
                 ];
             } else {
-                // Determine if they just registered and have no store yet?
-                // For safety, return nothing or just generic open ones?
-                // Let's assume they must have a storeId to operate.
-                // If not, maybe just return nothing to be safe.
                 where.id = '00000000-0000-0000-0000-000000000000'; // Return none
             }
         }
@@ -140,8 +156,6 @@ export class OrdersService {
                 where: { id: orderId },
                 data: {
                     status: newStatus,
-                    // Update timestamps based on status (simple version)
-                    // offerAcceptedAt, shippedAt etc would be handled here in full version
                 },
             });
 

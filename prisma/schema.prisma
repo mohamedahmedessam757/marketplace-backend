@@ -168,6 +168,7 @@ model Order {
   store             Store?      @relation(fields: [storeId], references: [id])
   offers            Offer[]
   auditLogs         AuditLog[]
+  parts             OrderPart[]
   
   // Active Offer Relation
   acceptedOfferId   String?     @unique @map("offer_id") @db.Uuid
@@ -239,4 +240,22 @@ model StaticPage {
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
   
   @@map("static_pages")
+}
+
+model OrderPart {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  name        String
+  description String?
+  notes       String?
+  images      String[] // Array of URLs
+  video       String?  // URL
+  quantity    Int      @default(1)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_parts")
 }
