@@ -11,7 +11,13 @@ export class UploadsService {
         const supabaseServiceRoleKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
 
         if (!supabaseUrl || !supabaseServiceRoleKey) {
-            throw new Error('Supabase URL or Service Role Key is missing');
+            console.error('Environment Check Failed:');
+            console.error(`SUPABASE_URL: ${supabaseUrl ? 'Set' : 'MISSING'}`);
+            console.error(`SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceRoleKey ? 'Set' : 'MISSING'}`);
+            // List all keys to verify if env is loaded at all (be careful not to log values)
+            console.error('Available Env Keys:', Object.keys(process.env));
+
+            throw new Error('Supabase URL or Service Role Key is missing. Check your Railway Project Variables.');
         }
 
         this.supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
