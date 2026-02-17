@@ -10,6 +10,10 @@ import { StaticPagesModule } from './static-pages/static-pages.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { OffersModule } from './offers/offers.module';
 import { AppController } from './app.controller';
+import { NotificationsModule } from './notifications/notifications.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { UploadsModule } from './uploads/uploads.module';
+import { ReturnsModule } from './returns/returns.module';
 
 @Module({
     imports: [
@@ -25,6 +29,10 @@ import { AppController } from './app.controller';
         StaticPagesModule,
         DashboardModule,
         OffersModule,
+        NotificationsModule,
+        SchedulerModule,
+        UploadsModule,
+        ReturnsModule,
     ],
     controllers: [AppController],
     providers: [],

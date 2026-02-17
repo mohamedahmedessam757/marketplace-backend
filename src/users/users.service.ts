@@ -19,46 +19,58 @@ export class UsersService {
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-    return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          passwordHash: hashedPassword,
-          email: createUserDto.email,
-          name: createUserDto.name,
-          phone: createUserDto.phone,
-          role: createUserDto.role || 'CUSTOMER',
-        },
-      });
-
-      // If user is a VENDOR, create a Store record immediately
-      if (createUserDto.role === 'VENDOR') {
-        const store = await tx.store.create({
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
           data: {
-            ownerId: user.id,
-            name: createUserDto.storeName || `${createUserDto.name}'s Store`,
-            status: 'PENDING_DOCUMENTS',
-            address: createUserDto.address,
-            lat: createUserDto.lat,
-            lng: createUserDto.lng,
-            category: createUserDto.category
-          }
+            passwordHash: hashedPassword,
+            email: createUserDto.email,
+            name: createUserDto.name,
+            phone: createUserDto.phone,
+            role: createUserDto.role || 'CUSTOMER',
+          },
         });
 
-        // Create Store Documents if provided
-        if (createUserDto.documents && createUserDto.documents.length > 0) {
-          await tx.storeDocument.createMany({
-            data: createUserDto.documents.map(doc => ({
-              storeId: store.id,
-              docType: doc.type,
-              fileUrl: doc.url,
-              status: 'pending'
-            }))
+        // If user is a VENDOR, create a Store record immediately
+        if (createUserDto.role === 'VENDOR') {
+          const store = await tx.store.create({
+            data: {
+              ownerId: user.id,
+              name: createUserDto.storeName || `${createUserDto.name}'s Store`,
+              status: 'PENDING_DOCUMENTS',
+              address: createUserDto.address,
+              lat: createUserDto.lat,
+              lng: createUserDto.lng,
+              category: createUserDto.category
+            }
           });
+
+          // Create Store Documents if provided
+          if (createUserDto.documents && createUserDto.documents.length > 0) {
+            await tx.storeDocument.createMany({
+              data: createUserDto.documents.map(doc => ({
+                storeId: store.id,
+                docType: doc.type,
+                fileUrl: doc.url,
+                status: 'pending'
+              }))
+            });
+          }
+        }
+
+        return user;
+      });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        if (error.meta?.target?.includes('phone')) {
+          throw new ConflictException('Phone number already exists');
+        }
+        if (error.meta?.target?.includes('email')) {
+          throw new ConflictException('Email already exists');
         }
       }
-
-      return user;
-    });
+      throw error;
+    }
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -70,6 +82,12 @@ export class UsersService {
   async findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { id },
+    });
+  }
+
+  async findByPhone(phone: string): Promise<User | null> {
+    return this.prisma.user.findFirst({
+      where: { phone },
     });
   }
 
@@ -86,6 +104,13 @@ export class UsersService {
           }
         }
       }
+    });
+  }
+
+  async update(id: string, data: { name?: string; phone?: string; avatar?: string }) {
+    return this.prisma.user.update({
+      where: { id },
+      data: data
     });
   }
 }

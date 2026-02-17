@@ -18,6 +18,23 @@ export class AuthController {
         return this.authService.login(user);
     }
 
+    @Post('mobile-login-init')
+    async initiateMobileLogin(@Body() body: { phone: string }) {
+        const result = await this.authService.initiateMobileLogin(body.phone);
+        if (!result) {
+            // We return a specific structure or 404 to let frontend know user doesn't exist
+            // Frontend requirement: "If no, show message account not found please register"
+            throw new UnauthorizedException('Account not found');
+        }
+        return result;
+    }
+
+    @Post('mobile-login-verify')
+    async verifyMobileLogin(@Body() body: { phone: string; code: string }) {
+        return this.authService.verifyMobileLogin(body.phone, body.code);
+    }
+
+
     @Post('register/customer')
     async registerCustomer(@Body() createUserDto: CreateUserDto) {
         // Force role to CUSTOMER
@@ -35,7 +52,10 @@ export class AuthController {
     // Example protected route to verify JWT
     @UseGuards(JwtAuthGuard)
     @Get('profile')
-    getProfile(@Request() req) {
-        return req.user;
+    async getProfile(@Request() req) {
+        // Fetch full user data from DB to ensure we have latest avatar/details
+        // req.user from JWT strategy might be limited or stale
+        const user = await this.authService.getUserProfile(req.user.id || req.user.userId);
+        return user;
     }
 }

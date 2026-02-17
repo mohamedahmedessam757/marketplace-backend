@@ -49,4 +49,12 @@ export class OrdersController {
             transitionDto.metadata
         );
     }
+    @Post(':id/offer/:offerId/accept')
+    acceptOffer(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Param('offerId') offerId: string
+    ) {
+        return this.ordersService.acceptOffer(orderId, offerId, req.user.id);
+    }
 }

@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum UserRole {
@@ -63,7 +64,7 @@ enum DocType {
 model User {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email           String    @unique
-  phone           String?
+  phone           String?   @unique
   passwordHash    String    @map("password_hash")
   role            UserRole  @default(CUSTOMER)
   name            String?
@@ -77,6 +78,10 @@ model User {
   // Relations
   store           Store?
   orders          Order[]
+  notifications   Notification[]
+  returns         ReturnRequest[]
+  disputes        Dispute[]
+  avatar          String?   @map("avatar")
   
   @@index([email])
   @@index([role])
@@ -169,6 +174,8 @@ model Order {
   offers            Offer[]
   auditLogs         AuditLog[]
   parts             OrderPart[]
+  returns           ReturnRequest[]
+  disputes          Dispute[]
   
   // Active Offer Relation
   acceptedOfferId   String?     @unique @map("offer_id") @db.Uuid
@@ -258,4 +265,67 @@ model OrderPart {
   order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("order_parts")
+}
+
+model Notification {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientId String   @map("recipient_id") @db.Uuid
+  
+  titleAr     String   @map("title_ar")
+  titleEn     String   @map("title_en")
+  messageAr   String   @map("message_ar")
+  messageEn   String   @map("message_en")
+  
+  type        String   @default("system") // system, order, alert, promotion
+  isRead      Boolean  @default(false) @map("is_read")
+  link        String?  // Frontend route to redirect to
+  metadata    Json?    // For related ID (e.g. { orderId: 123 })
+  
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  recipient   User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// Renamed to ReturnRequest to avoid reserved keyword collision
+model ReturnRequest {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId       String   @map("order_id") @db.Uuid
+  customerId    String   @map("customer_id") @db.Uuid
+  
+  reason        String
+  description   String?
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  evidenceFiles Json     @default("[]") @map("evidence_files") // Array of URLs
+
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  customer      User     @relation(fields: [customerId], references: [id])
+  order         Order    @relation(fields: [orderId], references: [id])
+
+  @@map("returns")
+}
+
+model Dispute {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId       String   @map("order_id") @db.Uuid
+  customerId    String   @map("customer_id") @db.Uuid
+
+  reason        String
+  description   String?
+  status        String   @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
+  evidenceFiles Json     @default("[]") @map("evidence_files") // Array of URLs
+
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  customer      User     @relation(fields: [customerId], references: [id])
+  order         Order    @relation(fields: [orderId], references: [id])
+
+  @@map("disputes")
 }
