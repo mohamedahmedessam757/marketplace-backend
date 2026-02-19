@@ -86,8 +86,76 @@ export class UsersService {
   }
 
   async findByPhone(phone: string): Promise<User | null> {
+    // Normalize phone input to handle different formats query
+    // detailed logic:
+    // 1. If starts with +966, try also 05... and 966...
+    // 2. If starts with 05, try also +966... and 966...
+    // 3. effective way is to strip everything and search OR search by multiple known formats.
+
+    // Let's assume input 'phone' is what frontend sent (e.g. +966500000000)
+    // We want to find if this user exists stored as '0500000000' or '966500000000' or '+966500000000'
+
+    let possibleFormats = [phone];
+
+    // Clean string
+    const clean = phone.replace(/\D/g, ''); // 966500000000
+
+    // Generic Common Formats
+    if (!possibleFormats.includes(clean)) possibleFormats.push(clean);
+
+    // GCC Specific Logic (Saudi, UAE, Bahrain, Qatar, Kuwait, Oman)
+    const prefixes = ['966', '971', '973', '974', '965', '968'];
+
+    // Check if input starts with any GCC prefix
+    for (const prefix of prefixes) {
+      if (clean.startsWith(prefix)) {
+        // Case 1: Input is International (9665...)
+        // Try Local Format (e.g. 05...)
+        const withoutPrefix = clean.substring(prefix.length);
+        const local = '0' + withoutPrefix;
+        const localNoZero = withoutPrefix;
+
+        if (!possibleFormats.includes(local)) possibleFormats.push(local);
+        if (!possibleFormats.includes(localNoZero)) possibleFormats.push(localNoZero);
+
+        // Try International with +
+        const withPlus = '+' + clean;
+        if (!possibleFormats.includes(withPlus)) possibleFormats.push(withPlus);
+
+        break; // Match found
+      }
+    }
+
+    // Heuristic: If starts with 5 (likely Saudi/UAE missing prefix or zero)
+    if (clean.startsWith('5')) {
+      // 1. Try adding 0 -> 05...
+      const withZero = '0' + clean;
+      if (!possibleFormats.includes(withZero)) possibleFormats.push(withZero);
+
+      // 2. Try adding GCC prefixes (Most likely Saudi 966)
+      const saudi = '966' + clean;
+      // Add more if needed, but Saudi is dominant
+
+      if (!possibleFormats.includes(saudi)) possibleFormats.push(saudi);
+      if (!possibleFormats.includes('+' + saudi)) possibleFormats.push('+' + saudi);
+    }
+
+    // Heuristic: If starts with 05 (Local)
+    if (clean.startsWith('05')) {
+      const withoutZero = clean.substring(1); // 5...
+      // Try adding 966 to 5...
+      const saudiIntl = '966' + withoutZero;
+      if (!possibleFormats.includes(saudiIntl)) possibleFormats.push(saudiIntl);
+      if (!possibleFormats.includes('+' + saudiIntl)) possibleFormats.push('+' + saudiIntl);
+    }
+
+    console.log(`[Auth Debug] Phone Search: Input='${phone}', Clean='${clean}', FormatsChecked=`, possibleFormats);
+
+    // Use findFirst with OR
     return this.prisma.user.findFirst({
-      where: { phone },
+      where: {
+        phone: { in: possibleFormats }
+      },
     });
   }
 
