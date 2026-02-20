@@ -81,11 +81,26 @@ model User {
   notifications   Notification[]
   returns         ReturnRequest[]
   disputes        Dispute[]
+  orderChats      OrderChat[]
+  settings        UserSettings?
   avatar          String?   @map("avatar")
   
   @@index([email])
   @@index([role])
   @@map("users")
+}
+
+model UserSettings {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  autoTranslateChat Boolean  @default(false) @map("auto_translate_chat")
+  
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
 }
 
 model Store {
@@ -95,6 +110,7 @@ model Store {
   slug            String?     @unique
   description     String?
   category        String?
+  logo            String?     @map("logo")
   status          StoreStatus @default(PENDING_DOCUMENTS)
   licenseExpiry   DateTime?   @map("license_expiry") @db.Date
   balance         Decimal     @default(0) @db.Decimal(14, 2)
@@ -113,6 +129,7 @@ model Store {
   documents       StoreDocument[]
   orders          Order[]
   offers          Offer[]
+  orderChats      OrderChat[]
   
   @@index([status])
   @@map("stores")
@@ -176,6 +193,7 @@ model Order {
   parts             OrderPart[]
   returns           ReturnRequest[]
   disputes          Dispute[]
+  orderChats        OrderChat[]
   
   // Active Offer Relation
   acceptedOfferId   String?     @unique @map("offer_id") @db.Uuid
@@ -268,8 +286,9 @@ model OrderPart {
 }
 
 model Notification {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  recipientId String   @map("recipient_id") @db.Uuid
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientId   String   @map("recipient_id") @db.Uuid
+  recipientRole String   @default("CUSTOMER") @map("recipient_role") // CUSTOMER, MERCHANT, ADMIN
   
   titleAr     String   @map("title_ar")
   titleEn     String   @map("title_en")
@@ -328,4 +347,81 @@ model Dispute {
   order         Order    @relation(fields: [orderId], references: [id])
 
   @@map("disputes")
+}
+
+model SupportTicket {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketNumber  String   @unique @map("ticket_number")
+  subject       String
+  message       String
+  status        String   @default("OPEN") // OPEN, CLOSED, RESOLVED
+  priority      String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  userId        String   @map("user_id") @db.Uuid
+  userType      String   @default("customer") @map("user_type") // customer, merchant
+  
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  messages      TicketMessage[]
+  
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketId      String   @map("ticket_id") @db.Uuid
+  senderId      String   @map("sender_id") @db.Uuid
+  senderRole    String   @default("user") @map("sender_role") // user, admin, support
+  text          String
+  mediaUrl      String?  @map("media_url")
+  mediaType     String?  @map("media_type") // image, video
+  
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  @@index([ticketId])
+  @@map("ticket_messages")
+}
+
+model OrderChat {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId              String   @map("order_id") @db.Uuid
+  vendorId             String   @map("vendor_id") @db.Uuid
+  customerId           String   @map("customer_id") @db.Uuid
+  status               String   @default("OPEN") // OPEN, CLOSED, EXPIRED
+  expiryAt             DateTime @map("expiry_at") @db.Timestamptz
+  isTranslationEnabled Boolean  @default(false) @map("is_translation_enabled")
+  
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  messages             OrderChatMessage[]
+  
+  // Relations
+  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendor               Store    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  customer             User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, vendorId]) // Ensure one chat per vendor per order
+  @@index([orderId])
+  @@index([vendorId])
+  @@index([customerId])
+  @@map("order_chats")
+}
+
+model OrderChatMessage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chatId         String   @map("chat_id") @db.Uuid
+  senderId       String   @map("sender_id") @db.Uuid
+  text           String
+  translatedText String?  @map("translated_text")
+  isRead         Boolean  @default(false) @map("is_read")
+  
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  chat           OrderChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@map("order_chat_messages")
 }

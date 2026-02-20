@@ -6,6 +6,8 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActorType, Order, OrderStatus } from '@prisma/client';
 
+import { ChatService } from '../chat/chat.service';
+
 @Injectable()
 export class OrdersService {
     constructor(
@@ -13,6 +15,7 @@ export class OrdersService {
         private fsm: OrderStateMachine,
         private auditLogs: AuditLogsService,
         private notifications: NotificationsService,
+        private chatService: ChatService, // Injected
     ) { }
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -278,8 +281,16 @@ export class OrdersService {
             return updatedOrder;
         });
 
-        // 3. Notify Store (Placeholder)
-        // this.notifications.notifyStore(...)
+        // 3. Close other chats (Exclusivity Rule)
+        try {
+            // We need the vendor ID of the accepted offer
+            const offer = await this.prisma.offer.findUnique({ where: { id: offerId } });
+            if (offer) {
+                await this.chatService.closeOtherChats(orderId, offer.storeId);
+            }
+        } catch (e) {
+            console.error('Failed to close other chats', e);
+        }
 
         return result;
     }
