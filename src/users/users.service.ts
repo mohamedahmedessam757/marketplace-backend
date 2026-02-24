@@ -3,10 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
 import { User } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService
+  ) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     const existingUser = await this.prisma.user.findUnique({
@@ -176,10 +180,24 @@ export class UsersService {
   }
 
   async update(id: string, data: { name?: string; phone?: string; avatar?: string }) {
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id },
       data: data
     });
+
+    // Notify user of profile update (Security Alert)
+    this.notificationsService.create({
+      recipientId: id,
+      recipientRole: user.role, // Dispatched dynamically
+      titleAr: 'تحديث الحساب (تنبيه أمني)',
+      titleEn: 'Account Updated (Security Alert)',
+      messageAr: 'تم تحديث بيانات ملفك الشخصي بنجاح. إذا لم تكن أنت، يرجى تغيير كلمة المرور.',
+      messageEn: 'Your profile has been updated. If this was not you, please change your password.',
+      type: 'SYSTEM',
+      link: '/dashboard/profile' // Generic link, router handles it
+    }).catch(e => console.error('Failed to dispatch profile update alert', e));
+
+    return user;
   }
 }
 

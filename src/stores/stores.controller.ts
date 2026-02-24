@@ -20,6 +20,14 @@ export class StoresController {
     uploadDocument(@Request() req, @Body() dto: UploadStoreDocumentDto) {
         return this.storesService.uploadDocument(req.user.id, dto);
     }
+
+    @Get('me/dashboard')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.VENDOR)
+    getDashboardStats(@Request() req) {
+        return this.storesService.getDashboardStats(req.user.id);
+    }
+
     @Get()
     @UseGuards(RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)

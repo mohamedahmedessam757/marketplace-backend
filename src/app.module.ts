@@ -14,7 +14,6 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { ReturnsModule } from './returns/returns.module';
-import { SupportModule } from './support/support.module';
 import { ChatModule } from './chat/chat.module';
 
 @Module({
@@ -34,9 +33,7 @@ import { ChatModule } from './chat/chat.module';
         NotificationsModule,
         SchedulerModule,
         UploadsModule,
-        UploadsModule,
         ReturnsModule,
-        SupportModule,
         ChatModule,
     ],
     controllers: [AppController],

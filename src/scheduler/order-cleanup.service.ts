@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrderStateMachine } from '../orders/fsm/order-state-machine.service';
 import { OrdersService } from '../orders/orders.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OrderStatus, ActorType } from '@prisma/client';
 
 @Injectable()
@@ -13,10 +14,11 @@ export class OrderCleanupService {
         private readonly prisma: PrismaService,
         private readonly orderStateMachine: OrderStateMachine,
         private readonly ordersService: OrdersService,
+        private readonly notificationsService: NotificationsService,
     ) { }
 
-    // Run every 10 minutes to check for expired orders
-    @Cron(CronExpression.EVERY_10_MINUTES)
+    // Run every 1 minute to check for expired orders for near real-time expirations
+    @Cron(CronExpression.EVERY_MINUTE)
     async handleCron() {
         this.logger.debug('Running Order Cleanup Job...');
         await this.expireAwaitingOffers();
@@ -34,7 +36,7 @@ export class OrderCleanupService {
                     lt: expiryDate,
                 },
             },
-            select: { id: true, orderNumber: true },
+            select: { id: true, orderNumber: true, customerId: true },
         });
 
         for (const order of expiredOrders) {
@@ -46,6 +48,17 @@ export class OrderCleanupService {
                     { type: ActorType.SYSTEM, id: 'system-scheduler', name: 'System Scheduler' },
                     'System: Order expired after 24 hours waiting for offers',
                 );
+
+                // Real-time Expiry Notification via WebSockets / Postgres Changes
+                await this.notificationsService.create({
+                    recipientId: order.customerId,
+                    recipientRole: 'CUSTOMER',
+                    titleAr: 'عذراً، طلبك لم يتلق عروض',
+                    titleEn: 'Order Expired without Offers',
+                    messageAr: `في هذا الطلب رقم (#${order.orderNumber})، انتهت مدة استلام العروض (24 ساعة). يمكنك دائماً إنشاء طلب جديد.`,
+                    messageEn: `In order (#${order.orderNumber}), the time to receive offers has ended (24h). Please feel free to create a new request.`,
+                    type: 'system_alert'
+                });
             } catch (error) {
                 this.logger.error(`Failed to expire order ${order.id}: ${error.message}`);
             }

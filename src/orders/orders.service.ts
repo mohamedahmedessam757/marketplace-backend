@@ -38,6 +38,9 @@ export class OrdersService {
                     vehicleModel: createOrderDto.vehicleModel,
                     vehicleYear: createOrderDto.vehicleYear,
                     vin: createOrderDto.vin,
+                    vinImage: createOrderDto.vinImage,
+                    requestType: createOrderDto.requestType,
+                    shippingType: createOrderDto.shippingType,
 
                     // Legacy Support: Populate single-part fields from the first part
                     partName: primaryName,
@@ -91,16 +94,31 @@ export class OrdersService {
             return order;
         });
 
-        // 3. Notification: Notify Customer (Async)
+        // 3. Notification: Notify Customer & Admin (Async)
         try {
+            // Notify Customer
             await this.notifications.create({
                 recipientId: customerId,
+                recipientRole: 'CUSTOMER',
                 titleAr: 'تم استلام طلبك بنجاح',
                 titleEn: 'Order Received Successfully',
                 messageAr: `تم إنشاء الطلب رقم ${orderNumber} وهو قيد المراجعة بانتظار العروض`,
                 messageEn: `Order #${orderNumber} has been created and is awaiting offers`,
                 type: 'ORDER',
                 link: `/dashboard/orders`,
+                metadata: { orderId: result.id, orderNumber }
+            });
+
+            // Notify Admin
+            await this.notifications.create({
+                recipientId: 'admin',
+                recipientRole: 'ADMIN',
+                titleAr: 'طلب جديد في السوق!',
+                titleEn: 'New Order in Marketplace!',
+                messageAr: `تم إنشاء طلب جديد رقم ${orderNumber} بانتظار عروض التجار.`,
+                messageEn: `A new order #${orderNumber} has been created, awaiting merchant offers.`,
+                type: 'ORDER',
+                link: `/admin/orders/${result.id}`,
                 metadata: { orderId: result.id, orderNumber }
             });
         } catch (e) {
@@ -124,7 +142,12 @@ export class OrdersService {
                 where.OR = [
                     { status: OrderStatus.AWAITING_OFFERS }, // Market
                     { storeId: user.storeId },               // Assigned to my store
-                    { offers: { some: { storeId: user.storeId } } } // I made an offer
+                    { acceptedOffer: { storeId: user.storeId } }, // Orders won by me (covers AWAITING_PAYMENT, PREPARATION, SHIPPED, etc.)
+                    {
+                        // Orders I placed an offer on, but only if they are not actively progressing with another merchant
+                        offers: { some: { storeId: user.storeId } },
+                        status: { in: [OrderStatus.AWAITING_OFFERS, OrderStatus.CANCELLED] }
+                    }
                 ];
             } else {
                 where.id = '00000000-0000-0000-0000-000000000000'; // Return none
@@ -137,13 +160,17 @@ export class OrdersService {
             where,
             orderBy: { createdAt: 'desc' },
             include: {
+                parts: true,
                 customer: { select: { name: true, email: true } },
                 offers: {
                     include: {
                         store: { select: { id: true, name: true } }
                     }
+                },
+                _count: {
+                    select: { offers: true }
                 }
-            },
+            }
         });
     }
 
@@ -157,10 +184,14 @@ export class OrdersService {
         const order = await this.prisma.order.findUnique({
             where: { id },
             include: {
+                parts: true,
                 customer: { select: { name: true, email: true, phone: true } },
                 acceptedOffer: true,
                 offers: true,
-                auditLogs: { orderBy: { timestamp: 'desc' } }
+                auditLogs: { orderBy: { timestamp: 'desc' } },
+                _count: {
+                    select: { offers: true }
+                }
             },
         });
         if (!order) throw new NotFoundException(`Order #${id} not found`);
@@ -204,26 +235,30 @@ export class OrdersService {
             return updatedOrder;
         });
 
-        // 3. Notification: Notify Customer (Async)
+        // 3. Notification: Notify Customer & Merchant (Async)
         try {
             const statusMessagesAr: Record<string, string> = {
-                'PREPARATION': 'طلبك قيد التحضير',
-                'SHIPPED': 'تم شحن طلبك',
-                'DELIVERED': 'تم توصيل طلبك',
-                'CANCELED': 'تم إلغاء طلبك',
-                'AWAITING_PAYMENT': 'يرجى إتمام عملية الدفع'
+                [OrderStatus.PREPARATION]: 'طلبك قيد التحضير والتجهيز',
+                [OrderStatus.SHIPPED]: 'تم شحن طلبك',
+                [OrderStatus.DELIVERED]: 'تم توصيل طلبك',
+                [OrderStatus.CANCELLED]: 'تم إلغاء طلبك',
+                [OrderStatus.AWAITING_PAYMENT]: 'يرجى إتمام عملية الدفع',
+                [OrderStatus.RETURNED]: 'تمت الموافقة على طلب الإرجاع الخاص بك'
             };
             const statusMessagesEn: Record<string, string> = {
-                'PREPARATION': 'Your order is being prepared',
-                'SHIPPED': 'Your order has been shipped',
-                'DELIVERED': 'Your order has been delivered',
-                'CANCELED': 'Your order has been canceled',
-                'AWAITING_PAYMENT': 'Please complete payment'
+                [OrderStatus.PREPARATION]: 'Your order is being processed and prepared',
+                [OrderStatus.SHIPPED]: 'Your order has been shipped',
+                [OrderStatus.DELIVERED]: 'Your order has been delivered',
+                [OrderStatus.CANCELLED]: 'Your order has been canceled',
+                [OrderStatus.AWAITING_PAYMENT]: 'Please complete your payment',
+                [OrderStatus.RETURNED]: 'Your return request has been approved'
             };
 
+            // 3.1 Notify Customer
             if (statusMessagesAr[newStatus]) {
                 await this.notifications.create({
                     recipientId: order.customerId,
+                    recipientRole: 'CUSTOMER',
                     titleAr: 'تحديث حالة الطلب #' + order.orderNumber,
                     titleEn: 'Order Status Update #' + order.orderNumber,
                     messageAr: statusMessagesAr[newStatus],
@@ -232,6 +267,57 @@ export class OrdersService {
                     link: `/dashboard/orders/${order.id}`,
                     metadata: { orderId: order.id, status: newStatus }
                 });
+            }
+
+            // 3.2 Notify Merchant (if order is assigned to one via acceptedOffer)
+            if (order.acceptedOfferId && ([OrderStatus.PREPARATION, OrderStatus.CANCELLED, OrderStatus.RETURNED] as OrderStatus[]).includes(newStatus)) {
+                // Determine Merchant's User ID (ownerId)
+                let merchantOwnerId = null;
+                if (order.offers && order.offers.length > 0) {
+                    const accepted = order.offers.find(o => o.id === order.acceptedOfferId) as any;
+                    if (accepted && accepted.store) merchantOwnerId = accepted.store.ownerId;
+                } else if ((order.acceptedOffer as any) && (order.acceptedOffer as any).store) {
+                    merchantOwnerId = (order.acceptedOffer as any).store.ownerId;
+                } else {
+                    // Fallback fetch
+                    const offerFetch = await this.prisma.offer.findUnique({
+                        where: { id: order.acceptedOfferId },
+                        include: { store: true }
+                    });
+                    if (offerFetch?.store?.ownerId) merchantOwnerId = offerFetch.store.ownerId;
+                }
+
+                if (merchantOwnerId) {
+                    let mTitleAr = `تحديث بخصوص الطلب #${order.orderNumber}`;
+                    let mTitleEn = `Update for Order #${order.orderNumber}`;
+                    let mMsgAr = '';
+                    let mMsgEn = '';
+
+                    if (newStatus === OrderStatus.PREPARATION) {
+                        mMsgAr = 'تم تأكيد الدفع من العميل. يرجى البدء بتجهيز الشحنة.';
+                        mMsgEn = 'Customer payment confirmed. Please begin preparing the shipment.';
+                    } else if (newStatus === OrderStatus.CANCELLED) {
+                        mMsgAr = 'تم توقيف أو إلغاء الطلب من قبل النظام أو العميل.';
+                        mMsgEn = 'The order was cancelled by the system or customer.';
+                    } else if (newStatus === OrderStatus.RETURNED) {
+                        mMsgAr = 'تم تحديث حالة الطلب إلى (مرتجع).';
+                        mMsgEn = 'The order status was updated to (Returned).';
+                    }
+
+                    if (mMsgAr) {
+                        await this.notifications.create({
+                            recipientId: merchantOwnerId,
+                            recipientRole: 'MERCHANT',
+                            titleAr: mTitleAr,
+                            titleEn: mTitleEn,
+                            messageAr: mMsgAr,
+                            messageEn: mMsgEn,
+                            type: 'ORDER',
+                            link: `/dashboard/orders/${order.id}`,
+                            metadata: { orderId: order.id, status: newStatus }
+                        });
+                    }
+                }
             }
         } catch (e) {
             console.error('Failed to send notification', e);
@@ -284,12 +370,53 @@ export class OrdersService {
         // 3. Close other chats (Exclusivity Rule)
         try {
             // We need the vendor ID of the accepted offer
-            const offer = await this.prisma.offer.findUnique({ where: { id: offerId } });
+            const offer = await this.prisma.offer.findUnique({
+                where: { id: offerId },
+                include: { store: true }
+            });
             if (offer) {
                 await this.chatService.closeOtherChats(orderId, offer.storeId);
+
+                // Notify Winning Merchant
+                if (offer.store?.ownerId) {
+                    this.notifications.create({
+                        recipientId: offer.store.ownerId,
+                        recipientRole: 'MERCHANT',
+                        titleAr: 'عُرضك تم قبوله!',
+                        titleEn: 'Your offer was accepted!',
+                        messageAr: `وافق العميل للتو على عرضك للطلب #${order.orderNumber}. بانتظار إتمام عملية الدفع.`,
+                        messageEn: `The customer just accepted your offer for Order #${order.orderNumber}. Awaiting payment.`,
+                        type: 'ORDER',
+                        link: `/dashboard/orders/${order.id}`
+                    }).catch(e => console.error('Failed to notify merchant of acceptance', e));
+                }
+
+                // Notify Losing Merchants (Reject Offers)
+                const losingOffers = await this.prisma.offer.findMany({
+                    where: {
+                        orderId: orderId,
+                        id: { not: offerId }
+                    },
+                    include: { store: true }
+                });
+
+                for (const losingOffer of losingOffers) {
+                    if (losingOffer.store?.ownerId) {
+                        this.notifications.create({
+                            recipientId: losingOffer.store.ownerId,
+                            recipientRole: 'MERCHANT',
+                            titleAr: 'تم رفض عرضك',
+                            titleEn: 'Your offer was rejected',
+                            messageAr: `نأسف، لقد قام العميل باختيار عرض آخر للطلب #${order.orderNumber}. حظاً أوفر المرة القادمة!`,
+                            messageEn: `Sorry, the customer selected another offer for Order #${order.orderNumber}. Better luck next time!`,
+                            type: 'ORDER',
+                            link: `/dashboard/orders/${order.id}`
+                        }).catch(e => console.error('Failed to notify merchant of explicit rejection', e));
+                    }
+                }
             }
         } catch (e) {
-            console.error('Failed to close other chats', e);
+            console.error('Failed to close other chats or notify', e);
         }
 
         return result;

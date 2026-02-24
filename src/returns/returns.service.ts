@@ -1,12 +1,14 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ReturnsService {
     constructor(
         private prisma: PrismaService,
-        private uploadsService: UploadsService
+        private uploadsService: UploadsService,
+        private notificationsService: NotificationsService
     ) { }
 
     async requestReturn(userId: string, orderId: string, reason: string, description: string, files: Express.Multer.File[]) {
@@ -37,7 +39,7 @@ export class ReturnsService {
         const evidenceUrls = await Promise.all(uploadPromises);
 
         // 3. Create Return Record (Transaction)
-        return await this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             // Create Return
             const returnRecord = await tx.returnRequest.create({
                 data: {
@@ -58,6 +60,11 @@ export class ReturnsService {
 
             return returnRecord;
         });
+
+        // 4. Notify Admin & Merchant (Fire and Forget)
+        this.notifyResolutionCenter(orderId, 'RETURN_REQUEST', order.orderNumber).catch(e => console.error('Failed to notify return', e));
+
+        return result;
     }
 
     async escalateDispute(userId: string, orderId: string, reason: string, description: string, files: Express.Multer.File[]) {
@@ -92,7 +99,7 @@ export class ReturnsService {
         const evidenceUrls = await Promise.all(uploadPromises);
 
         // 3. Create Dispute Record (Transaction)
-        return await this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             // Create Dispute
             const disputeRecord = await tx.dispute.create({
                 data: {
@@ -113,6 +120,50 @@ export class ReturnsService {
 
             return disputeRecord;
         });
+
+        // 4. Notify Admin & Merchant (Fire and Forget)
+        this.notifyResolutionCenter(orderId, 'DISPUTE', order.orderNumber).catch(e => console.error('Failed to notify dispute', e));
+
+        return result;
+    }
+
+    private async notifyResolutionCenter(orderId: string, type: 'RETURN_REQUEST' | 'DISPUTE', orderNumber: string) {
+        // Find Merchant
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: { acceptedOffer: { include: { store: true } } }
+        });
+
+        const merchantOwnerId = order?.acceptedOffer?.store?.ownerId;
+
+        const titleAr = type === 'DISPUTE' ? 'نزاع جديد (شكوى)' : 'طلب إرجاع جديد';
+        const titleEn = type === 'DISPUTE' ? 'New Dispute Opened' : 'New Return Request';
+        const messageAr = type === 'DISPUTE'
+            ? `قام العميل برفع شكوى/نزاع بخصوص الطلب #${orderNumber}`
+            : `قام العميل بتقديم طلب إرجاع للطلب #${orderNumber}`;
+        const messageEn = type === 'DISPUTE'
+            ? `Customer opened a dispute for Order #${orderNumber}`
+            : `Customer requested a return for Order #${orderNumber}`;
+
+        // Notify global admin
+        await this.notificationsService.create({
+            recipientId: 'admin',
+            recipientRole: 'ADMIN',
+            titleAr, titleEn, messageAr, messageEn,
+            type: type === 'DISPUTE' ? 'DISPUTE' : 'RETURN',
+            link: `/admin/orders/${orderId}`
+        });
+
+        // Notify assigned merchant
+        if (merchantOwnerId) {
+            await this.notificationsService.create({
+                recipientId: merchantOwnerId,
+                recipientRole: 'MERCHANT',
+                titleAr, titleEn, messageAr, messageEn,
+                type: type === 'DISPUTE' ? 'DISPUTE' : 'RETURN',
+                link: `/dashboard/orders/${orderId}`
+            });
+        }
     }
 
     async getUserReturns(userId: string) {

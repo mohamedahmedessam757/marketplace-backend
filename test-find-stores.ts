@@ -1,0 +1,1 @@
+import { PrismaClient } from '@prisma/client'; const prisma = new PrismaClient(); async function main() { const stores = await prisma.store.findMany(); console.log('? Stores Fetched Successfully:', stores.length); } main().finally(() => prisma.$disconnect());

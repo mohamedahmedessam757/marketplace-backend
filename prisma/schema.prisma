@@ -85,6 +85,15 @@ model User {
   settings        UserSettings?
   avatar          String?   @map("avatar")
   
+  // Security & Recovery
+  recoveryStatus         String?   @map("recovery_status") // e.g., 'PENDING_REVIEW'
+  withdrawalsFrozenUntil DateTime? @map("withdrawals_frozen_until") @db.Timestamptz
+  lastLoginIp            String?   @map("last_login_ip")
+  lastLoginDevice        String?   @map("last_login_device")
+  
+  accountRecoveryRequests AccountRecoveryRequest[]
+  securityLogs            SecurityLog[]
+  
   @@index([email])
   @@index([role])
   @@map("users")
@@ -165,6 +174,7 @@ model Order {
   vehicleModel      String      @map("vehicle_model")
   vehicleYear       Int         @map("vehicle_year") @db.SmallInt
   vin               String?
+  vinImage          String?     @map("vin_image")
   
   // Part Details
   partName          String      @map("part_name")
@@ -174,6 +184,8 @@ model Order {
   // Preferences
   conditionPref     String?     @map("condition_pref")
   warrantyPreferred Boolean?    @default(false) @map("warranty_preferred")
+  requestType       String?     @map("request_type")
+  shippingType      String?     @map("shipping_type")
   
   // Financials
   totalAmount       Decimal?    @map("total_amount") @db.Decimal(14, 2)
@@ -349,64 +361,38 @@ model Dispute {
   @@map("disputes")
 }
 
-model SupportTicket {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ticketNumber  String   @unique @map("ticket_number")
-  subject       String
-  message       String
-  status        String   @default("OPEN") // OPEN, CLOSED, RESOLVED
-  priority      String   @default("MEDIUM") // LOW, MEDIUM, HIGH
-  userId        String   @map("user_id") @db.Uuid
-  userType      String   @default("customer") @map("user_type") // customer, merchant
-  
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
-  
-  messages      TicketMessage[]
-  
-  @@map("support_tickets")
-}
 
-model TicketMessage {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ticketId      String   @map("ticket_id") @db.Uuid
-  senderId      String   @map("sender_id") @db.Uuid
-  senderRole    String   @default("user") @map("sender_role") // user, admin, support
-  text          String
-  mediaUrl      String?  @map("media_url")
-  mediaType     String?  @map("media_type") // image, video
-  
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
-  
-  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  
-  @@index([ticketId])
-  @@map("ticket_messages")
-}
 
 model OrderChat {
-  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId              String   @map("order_id") @db.Uuid
-  vendorId             String   @map("vendor_id") @db.Uuid
-  customerId           String   @map("customer_id") @db.Uuid
-  status               String   @default("OPEN") // OPEN, CLOSED, EXPIRED
-  expiryAt             DateTime @map("expiry_at") @db.Timestamptz
-  isTranslationEnabled Boolean  @default(false) @map("is_translation_enabled")
+  id                           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId                      String?  @map("order_id") @db.Uuid
+  vendorId                     String?  @map("vendor_id") @db.Uuid // Optional for support chats
+  customerId                   String   @map("customer_id") @db.Uuid
+  status                       String   @default("OPEN") // OPEN, CLOSED, EXPIRED, RESOLVED (for support)
+  type                         String   @default("order") // order, support
+  expiryAt                     DateTime? @map("expiry_at") @db.Timestamptz // Optional for support
   
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  // Role-Specific Translation Timestamps
+  customerTranslationEnabledAt DateTime? @map("customer_translation_enabled_at") @db.Timestamptz
+  vendorTranslationEnabledAt   DateTime? @map("vendor_translation_enabled_at") @db.Timestamptz
+  adminTranslationEnabledAt    DateTime? @map("admin_translation_enabled_at") @db.Timestamptz
+  
+  createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                    DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  messages             OrderChatMessage[]
+  messages                     OrderChatMessage[]
   
   // Relations
-  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  vendor               Store    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  customer             User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order                        Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendor                       Store?   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  customer                     User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  @@unique([orderId, vendorId]) // Ensure one chat per vendor per order
+  // Modified uniqueness constraints to allow multiple support chats per order
+  @@unique([orderId, vendorId, type]) 
   @@index([orderId])
   @@index([vendorId])
   @@index([customerId])
+  @@index([type])
   @@map("order_chats")
 }
 
@@ -418,10 +404,63 @@ model OrderChatMessage {
   translatedText String?  @map("translated_text")
   isRead         Boolean  @default(false) @map("is_read")
   
+  // Media Support Extensions
+  mediaUrl       String?  @map("media_url")
+  mediaType      String?  @map("media_type") // image, video, pdf, docx
+  mediaName      String?  @map("media_name") // To display original file name for documents
+  
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   
   chat           OrderChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@index([chatId])
   @@map("order_chat_messages")
+}
+
+model AccountRecoveryRequest {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  oldPhone        String?  @map("old_phone")
+  newPhone        String   @map("new_phone")
+  status          String   @default("PENDING_REVIEW") // PENDING_REVIEW, APPROVED, REJECTED
+  
+  // Risk Profile Snapshot
+  balanceSnapshot Decimal  @default(0) @db.Decimal(14, 2)
+  openOrdersCount Int      @default(0)
+  disputesCount   Int      @default(0)
+
+  // Security Metdata
+  requestIp       String?  @map("request_ip")
+  requestDevice   String?  @map("request_device")
+  
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz
+  resolvedBy      String?   @map("resolved_by") @db.Uuid // Admin ID
+  
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@index([status])
+  @@index([userId])
+  @@map("account_recovery_requests")
+}
+
+model SecurityLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid // Optional, might be unauthenticated
+  email       String?
+  action      String   // e.g., 'RECOVERY_OTP_SENT', 'RECOVERY_FAILED', 'RECOVERY_BLOCKED'
+  ipAddress   String?  @map("ip_address")
+  device      String?
+  isSuccess   Boolean  @map("is_success")
+  
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([email])
+  @@index([ipAddress])
+  @@index([action])
+  @@map("security_logs")
 }

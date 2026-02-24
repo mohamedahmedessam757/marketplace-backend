@@ -6,6 +6,10 @@ export class CreateNotificationDto {
     recipientId: string;
 
     @IsString()
+    @IsOptional()
+    recipientRole?: string;
+
+    @IsString()
     @IsNotEmpty()
     titleAr: string;
 
