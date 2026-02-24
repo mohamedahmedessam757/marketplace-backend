@@ -1,0 +1,14 @@
+{
+    "extends": "./tsconfig.json",
+    "exclude": [
+        "node_modules",
+        "test",
+        "dist",
+        "**/*spec.ts",
+        "fix-db.ts",
+        "test-db.ts",
+        "test-find-stores.ts",
+        "scripts",
+        "prisma"
+    ]
+}
