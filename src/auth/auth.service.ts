@@ -116,10 +116,16 @@ export class AuthService {
     }
 
     async initiateMobileLogin(phone: string) {
+        console.log(`[AuthService] Initiating login for phone: ${phone}`);
         const user = await this.usersService.findByPhone(phone);
+        
         if (!user) {
+            console.warn(`[AuthService] User not found for phone: ${phone}`);
             return null; // Controller will handle 404/Unauthorized
         }
+
+        console.log(`[AuthService] User found: ${user.id}, Role: ${user.role}`);
+
         // Return public user info needed for OTP selection
         return {
             exists: true,
