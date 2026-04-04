@@ -3,6 +3,7 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException,
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatGateway } from './chat.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class ChatService {
@@ -10,7 +11,8 @@ export class ChatService {
         private prisma: PrismaService,
         @Inject(forwardRef(() => ChatGateway))
         private chatGateway: ChatGateway,
-        private notificationsService: NotificationsService
+        private notificationsService: NotificationsService,
+        private auditLogsService: AuditLogsService
     ) { }
 
     async createOrGetChat(orderId: string, vendorId: string, customerId: string) {
@@ -95,12 +97,14 @@ export class ChatService {
         const fullChat = await this.prisma.orderChat.findUnique({
             where: { id: chat.id },
             include: {
-                vendor: { select: { name: true, logo: true } },
+                vendor: { select: { name: true, logo: true, storeCode: true } },
                 customer: { select: { name: true, avatar: true } },
-                order: { select: { orderNumber: true, partName: true } }
+                order: { select: { orderNumber: true, partName: true } },
+                messages: { orderBy: { createdAt: 'asc' } }
             }
         });
 
+        if (!fullChat) throw new NotFoundException('Chat not found');
         return this.mapChatToDto(fullChat);
     }
 
@@ -108,81 +112,217 @@ export class ChatService {
         const chat = await this.prisma.orderChat.findUnique({
             where: { id },
             include: {
-                vendor: { select: { name: true, logo: true } },
-                customer: { select: { name: true, avatar: true } },
-                order: { select: { orderNumber: true, partName: true } }
+                vendor: { select: { name: true, logo: true, id: true, storeCode: true } },
+                customer: { select: { name: true, avatar: true, id: true } },
+                order: { select: { orderNumber: true, partName: true, id: true } },
+                messages: { orderBy: { createdAt: 'asc' } }
             }
         });
         if (!chat) throw new NotFoundException('Chat not found');
         return this.mapChatToDto(chat);
     }
 
-    async getUserChats(userId: string, role: string) {
+    async getUserChats(userId: string, role: string, type?: string) {
         let chats = [];
+        // Resolve the effective sender ID for unread calculation
+        let effectiveSenderId = userId;
+
+        const baseInclude = {
+            customer: { select: { name: true, avatar: true } },
+            vendor: { select: { name: true, logo: true, storeCode: true } },
+            order: { select: { orderNumber: true, partName: true } },
+            messages: { 
+                where: { isDeletedByAdmin: false },
+                orderBy: { createdAt: 'desc' as const }, 
+                take: 1 
+            },
+            _count: { select: { messages: { where: { isRead: false, senderId: { not: userId }, isDeletedByAdmin: false } } } }
+        };
+
         if (role === 'CUSTOMER') {
             chats = await this.prisma.orderChat.findMany({
-                where: { customerId: userId },
-                include: {
-                    vendor: { select: { name: true, logo: true } },
-                    order: { select: { orderNumber: true, partName: true } },
-                    messages: { orderBy: { createdAt: 'desc' }, take: 1 }
-                },
+                where: { customerId: userId, isDeletedByAdmin: false } as any,
+                include: baseInclude as any,
                 orderBy: { updatedAt: 'desc' }
             });
         } else if (role === 'VENDOR') {
             const store = await this.prisma.store.findUnique({ where: { ownerId: userId } });
             if (!store) return [];
+            effectiveSenderId = store.id;
 
             chats = await this.prisma.orderChat.findMany({
-                where: { vendorId: store.id },
-                include: {
-                    customer: { select: { name: true, avatar: true } },
-                    vendor: { select: { name: true, logo: true } }, // Include store for consistency
-                    order: { select: { orderNumber: true, partName: true } },
-                    messages: { orderBy: { createdAt: 'desc' }, take: 1 }
-                },
+                where: { 
+                    OR: [
+                        { vendorId: store.id },
+                        { customerId: userId, type: 'support' } // Included Merchant-initiated support tickets
+                    ],
+                    isDeletedByAdmin: false 
+                } as any,
+                include: baseInclude as any,
                 orderBy: { updatedAt: 'desc' }
             });
-        } else if (role === 'ADMIN') {
+        } else if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+            // Admin sees chats based on type if provided
+            const where: any = { isDeletedByAdmin: false };
+            if (type) where.type = type;
+
             chats = await this.prisma.orderChat.findMany({
-                where: { type: 'support' },
+                where,
                 include: {
-                    customer: { select: { name: true, avatar: true } },
-                    order: { select: { orderNumber: true, partName: true } },
-                    messages: { orderBy: { createdAt: 'desc' }, take: 1 }
-                },
+                    ...baseInclude,
+                    messages: { 
+                        orderBy: { createdAt: 'desc' as const }, 
+                        take: 1 
+                    },
+                    _count: { select: { messages: { where: { isRead: false, senderId: { not: userId } } } } }
+                } as any,
                 orderBy: { updatedAt: 'desc' }
             });
         }
 
-        return chats.map(chat => ({
+        return chats.map((chat: any) => ({
             ...this.mapChatToDto(chat),
             lastMessage: chat.messages?.[0]?.text || '',
             lastMessageTime: chat.messages?.[0]?.createdAt || chat.updatedAt,
-            unreadCount: 0 // logic for unread count to be added if table supports it
+            unreadCount: chat._count?.messages || 0
         }));
     }
 
     private mapChatToDto(chat: any) {
         return {
             ...chat,
-            vendorName: chat.store?.name,
-            vendorLogo: chat.store?.logo,
+            vendorName: chat.vendor?.name,
+            vendorLogo: chat.vendor?.logo,
+            vendorCode: chat.vendor?.storeCode, // ADDED
             customerName: chat.customer?.name,
             customerAvatar: chat.customer?.avatar,
+            customerCode: chat.customerId ? `CUS-${chat.customerId.substring(0, 6).toUpperCase()}` : undefined, // ADDED
             orderNumber: chat.order?.orderNumber,
             partName: chat.order?.partName,
-            // Flatten generic messages lastMessage if needed, or handle in loop
+            // Only keep the messages if they exist (we don't want to map over undefined if not selected)
+            messages: chat.messages ? chat.messages : []
         };
     }
 
-    async sendMessage(chatId: string, senderId: string, text: string, senderRole?: string, mediaUrl?: string, mediaType?: string, mediaName?: string) {
+    /**
+     * Mark all messages in a chat as read for the given user.
+     * Only marks messages NOT sent by the user (i.e., incoming messages).
+     */
+    async markMessagesAsRead(chatId: string, userId: string) {
         const chat = await this.prisma.orderChat.findUnique({ where: { id: chatId } });
+        if (!chat) throw new NotFoundException('Chat not found');
+
+        const result = await this.prisma.orderChatMessage.updateMany({
+            where: {
+                chatId,
+                senderId: { not: userId },
+                isRead: false,
+                isDeletedByAdmin: false
+            } as any,
+            data: { isRead: true }
+        });
+
+        // Broadcast read status to WebSocket room for real-time ✔✔
+        if (result.count > 0) {
+            try {
+                this.chatGateway.server.to(chatId).emit('messagesRead', {
+                    chatId,
+                    readByUserId: userId,
+                    readAt: new Date().toISOString()
+                });
+            } catch (e) {
+                console.error('WebSocket messagesRead broadcast failed', e);
+            }
+        }
+
+        return { markedCount: result.count };
+    }
+
+    async sendMessage(chatId: string, senderId: string | null, text: string, senderRole?: string, mediaUrl?: string, mediaType?: string, mediaName?: string, priority?: string, subject?: string) {
+        const chat = await this.prisma.orderChat.findUnique({ 
+            where: { id: chatId },
+            include: { 
+                customer: { select: { name: true } }, 
+                vendor: { select: { name: true } } 
+            } 
+        });
         if (!chat) throw new NotFoundException('Chat not found');
 
         if (chat.status === 'CLOSED' || chat.status === 'EXPIRED') {
             throw new ForbiddenException(`Chat is ${chat.status}`);
         }
+
+        // --- Chat Guard (Filter) ---
+        if (text) {
+            let isViolation = false;
+            // 1. Regex Pass (Fast)
+            const infoRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})|((?:\+|00)\d{1,3}[\s-]*(?:\d[\s-]*){8,15})|(05\d[\s-]*\d[\s-]*\d[\s-]*\d[\s-]*\d[\s-]*\d)|(https?:\/\/[^\s]+)|(www\.[^\s]+)|(wa\.me\/\d+)/i;
+            if (infoRegex.test(text)) {
+                isViolation = true;
+            }
+
+            // 2. AI Pass if Regex is clean (Smart)
+            if (!isViolation && process.env.GEMINI_API_KEY) {
+                try {
+                    const { GoogleGenerativeAI } = require("@google/generative-ai");
+                    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                    
+                    const prompt = `You are a strict chat filter. Your task is to detect if the user is trying to share contact information (phone numbers, emails, website links, or WhatsApp) to bypass the system. 
+Check this text: "${text}"
+If it contains or attempts to share any contact info (even if obfuscated like 'zero five' or 'my number is'), reply exactly with "VIOLATION". Otherwise, reply exactly with "CLEAN". Do not explain.`;
+                    
+                    const result = await model.generateContent(prompt);
+                    const verdict = result.response.text().trim().toUpperCase();
+                    if (verdict.includes("VIOLATION")) {
+                        isViolation = true;
+                    }
+                } catch (e: any) {
+                    console.error("AI chat filter failed:", e.message);
+                }
+            }
+
+            if (isViolation) {
+                const actorName = senderRole === 'CUSTOMER' ? chat.customer?.name : (chat.vendor?.name || 'Unknown');
+                const actorType = senderRole === 'CUSTOMER' ? 'CUSTOMER' : 'VENDOR';
+                await this.auditLogsService.logAction({
+                    action: 'CHAT_VIOLATION',
+                    entity: 'OrderChat',
+                    actorType: actorType as any,
+                    actorId: senderId || 'SYSTEM',
+                    actorName: actorName || 'Unknown',
+                    metadata: { text, chatId, senderRole }
+                });
+
+                // Notify all Admins immediately about the violation
+                try {
+                    const admins = await this.prisma.user.findMany({
+                        where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } }
+                    });
+                    
+                    for (const admin of admins) {
+                        await this.prisma.notification.create({
+                            data: {
+                                recipientId: admin.id,
+                                recipientRole: admin.role,
+                                type: 'CHAT_VIOLATION',
+                                titleAr: 'مخالفة فلتر المحادثات 🛡️',
+                                titleEn: 'Chat filter violation 🛡️',
+                                messageAr: `تم رصد محاولة مشاركة بيانات اتصال من طرف (${actorName}) في المحادثة.`,
+                                messageEn: `Detected contact sharing attempt from (${actorName}) in chat.`,
+                                metadata: { chatId, text },
+                                isRead: false
+                            }
+                        });
+                    }
+                } catch (notifError) {
+                    console.error('Failed to dispatch Admin notifications:', notifError);
+                }
+
+                throw new BadRequestException('CHAT_VIOLATION_DETECTED');
+            }
+        }
+        // --- End Chat Guard ---
 
         const messageCreatedAt = new Date();
 
@@ -200,18 +340,35 @@ export class ChatService {
             try {
                 const { GoogleGenerativeAI } = require("@google/generative-ai");
                 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+                // Try multiple valid models starting from newest 2026 models
+                const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-pro"];
                 const prompt = `You are a universal translator for an auto parts marketplace. 
                 If the following text is in Arabic, translate it to English. 
                 If it is in English, translate it to Arabic. 
                 Respond ONLY with the translated text, nothing else. 
                 Text: "${text}"`;
 
-                const result = await model.generateContent(prompt);
-                translatedText = result.response.text().trim();
+                for (const modelName of fallbackModels) {
+                    try {
+                        const model = genAI.getGenerativeModel({ model: modelName });
+                        const result = await model.generateContent(prompt);
+                        translatedText = result.response.text().trim();
+                        break; // Stop loop on first success
+                    } catch (modelError: any) {
+                        // If it's a 404, we just continue to the next model. Otherwise, log it.
+                        if (modelError?.status === 404 || modelError?.message?.includes('404')) {
+                            continue;
+                        }
+                        console.error(`Gemini Error on ${modelName}:`, modelError.message);
+                    }
+                }
+
+                if (!translatedText) {
+                    console.error("Gemini Translation Error: All fallback models failed or returned 404.");
+                }
             } catch (error) {
-                console.error("Gemini Translation Error:", error);
+                console.error("Gemini Translation Setup Error:", error);
                 translatedText = null;
             }
         }
@@ -219,14 +376,16 @@ export class ChatService {
         const message = await this.prisma.orderChatMessage.create({
             data: {
                 chatId,
-                senderId,
+                senderId: senderId || undefined,
                 text: text || '',
                 translatedText,
                 mediaUrl,
                 mediaType,
                 mediaName,
+                priority: priority as any,
+                subject: subject as any,
                 createdAt: messageCreatedAt
-            }
+            } as any
         });
 
         // Broadcast to WebSocket clients immediately (0ms latency visual sync)
@@ -236,10 +395,12 @@ export class ChatService {
             console.error('WebSocket dispatch failed', e);
         }
 
-        // Fire & Forget Notifications (Non-blocking)
-        this.dispatchChatNotification(chat, senderId, text).catch(e => {
-            console.error('Failed to dispatch chat notification:', e);
-        });
+        // Fire & Forget Notifications (Non-blocking) — skip for system messages
+        if (senderId) {
+            this.dispatchChatNotification(chat, senderId, text).catch(e => {
+                console.error('Failed to dispatch chat notification:', e);
+            });
+        }
 
         return message;
     }
@@ -261,7 +422,7 @@ export class ChatService {
                 chatId: chat.id,
                 senderId: senderId,
                 createdAt: {
-                    gte: new Date(Date.now() - 60000) // 1 minute
+                    gte: new Date(Date.now() - 3000) // 3 seconds spam block instead of 60 seconds
                 }
             }
         });
@@ -274,15 +435,25 @@ export class ChatService {
         if (chat.type === 'support') {
             // Support Chat: Admin <-> Customer
             if (senderId === chat.customerId) {
-                // Customer -> Admin (Admin doesn't have a rigid standard notification via DB yet, but we can set it to Admin)
-                recipientId = 'admin'; // Assuming 'admin' is handled uniquely
+                // Customer -> Admin 
+                // Fix: Fetch an actual admin user ID from the DB to satisfy the foreign key constraint.
+                const adminUser = await this.prisma.user.findFirst({
+                    where: { role: 'ADMIN' },
+                    select: { id: true }
+                });
+
+                if (!adminUser) return; // Prevent creating notification if NO admin exists
+
+                recipientId = adminUser.id;
                 recipientRole = 'ADMIN';
                 titleAr = 'رسالة دعم جديدة';
                 titleEn = 'New Support Message';
             } else {
-                // Admin -> Customer
+                // Admin -> User (Wait, who is the user? Check role)
+                const user = await this.prisma.user.findUnique({ where: { id: chat.customerId }, select: { role: true } });
+                
                 recipientId = chat.customerId;
-                recipientRole = 'CUSTOMER';
+                recipientRole = user?.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER'; 
                 titleAr = 'رد جديد من الدعم الفني';
                 titleEn = 'New Reply from Support';
             }
@@ -290,12 +461,25 @@ export class ChatService {
             // Normal Order Chat: Customer <-> Vendor
             if (senderId === chat.customerId) {
                 // Customer -> Vendor
-                recipientId = chat.vendorId;
+                // IMPORTANT FIX: chat.vendorId is a STORE ID, but Notification recipientId must be a USER ID.
+                if (chat.vendorId) {
+                    const store = await this.prisma.store.findUnique({
+                        where: { id: chat.vendorId },
+                        select: { ownerId: true }
+                    });
+                    if (store) recipientId = store.ownerId;
+                }
                 recipientRole = 'MERCHANT';
                 titleAr = `رسالة من العميل بخصوص طلب ${chat.orderId?.substring(0, 6) || ''}`;
                 titleEn = `Message from Customer for Order ${chat.orderId?.substring(0, 6) || ''}`;
             } else if (senderId === chat.vendorId) {
-                // Vendor -> Customer
+                // Vendor -> Customer (senderId from frontend is sometimes storeId, but we send to customer)
+                recipientId = chat.customerId;
+                recipientRole = 'CUSTOMER';
+                titleAr = `رسالة من التاجر بخصوص طلب ${chat.orderId?.substring(0, 6) || ''}`;
+                titleEn = `Message from Merchant for Order ${chat.orderId?.substring(0, 6) || ''}`;
+            } else {
+                // Fallback if senderId is the actual User ID of the Vendor (Owner) 
                 recipientId = chat.customerId;
                 recipientRole = 'CUSTOMER';
                 titleAr = `رسالة من التاجر بخصوص طلب ${chat.orderId?.substring(0, 6) || ''}`;
@@ -331,7 +515,7 @@ export class ChatService {
         });
     }
 
-    async createSupportChat(customerId: string, subject: string, initialMessage: string, orderId?: string, mediaUrl?: string, mediaType?: string, mediaName?: string) {
+    async createSupportChat(customerId: string, subject: string, initialMessage: string, orderId?: string, mediaUrl?: string, mediaType?: string, mediaName?: string, priority?: string) {
         // Enforce order validation ONLY if orderId is strictly provided
         if (orderId) {
             const order = await this.prisma.order.findUnique({ where: { id: orderId } });
@@ -352,7 +536,7 @@ export class ChatService {
         });
 
         // Add the initial message mapping the subject and content
-        await this.sendMessage(chat.id, customerId, `[${subject}] ${initialMessage}`, 'CUSTOMER', mediaUrl, mediaType, mediaName);
+        await this.sendMessage(chat.id, customerId, initialMessage, 'CUSTOMER', mediaUrl, mediaType, mediaName, priority, subject);
 
         return chat;
     }
@@ -367,5 +551,96 @@ export class ChatService {
             },
             data: { status: 'CLOSED' }
         });
+    }
+
+    /**
+     * Admin action: close a chat or block a user from it.
+     */
+    async adminAction(chatId: string, action: 'close' | 'block' | 'join' | 'deleteChat' | 'deleteMessage' | 'evidence', payload?: any) {
+        const chat = await this.prisma.orderChat.findUnique({ 
+            where: { id: chatId },
+            include: {
+                customer: { select: { id: true, name: true, email: true } },
+                vendor: { include: { owner: { select: { id: true, name: true, email: true } } } },
+                order: true
+            }
+        });
+        if (!chat) throw new NotFoundException('Chat not found');
+
+        switch (action) {
+            case 'close':
+                await this.prisma.orderChat.update({
+                    where: { id: chatId },
+                    data: { status: 'CLOSED' }
+                });
+                this.chatGateway.server.to(chatId).emit('chatStatusChanged', { chatId, status: 'CLOSED', reason: 'Admin closed this conversation' });
+                return { success: true, action: 'close' };
+
+            case 'block':
+                if (!payload?.userId) throw new BadRequestException('userId required');
+                
+                // 1. Account-level blocking
+                await this.prisma.user.update({
+                    where: { id: payload.userId },
+                    data: { status: 'BLOCKED' }
+                });
+
+                // 2. Chat-level closing
+                await this.prisma.orderChat.update({
+                    where: { id: chatId },
+                    data: { status: 'CLOSED' }
+                });
+                
+                await this.sendMessage(chatId, null, `User has been blocked from the platform by an administrator.`, 'SYSTEM');
+                this.chatGateway.server.to(chatId).emit('chatStatusChanged', { chatId, status: 'CLOSED', reason: 'Admin blocked a participant' });
+                return { success: true, action: 'block', userId: payload.userId };
+
+            case 'join':
+                await this.prisma.orderChat.update({
+                    where: { id: chatId },
+                    data: { adminJoinedAt: new Date() } as any
+                });
+                await this.sendMessage(chatId, null, 'An administrator has joined this conversation for monitoring.', 'SYSTEM');
+                return { success: true, action: 'join' };
+
+            case 'deleteChat':
+                await this.prisma.orderChat.update({
+                    where: { id: chatId },
+                    data: { isDeletedByAdmin: true } as any
+                });
+                this.chatGateway.server.to(chatId).emit('chatDeleted', { chatId });
+                return { success: true, action: 'deleteChat' };
+
+            case 'deleteMessage':
+                if (!payload?.messageId) throw new BadRequestException('messageId required');
+                await this.prisma.orderChatMessage.update({
+                    where: { id: payload.messageId },
+                    data: { isDeletedByAdmin: true } as any
+                });
+                this.chatGateway.server.to(chatId).emit('messageDeleted', { chatId, messageId: payload.messageId });
+                return { success: true, action: 'deleteMessage' };
+
+            case 'evidence':
+                const allMessages = await this.prisma.orderChatMessage.findMany({
+                    where: { chatId },
+                    orderBy: { createdAt: 'asc' }
+                });
+                return {
+                    chatMetadata: {
+                        chatId: chat.id,
+                        orderId: chat.orderId,
+                        orderNumber: (chat.order as any)?.orderNumber,
+                        customer: chat.customer,
+                        vendor: chat.vendor,
+                        createdAt: chat.createdAt,
+                        status: chat.status
+                    },
+                    evidenceSnapshot: allMessages,
+                    timestamp: new Date()
+                };
+
+            default:
+                throw new BadRequestException('Invalid admin action');
+        }
     }
 }

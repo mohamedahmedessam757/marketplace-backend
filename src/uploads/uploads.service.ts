@@ -28,7 +28,7 @@ export class UploadsService {
         });
     }
 
-    async uploadFile(file: Express.Multer.File, pathPrefix: string): Promise<string> {
+    async uploadFile(file: Express.Multer.File, pathPrefix: string, bucket: string = 'returns-disputes'): Promise<string> {
         if (!file) {
             throw new BadRequestException('No file provided');
         }
@@ -38,7 +38,7 @@ export class UploadsService {
 
         // Upload using Service Role (Bypasses RLS)
         const { data, error } = await this.supabase.storage
-            .from('returns-disputes')
+            .from(bucket)
             .upload(fileName, file.buffer, {
                 contentType: file.mimetype,
                 upsert: false
@@ -51,7 +51,7 @@ export class UploadsService {
 
         // Get Public URL
         const { data: publicUrlData } = this.supabase.storage
-            .from('returns-disputes')
+            .from(bucket)
             .getPublicUrl(fileName);
 
         return publicUrlData.publicUrl;

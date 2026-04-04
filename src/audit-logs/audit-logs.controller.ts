@@ -21,4 +21,9 @@ export class AuditLogsController {
     findByOrder(@Param('orderId') orderId: string) {
         return this.auditLogsService.findByOrder(orderId);
     }
+
+    @Get('action/:action')
+    findByAction(@Param('action') action: string) {
+        return this.auditLogsService.findByAction(action);
+    }
 }

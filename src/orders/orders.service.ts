@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStateMachine } from './fsm/order-state-machine.service';
@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ActorType, Order, OrderStatus } from '@prisma/client';
 
 import { ChatService } from '../chat/chat.service';
+import { ShipmentsService } from '../shipments/shipments.service';
 
 @Injectable()
 export class OrdersService {
@@ -16,6 +17,7 @@ export class OrdersService {
         private auditLogs: AuditLogsService,
         private notifications: NotificationsService,
         private chatService: ChatService, // Injected
+        private shipmentsService: ShipmentsService
     ) { }
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -136,21 +138,45 @@ export class OrdersService {
             where.customerId = user.id;
         }
 
-        // 2. Vendor: See OPEN orders OR orders they are involved in
+        // 2. Vendor: See OPEN orders (to bid) OR orders they are personally involved in
         else if (user.role === 'VENDOR') {
-            if (user.storeId) {
+            const store = await this.prisma.store.findFirst({
+                where: { ownerId: user.id },
+                select: { id: true, selectedMakes: true, selectedModels: true }
+            });
+
+            if (store) {
+                const storeId = store.id;
+                const hasMakes = store.selectedMakes && store.selectedMakes.length > 0;
+                const hasModels = store.selectedModels && store.selectedModels.length > 0;
+
                 where.OR = [
-                    { status: OrderStatus.AWAITING_OFFERS }, // Market
-                    { storeId: user.storeId },               // Assigned to my store
-                    { acceptedOffer: { storeId: user.storeId } }, // Orders won by me (covers AWAITING_PAYMENT, PREPARATION, SHIPPED, etc.)
+                    // Specialized New Requests: Case-insensitive matching
                     {
-                        // Orders I placed an offer on, but only if they are not actively progressing with another merchant
-                        offers: { some: { storeId: user.storeId } },
-                        status: { in: [OrderStatus.AWAITING_OFFERS, OrderStatus.CANCELLED] }
+                        status: OrderStatus.AWAITING_OFFERS,
+                        AND: [
+                            hasMakes ? {
+                                OR: store.selectedMakes.map(make => ({
+                                    vehicleMake: { equals: make, mode: 'insensitive' }
+                                }))
+                            } : {},
+                            hasModels ? {
+                                OR: store.selectedModels.map(model => ({
+                                    vehicleModel: { equals: model, mode: 'insensitive' }
+                                }))
+                            } : {}
+                        ]
+                    },
+                    
+                    // Involved Orders: Projects I've already touched or won
+                    { storeId: storeId },
+                    { acceptedOffer: { storeId: storeId } },
+                    {
+                        offers: { some: { storeId: storeId } }
                     }
                 ];
             } else {
-                where.id = '00000000-0000-0000-0000-000000000000'; // Return none
+                where.id = '00000000-0000-0000-0000-000000000000'; // Return none if no store
             }
         }
 
@@ -161,12 +187,14 @@ export class OrdersService {
             orderBy: { createdAt: 'desc' },
             include: {
                 parts: true,
-                customer: { select: { name: true, email: true } },
+                customer: { select: { id: true, name: true, email: true } },
                 offers: {
                     include: {
-                        store: { select: { id: true, name: true } }
+                        store: { select: { id: true, name: true, storeCode: true, logo: true } }
                     }
                 },
+                verificationDocuments: { orderBy: { createdAt: 'desc' } },
+                shipments: { orderBy: { createdAt: 'desc' } },
                 _count: {
                     select: { offers: true }
                 }
@@ -185,10 +213,20 @@ export class OrdersService {
             where: { id },
             include: {
                 parts: true,
-                customer: { select: { name: true, email: true, phone: true } },
-                acceptedOffer: true,
-                offers: true,
+                customer: { select: { id: true, name: true, email: true, phone: true } },
+                acceptedOffer: { include: { store: true } },
+                shipments: { orderBy: { createdAt: 'desc' } },
+                offers: {
+                    include: {
+                        store: { select: { id: true, name: true, storeCode: true, logo: true } }
+                    }
+                },
+                invoices: { 
+                    orderBy: { issuedAt: 'desc' }
+                },
+                shippingWaybills: { orderBy: { issuedAt: 'desc' } },
                 auditLogs: { orderBy: { timestamp: 'desc' } },
+                verificationDocuments: { orderBy: { createdAt: 'desc' } },
                 _count: {
                     select: { offers: true }
                 }
@@ -273,11 +311,13 @@ export class OrdersService {
             if (order.acceptedOfferId && ([OrderStatus.PREPARATION, OrderStatus.CANCELLED, OrderStatus.RETURNED] as OrderStatus[]).includes(newStatus)) {
                 // Determine Merchant's User ID (ownerId)
                 let merchantOwnerId = null;
-                if (order.offers && order.offers.length > 0) {
-                    const accepted = order.offers.find(o => o.id === order.acceptedOfferId) as any;
+                const orderWithRelations = order as any; // Cast to access included relations safely
+
+                if (orderWithRelations.offers && orderWithRelations.offers.length > 0) {
+                    const accepted = orderWithRelations.offers.find(o => o.id === order.acceptedOfferId);
                     if (accepted && accepted.store) merchantOwnerId = accepted.store.ownerId;
-                } else if ((order.acceptedOffer as any) && (order.acceptedOffer as any).store) {
-                    merchantOwnerId = (order.acceptedOffer as any).store.ownerId;
+                } else if (orderWithRelations.acceptedOffer && orderWithRelations.acceptedOffer.store) {
+                    merchantOwnerId = orderWithRelations.acceptedOffer.store.ownerId;
                 } else {
                     // Fallback fetch
                     const offerFetch = await this.prisma.offer.findUnique({
@@ -340,12 +380,39 @@ export class OrdersService {
 
         // 2. Transaction
         const result = await this.prisma.$transaction(async (tx) => {
+            // Update the accepted offer's status
+            await tx.offer.update({
+                where: { id: offerId },
+                data: { status: 'accepted' }
+            });
+
+            // Auto-reject sibling offers on the same part
+            const acceptedOffer = await tx.offer.findUnique({
+                where: { id: offerId },
+                select: { orderPartId: true }
+            });
+            if (acceptedOffer?.orderPartId) {
+                await tx.offer.updateMany({
+                    where: {
+                        orderPartId: acceptedOffer.orderPartId,
+                        id: { not: offerId },
+                        status: 'pending'
+                    },
+                    data: { status: 'rejected' }
+                });
+            }
+
+            // Enforce explicit 24h deadline for checkout
+            const paymentDeadline = new Date();
+            paymentDeadline.setHours(paymentDeadline.getHours() + 24);
+
             // Link Offer and Update Status
             const updatedOrder = await tx.order.update({
                 where: { id: orderId },
                 data: {
                     status: OrderStatus.AWAITING_PAYMENT,
                     acceptedOfferId: offerId,
+                    paymentDeadlineAt: paymentDeadline
                 },
                 include: { acceptedOffer: true }
             });
@@ -395,7 +462,8 @@ export class OrdersService {
                 const losingOffers = await this.prisma.offer.findMany({
                     where: {
                         orderId: orderId,
-                        id: { not: offerId }
+                        id: { not: offerId },
+                        status: 'rejected' // Those just updated
                     },
                     include: { store: true }
                 });
@@ -422,9 +490,938 @@ export class OrdersService {
         return result;
     }
 
+    async acceptOfferForPart(orderId: string, partId: string, offerId: string, customerId: string) {
+        const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!order) {
+            throw new NotFoundException('Order not found');
+        }
+
+        if (order.customerId !== customerId) {
+            throw new ForbiddenException('You can only accept offers for your own orders');
+        }
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            // Update the accepted offer's status
+            const acceptedOffer = await tx.offer.update({
+                where: { id: offerId },
+                data: { status: 'accepted' },
+                include: { store: true }
+            });
+
+            // Auto-reject sibling offers on the same part
+            const losingOffers = await tx.offer.findMany({
+                where: {
+                    orderPartId: partId,
+                    id: { not: offerId },
+                    status: 'pending'
+                },
+                include: { store: true }
+            });
+
+            await tx.offer.updateMany({
+                where: {
+                    orderPartId: partId,
+                    id: { not: offerId },
+                    status: 'pending'
+                },
+                data: { status: 'rejected' }
+            });
+
+            // Determine if ALL order parts now have accepted offers or are completed
+            // If so, transition to AWAITING_PAYMENT, otherwise keep AWAITING_OFFERS
+            const allOffers = await tx.offer.findMany({
+                where: { orderId }
+            });
+            const parts = await tx.orderPart.findMany({ where: { orderId } });
+
+            let allResolved = true;
+            for (const part of parts) {
+                const partOffers = allOffers.filter(o => o.orderPartId === part.id);
+                const hasPending = partOffers.some(o => o.status === 'pending');
+                const hasAccepted = partOffers.some(o => o.status === 'accepted');
+                // If a part has pending offers and no accepted offers, it's not resolved
+                if (hasPending && !hasAccepted) {
+                    allResolved = false;
+                    break;
+                }
+            }
+
+            let updatedOrder = order;
+            if (allResolved && order.status === OrderStatus.AWAITING_OFFERS) {
+                const now = new Date();
+                const paymentDeadline = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                
+                updatedOrder = await tx.order.update({
+                    where: { id: orderId },
+                    data: { 
+                        status: OrderStatus.AWAITING_PAYMENT,
+                        paymentDeadlineAt: paymentDeadline
+                    },
+                });
+            }
+
+            // Log action
+            await this.auditLogs.logAction({
+                orderId: order.id,
+                action: 'ACCEPT_OFFER_PART',
+                entity: 'OrderPart',
+                actorType: ActorType.CUSTOMER,
+                actorId: customerId,
+                actorName: 'Customer',
+                previousState: order.status,
+                newState: updatedOrder.status,
+                reason: `Accepted offer ${offerId} for part ${partId}`,
+                metadata: { offerId, partId },
+            }, tx);
+
+            return { acceptedOffer, losingOffers, updatedOrder };
+        });
+
+        const { acceptedOffer, losingOffers } = result;
+
+        // Close chats 
+        try {
+            await this.chatService.closeOtherChats(orderId, acceptedOffer.storeId);
+        } catch (e) { console.error('Failed to close other chats', e); }
+
+        // Notify winner
+        if (acceptedOffer.store?.ownerId) {
+            this.notifications.create({
+                recipientId: acceptedOffer.store.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: 'عُرضك تم قبوله!',
+                titleEn: 'Your offer was accepted!',
+                messageAr: `وافق العميل للتو على عرضك للقطعة في الطلب #${order.orderNumber}.`,
+                messageEn: `The customer just accepted your offer for a part in Order #${order.orderNumber}.`,
+                type: 'ORDER',
+                link: `/dashboard/orders/${order.id}`
+            }).catch(e => console.error('Failed to notify merchant', e));
+        }
+
+        // Notify losers
+        for (const losingOffer of losingOffers) {
+            if (losingOffer.store?.ownerId) {
+                this.notifications.create({
+                    recipientId: losingOffer.store.ownerId,
+                    recipientRole: 'MERCHANT',
+                    titleAr: 'تم رفض عرضك',
+                    titleEn: 'Your offer was rejected',
+                    messageAr: `نأسف، لقد قام العميل باختيار عرض آخر للقطعة في الطلب #${order.orderNumber}. حظاً أوفر!`,
+                    messageEn: `Sorry, the customer selected another offer for a part in Order #${order.orderNumber}. Better luck!`,
+                    type: 'ORDER',
+                    link: `/dashboard/orders/${order.id}`
+                }).catch(e => console.error('Failed to notify merchant', e));
+            }
+        }
+
+        return result.updatedOrder;
+    }
+
+    async markAsPrepared(orderId: string, storeId: string) {
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: { offers: true }
+        });
+
+        if (!order) {
+            throw new NotFoundException('Order not found');
+        }
+
+        // Validate Authorization: Must have an accepted offer for this 
+        const hasAcceptedOffer = order.offers.some(o => o.status === 'accepted' && o.storeId === storeId);
+        if (!hasAcceptedOffer) {
+            throw new ForbiddenException('You are not authorized to physically prepare this order. No accepted offers found for your store.');
+        }
+
+        // Validate FSM Boundary
+        this.fsm.validateTransition(order.status, OrderStatus.PREPARED);
+
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: orderId },
+            data: { status: OrderStatus.PREPARED }
+        });
+
+        // Audit Log System Note
+        await this.auditLogs.logAction({
+            orderId: order.id,
+            action: 'MARK_PREPARED',
+            entity: 'Order',
+            actorType: ActorType.VENDOR,
+            actorId: storeId,
+            actorName: 'Store Vendor',
+            previousState: order.status,
+            newState: OrderStatus.PREPARED,
+            reason: 'Merchant successfully finalized preparation for shipping',
+        });
+
+        // Dispatch Customer Hook
+        this.notifications.create({
+            recipientId: order.customerId,
+            recipientRole: 'CUSTOMER',
+            titleAr: 'طلبك جاهز للشحن!',
+            titleEn: 'Order Ready for Tracking!',
+            messageAr: `قام التاجر بتجهيز طلبك #${order.orderNumber} وهو الآن في انتظار شركة الشحن لاستلامه.`,
+            messageEn: `The vendor has prepared your order #${order.orderNumber}. Awaiting shipping courier pickup.`,
+            type: 'ORDER',
+            link: `/dashboard/orders/${order.id}`
+        }).catch(e => console.error('Failed to notify customer upon preparation completion', e));
+
+        // Add Merchant Reminder for Documentation
+        this.notifications.create({
+            recipientId: storeId,
+            recipientRole: 'MERCHANT',
+            titleAr: 'توثيق حالة القطعة إلزامي!',
+            titleEn: 'Part Verification Required!',
+            messageAr: `تم تجهيز طلب #${order.orderNumber}. يرجى رفع التوثيق لتتمكن من تسليمه للمندوب ومتابعة الطلب.`,
+            messageEn: `Order #${order.orderNumber} is prepared. Please upload verification documents to proceed with handover.`,
+            type: 'ORDER',
+            link: `/merchant/orders/${orderId}`,
+        }).catch(e => console.error('Failed to notify merchant upon preparation', e));
+
+        return updatedOrder;
+    }
+    async rejectOffer(orderId: string, offerId: string, customerId: string, reason: string, customReason?: string) {
+        // 1. Verify existence and ownership
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId }
+        });
+
+        if (!order) {
+            throw new NotFoundException('Order not found');
+        }
+
+        if (order.customerId !== customerId) {
+            throw new BadRequestException('You do not have permission to modify offers on this order');
+        }
+
+        // 2. Verify offer exists and belongs to this order
+        const offer = await this.prisma.offer.findUnique({
+            where: { id: offerId, orderId },
+            include: { store: true }
+        });
+
+        if (!offer) {
+            throw new NotFoundException('Offer not found on this order');
+        }
+
+        if (offer.status === 'rejected') {
+            throw new BadRequestException('Offer is already rejected');
+        }
+
+        // 3. Update the offer status to 'rejected' and create the rejection record in a transaction
+        const result = await this.prisma.$transaction([
+            this.prisma.offer.update({
+                where: { id: offerId },
+                data: { status: 'rejected' }
+            }),
+            this.prisma.offerRejection.create({
+                data: {
+                    offerId,
+                    reason,
+                    customReason
+                }
+            })
+        ]);
+
+        // 4. Optionally notify the merchant about the specific rejection reason
+        if (offer.store?.ownerId) {
+            this.notifications.create({
+                recipientId: offer.store.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: 'تم رفض عرضك',
+                titleEn: 'Your offer was rejected',
+                messageAr: `قام العميل برفض عرضك الخاص بالطلب #${order.orderNumber}. السبب: ${reason}`,
+                messageEn: `The customer rejected your offer for Order #${order.orderNumber}. Reason: ${reason}`,
+                type: 'ORDER',
+                link: `/dashboard/orders/${order.id}`
+            }).catch(e => console.error('Failed to notify merchant of specific rejection', e));
+        }
+
+        return { success: true, message: 'Offer rejected successfully', rejection: result[1] };
+    }
+
+    async saveCheckoutData(orderId: string, customerId: string, data: any) {
+        // 1. Verify ownership
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId }
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.customerId !== customerId) throw new ForbiddenException('Not owner of this order');
+        if (order.status !== OrderStatus.AWAITING_PAYMENT) {
+            // We might allow saving data while just preparing to pay, but generally it's AWAITING_PAYMENT by now
+        }
+
+        // 2. Prepare the shipping addresses
+        // Data format received from frontend:
+        // { addresses: [{ fullName, phone, email, country, city, details, orderPartId? }] }
+        const addresses = data.addresses || [];
+
+        return this.prisma.$transaction(async (tx) => {
+            // Clear existing addresses just in case user is updating/going back and forth
+            await tx.orderShippingAddress.deleteMany({
+                where: { orderId }
+            });
+
+            // Re-insert addresses
+            if (addresses.length > 0) {
+                await tx.orderShippingAddress.createMany({
+                    data: addresses.map(addr => ({
+                        orderId,
+                        orderPartId: addr.orderPartId || null,
+                        fullName: addr.fullName,
+                        phone: addr.phone,
+                        email: addr.email,
+                        country: addr.country,
+                        city: addr.city,
+                        details: addr.details
+                    }))
+                });
+            }
+
+            // Optional: update the order level shipping tracking metadata here if needed
+            return { success: true, count: addresses.length };
+        });
+    }
+
     private async generateOrderNumber(): Promise<string> {
-        // Call the Postgres function we created in SQL setup
         const result = await this.prisma.$queryRaw<{ generate_order_number: string }[]>`SELECT generate_order_number()`;
         return result[0].generate_order_number;
+    }
+
+    async getAssemblyCart(customerId: string) {
+        // Find orders in PREPARATION status (paid, waiting to be shipped)
+        const orders = await this.prisma.order.findMany({
+            where: {
+                customerId,
+                status: OrderStatus.PREPARATION,
+                requestType: 'multiple'
+            },
+            include: {
+                parts: true,
+                store: true, // If single-store order
+                acceptedOffer: {
+                    include: { 
+                        store: true,
+                        payments: { where: { status: 'SUCCESS' } }
+                    }
+                },
+                offers: {
+                    where: { status: 'accepted' },
+                    include: { 
+                        store: true,
+                        payments: { where: { status: 'SUCCESS' } }
+                    }
+                },
+                payments: {
+                    where: { status: 'SUCCESS' }
+                },
+                shippingAddresses: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // Format for the frontend CartItemType
+        const cartItems = [];
+        for (const order of orders) {
+            // Find the first payment to get the paidAt date for the 7-day timer
+            const firstPayment = order.payments.sort((a, b) =>
+                (a.paidAt?.getTime() || 0) - (b.paidAt?.getTime() || 0)
+            )[0];
+
+            let paidAt = firstPayment?.paidAt || order.updatedAt;
+            let expiryDate = new Date(paidAt.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from payment
+
+            // For each accepted offer (which is paid, since order is PREPARATION)
+            const acceptedOffers = order.offers.length > 0 ? order.offers : (order.acceptedOffer ? [order.acceptedOffer] : []);
+
+            for (const offer of acceptedOffers as any[]) {
+                // Find matching part if any
+                const part = order.parts.find(p => p.id === offer.orderPartId) || order.parts[0];
+                const partName = part?.name || order.partName || 'Multi-Part Order';
+                const partImages = (part?.images as string[]) || [];
+                const orderImages = (order.partImages as string[]) || [];
+                const partImage = (partImages.length > 0) ? partImages[0] : (orderImages.length > 0 ? orderImages[0] : null);
+
+                const offerPayment = offer.payments?.[0];
+                const finalPrice = offerPayment?.totalAmount ? Number(offerPayment.totalAmount) : (Number(offer.unitPrice) + Number(offer.shippingCost));
+
+                cartItems.push({
+                    id: order.id, // Using order ID as the cart item ID for shipping
+                    offerId: offer.id,
+                    orderNumber: order.orderNumber,
+                    name: partName,
+                    price: Number(offer.unitPrice),
+                    shippingCost: Number(offer.shippingCost),
+                    hasWarranty: offer.hasWarranty,
+                    warrantyDuration: offer.warrantyDuration,
+                    condition: offer.condition,
+                    partType: offer.partType,
+                    partImage: partImage,
+                    expiryDate: expiryDate,
+                    paidAt: paidAt,
+                    storeName: offer.store?.name || order.store?.name || 'Verified Seller',
+                    vehicleMake: order.vehicleMake,
+                    vehicleModel: order.vehicleModel,
+                    vehicleYear: order.vehicleYear,
+                    vin: order.vin,
+                    partsCount: 1, // Set to 1 as this card represents a single part from the assembly
+                    requestType: order.requestType || 'N/A',
+                    shippingType: order.shippingType || 'N/A',
+                    shippingAddress: order.shippingAddresses?.[0] || null,
+                    totalPaid: finalPrice
+                });
+            }
+        }
+
+        return cartItems;
+    }
+
+    async getMerchantAssemblyCart(userId: string, storeId: string) {
+        if (!storeId) return [];
+
+        // Find orders in PREPARATION status where this merchant has an accepted offer
+        const orders = await this.prisma.order.findMany({
+            where: {
+                status: OrderStatus.PREPARATION,
+                requestType: 'multiple',
+                offers: {
+                    some: {
+                        storeId: storeId,
+                        status: 'accepted'
+                    }
+                }
+            },
+            include: {
+                parts: true,
+                store: true,
+                offers: {
+                    where: { status: 'accepted' },
+                    include: { 
+                        store: true,
+                        payments: { where: { status: 'SUCCESS' } }
+                    }
+                },
+                payments: {
+                    where: { status: 'SUCCESS' }
+                },
+                shippingAddresses: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const cartItems = [];
+        for (const order of orders) {
+            const firstPayment = order.payments.sort((a, b) =>
+                (a.paidAt?.getTime() || 0) - (b.paidAt?.getTime() || 0)
+            )[0];
+
+            let paidAt = firstPayment?.paidAt || order.updatedAt;
+            let expiryDate = new Date(paidAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+            for (const offer of order.offers as any[]) {
+                const isMyOffer = offer.storeId === storeId;
+                const part = order.parts.find(p => p.id === offer.orderPartId) || order.parts[0];
+                const partName = part?.name || order.partName || 'Multi-Part Order';
+                
+                // Privacy Masking: If not my offer, hide price, store name, and images
+                const partImages = (part?.images as string[]) || [];
+                const orderImages = (order.partImages as string[]) || [];
+                const partImage = isMyOffer 
+                    ? ((partImages.length > 0) ? partImages[0] : (orderImages.length > 0 ? orderImages[0] : null))
+                    : null;
+
+                const offerPayment = offer.payments?.[0];
+                const finalPrice = isMyOffer 
+                    ? (offerPayment?.totalAmount ? Number(offerPayment.totalAmount) : (Number(offer.unitPrice) + Number(offer.shippingCost)))
+                    : 0;
+
+                cartItems.push({
+                    id: order.id,
+                    offerId: offer.id,
+                    orderNumber: order.orderNumber,
+                    name: partName,
+                    price: isMyOffer ? Number(offer.unitPrice) : 0,
+                    shippingCost: isMyOffer ? Number(offer.shippingCost) : 0,
+                    hasWarranty: isMyOffer ? offer.hasWarranty : false,
+                    warrantyDuration: isMyOffer ? offer.warrantyDuration : null,
+                    condition: isMyOffer ? offer.condition : null,
+                    partType: isMyOffer ? offer.partType : null,
+                    partImage: partImage,
+                    expiryDate: expiryDate,
+                    paidAt: paidAt,
+                    storeName: isMyOffer ? (offer.store?.name || 'Your Store') : 'Other Store',
+                    vehicleMake: order.vehicleMake,
+                    vehicleModel: order.vehicleModel,
+                    vehicleYear: order.vehicleYear,
+                    vin: isMyOffer ? order.vin : null,
+                    partsCount: 1, // Set to 1 as this card represents a single part
+                    requestType: order.requestType || 'N/A',
+                    shippingType: order.shippingType || 'N/A',
+                    shippingAddress: isMyOffer ? (order.shippingAddresses?.[0] || null) : null,
+                    totalPaid: finalPrice,
+                    isMyOffer: isMyOffer
+                });
+            }
+        }
+
+        return cartItems;
+    }
+
+    async getDeliveredOrders(customerId: string) {
+        // Find DELIVERED orders within the last 30 days (changed from 3 days to allow visibility of expired items)
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+        const orders = await this.prisma.order.findMany({
+            where: {
+                customerId,
+                status: OrderStatus.DELIVERED,
+                updatedAt: { gte: thirtyDaysAgo }
+            },
+            include: {
+                parts: true,
+                store: true,
+                acceptedOffer: {
+                    include: { store: true }
+                },
+                offers: {
+                    where: { status: 'accepted' },
+                    include: { store: true }
+                },
+                payments: {
+                    where: { status: 'SUCCESS' }
+                },
+                shippingAddresses: true
+            },
+            orderBy: { updatedAt: 'desc' }
+        });
+
+        const deliveredItems = [];
+        for (const order of orders) {
+            // Re-use logic to format item, similar to assembly-cart
+            let deliveredAt = order.updatedAt; // We use updatedAt as delivered timestamp
+            let returnExpiryDate = new Date(deliveredAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+            let isReturnEligible = Date.now() <= returnExpiryDate.getTime();
+
+            const firstPayment = order.payments?.sort((a, b) => (a.paidAt?.getTime() || 0) - (b.paidAt?.getTime() || 0))[0];
+
+            // Build shipping address object from the first shipping address
+            const shippingAddr = order.shippingAddresses?.[0] || null;
+            const shippingAddress = shippingAddr ? {
+                fullName: shippingAddr.fullName,
+                phone: shippingAddr.phone,
+                email: shippingAddr.email,
+                country: shippingAddr.country,
+                city: shippingAddr.city,
+                details: shippingAddr.details
+            } : null;
+
+            const acceptedOffers = order.offers.length > 0 ? order.offers : (order.acceptedOffer ? [order.acceptedOffer] : []);
+
+            // Fallback for orders without accepted offers (e.g. manual testing, old structures)
+            if (acceptedOffers.length === 0) {
+                const part = order.parts[0];
+                const partName = part?.name || order.partName || 'Multi-Part Order';
+                const partImages = (part?.images as string[]) || [];
+                const orderImages = (order.partImages as string[]) || [];
+                const partImage = (partImages.length > 0) ? partImages[0] : (orderImages.length > 0 ? orderImages[0] : null);
+
+                deliveredItems.push({
+                    id: order.id,
+                    offerId: null,
+                    orderPartId: part?.id || null,
+                    orderNumber: order.orderNumber,
+                    name: partName,
+                    price: 0,
+                    shippingCost: 0,
+                    hasWarranty: false,
+                    warrantyDuration: 0,
+                    condition: 'N/A',
+                    partType: 'N/A',
+                    partImage: partImage,
+                    deliveredAt: deliveredAt,
+                    returnExpiryDate: returnExpiryDate,
+                    isReturnEligible: isReturnEligible,
+                    storeName: order.store?.name || 'Verified Seller',
+                    vehicleMake: order.vehicleMake,
+                    vehicleModel: order.vehicleModel,
+                    vehicleYear: order.vehicleYear,
+                    vin: order.vin,
+                    requestType: order.requestType || null,
+                    shippingType: order.shippingType || null,
+                    shippingAddress: shippingAddress,
+                    partsCount: order.parts.length || 1,
+                    totalPaid: firstPayment?.totalAmount ? Number(firstPayment.totalAmount) : 0,
+                    status: order.status
+                });
+                continue;
+            }
+
+            for (const offer of acceptedOffers) {
+                const part = order.parts.find(p => p.id === offer.orderPartId) || order.parts[0];
+                const partName = part?.name || order.partName || 'Multi-Part Order';
+                const partImages = (part?.images as string[]) || [];
+                const orderImages = (order.partImages as string[]) || [];
+                const partImage = (partImages.length > 0) ? partImages[0] : (orderImages.length > 0 ? orderImages[0] : null);
+
+                deliveredItems.push({
+                    id: order.id,
+                    offerId: offer.id,
+                    orderPartId: part?.id || null,
+                    orderNumber: order.orderNumber,
+                    name: partName,
+                    price: Number(offer.unitPrice),
+                    shippingCost: Number(offer.shippingCost),
+                    hasWarranty: offer.hasWarranty,
+                    warrantyDuration: offer.warrantyDuration,
+                    condition: offer.condition,
+                    partType: offer.partType,
+                    partImage: partImage,
+                    deliveredAt: deliveredAt,
+                    returnExpiryDate: returnExpiryDate,
+                    isReturnEligible: isReturnEligible,
+                    storeName: offer.store?.name || order.store?.name || 'Verified Seller',
+                    vehicleMake: order.vehicleMake,
+                    vehicleModel: order.vehicleModel,
+                    vehicleYear: order.vehicleYear,
+                    vin: order.vin,
+                    requestType: order.requestType || null,
+                    shippingType: order.shippingType || null,
+                    shippingAddress: shippingAddress,
+                    partsCount: order.parts.length || 1,
+                    totalPaid: firstPayment?.totalAmount ? Number(firstPayment.totalAmount) : Number(offer.unitPrice) + Number(offer.shippingCost),
+                    status: order.status
+                });
+            }
+        }
+
+        return deliveredItems;
+    }
+
+    async updateAdminNotes(orderId: string, notes: string, adminUser: any) {
+        if (adminUser.role !== 'ADMIN' && adminUser.role !== 'SUPER_ADMIN') {
+            throw new ForbiddenException('Only administrators can update internal notes');
+        }
+
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId }
+        });
+
+        if (!order) {
+            throw new NotFoundException('Order not found');
+        }
+
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: orderId },
+            data: { adminNotes: notes }
+        });
+
+        await this.auditLogs.logAction({
+            orderId,
+            action: 'UPDATE_ADMIN_NOTES',
+            entity: 'Order',
+            actorType: ActorType.ADMIN,
+            actorId: adminUser.id,
+            actorName: adminUser.name || adminUser.email || 'Admin',
+            previousState: order.status,
+            newState: order.status,
+            metadata: { hasNotes: !!notes }
+        });
+
+        return { success: true, message: 'Admin notes updated', adminNotes: updatedOrder.adminNotes };
+    }
+
+    async requestShipping(customerId: string, orderIds: string[]) {
+        if (!orderIds || orderIds.length === 0) return { success: true, count: 0 };
+
+        let successCount = 0;
+        const results = [];
+
+        for (const orderId of orderIds) {
+            try {
+                const order = await this.findOne(orderId);
+
+                // Must be owner and in PREPARATION state
+                if (order.customerId === customerId && order.status === OrderStatus.PREPARATION) {
+                    await this.transitionStatus(
+                        orderId,
+                        OrderStatus.SHIPPED,
+                        { id: customerId, type: ActorType.CUSTOMER, name: 'Customer' },
+                        'Customer requested shipping from assembly cart'
+                    );
+                    successCount++;
+                    results.push({ orderId, success: true });
+                } else {
+                    results.push({ orderId, success: false, reason: 'Invalid state or ownership' });
+                }
+            } catch (error) {
+                console.error(`Failed to request shipping for order ${orderId}:`, error);
+                results.push({ orderId, success: false, reason: error.message });
+            }
+        }
+
+        return { success: true, count: successCount, results };
+    }
+
+    async requestShippingByMerchant(orderId: string, storeId: string, userId: string) {
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: { offers: true }
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+
+        // Verify merchant has an accepted offer — check both cased versions
+        const hasAcceptedOffer = order.offers.some(
+            o => ['ACCEPTED', 'accepted'].includes(String(o.status)) && o.storeId === storeId
+        );
+        if (!hasAcceptedOffer) {
+            throw new ForbiddenException('You are not authorized to request shipping for this order.');
+        }
+
+        // Must be in VERIFICATION_SUCCESS state
+        if (order.status !== OrderStatus.VERIFICATION_SUCCESS) {
+            throw new BadRequestException(`Order must be in VERIFICATION_SUCCESS state. Current: ${order.status}`);
+        }
+
+        // Transition order status
+        const updatedOrder = await this.transitionStatus(
+            orderId,
+            OrderStatus.READY_FOR_SHIPPING,
+            { id: storeId, type: ActorType.VENDOR, name: 'Store Vendor' },
+            'Merchant requested shipment delivery to administration'
+        );
+
+        // Create the shipment record
+        await this.shipmentsService.create({ orderId }, userId);
+
+        // Notify Admin that a new shipment is awaiting pickup
+        const admins = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } });
+        for (const admin of admins) {
+            await this.notifications.create({
+                recipientId: admin.id,
+                recipientRole: 'ADMIN',
+                titleAr: 'طلب شحنة جديد ينتظر الاستلام',
+                titleEn: 'New Shipment Request Awaiting Pickup',
+                messageAr: `الطلب #${order.orderNumber} جاهز للتسليم لشركة الشحن. يرجى استلامه من التاجر.`,
+                messageEn: `Order #${order.orderNumber} is ready for carrier pickup. Please collect from merchant.`,
+                type: 'ORDER_UPDATE',
+                link: `/admin/dashboard/shipping`,
+            });
+        }
+
+        return updatedOrder;
+    }
+
+
+    async submitVerification(orderId: string, storeId: string, data: any) {
+        const order = await this.prisma.order.findUnique({
+             where: { id: orderId },
+             include: { offers: true }
+        });
+        if (!order) throw new NotFoundException('Order not found');
+        
+        const hasAcceptedOffer = order.offers.some(o => o.status === 'accepted' && o.storeId === storeId);
+        if (!hasAcceptedOffer) {
+            throw new ForbiddenException('Not your order');
+        }
+        
+        if (order.status !== OrderStatus.PREPARED) throw new BadRequestException('Order must be in PREPARED state to verify.');
+        
+        let parsedImages = [];
+        if (typeof data.images === 'string') {
+            try { parsedImages = JSON.parse(data.images); } catch(e) { parsedImages = [data.images]; }
+        } else if (Array.isArray(data.images)) {
+            parsedImages = data.images;
+        }
+
+        try {
+            const [doc] = await this.prisma.$transaction([
+                this.prisma.verificationDocument.create({
+                    data: {
+                        orderId,
+                        storeId,
+                        images: parsedImages,
+                        videoUrl: data.videoUrl,
+                        description: data.description,
+                        recipientName: data.recipientName,
+                        recipientSignature: data.recipientSignature,
+                        signatureType: data.signatureType || 'DRAWN',
+                        signatureText: data.signatureText || null,
+                        handoverDate: data.handoverDate ? new Date(data.handoverDate) : null,
+                        handoverTime: data.handoverTime,
+                    }
+                }),
+                this.prisma.order.update({
+                    where: { id: orderId },
+                    data: { status: OrderStatus.VERIFICATION, verificationSubmittedAt: new Date() }
+                })
+            ]);
+
+            await this.auditLogs.logAction({
+                orderId, action: 'SUBMIT_VERIFICATION', entity: 'Order',
+                actorType: ActorType.VENDOR, actorId: storeId, actorName: 'Merchant',
+                previousState: order.status, newState: OrderStatus.VERIFICATION
+            });
+            
+            const admins = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } });
+            for (const admin of admins) {
+                await this.notifications.create({
+                    recipientId: admin.id, recipientRole: 'ADMIN', type: 'system_alert',
+                    titleAr: 'توثيق طلب جديد للمراجعة', titleEn: 'New Order Verification Review',
+                    messageAr: `قام المتجر برفع توثيق الطلب #${order.orderNumber}. بانتظار مراجعتك.`,
+                    messageEn: `Store uploaded verification for order #${order.orderNumber}. Pending review.`,
+                    link: `/admin/orders/${order.id}`
+                });
+            }
+            
+            return { success: true, doc };
+        } catch (e) {
+            require('fs').writeFileSync('./error_log_2.txt', (e.stack || e.message) + '\n\nPAYLOAD:\n' + JSON.stringify(data));
+            throw e;
+        }
+    }
+
+    async adminReviewVerification(orderId: string, adminId: string, data: any) {
+        const order = await this.prisma.order.findUnique({ 
+            where: { id: orderId }, 
+            include: { verificationDocuments: { orderBy: { createdAt: 'desc' }, take: 1 } }
+        });
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.status !== OrderStatus.VERIFICATION && order.status !== OrderStatus.CORRECTION_SUBMITTED) {
+            throw new BadRequestException('Order not pending verification review.');
+        }
+
+        const latestDoc = order.verificationDocuments[0];
+        if (!latestDoc) throw new NotFoundException('Verification document not found.');
+
+        // Support both action-based ('APPROVE'/'REJECT') and legacy status-based ('APPROVED') inputs
+        const isApprove = data.action === 'APPROVE' || data.status === 'APPROVED' || data.approved === true;
+        const decision = isApprove ? 'APPROVED' : 'REJECTED';
+        const newOrderStatus = decision === 'APPROVED' ? OrderStatus.VERIFICATION_SUCCESS : OrderStatus.NON_MATCHING;
+        
+        const correctionDeadline = decision === 'REJECTED' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null;
+
+        await this.prisma.$transaction([
+            this.prisma.verificationDocument.update({
+                where: { id: latestDoc.id },
+                data: {
+                    adminStatus: decision,
+                    adminReviewedBy: adminId,
+                    adminReviewedAt: new Date(),
+                    adminRejectionReason: data.rejectionReason,
+                    adminRejectionImages: data.rejectionImages || [],
+                    adminRejectionVideo: data.rejectionVideo,
+                    correctionDeadlineAt: correctionDeadline
+                }
+            }),
+            this.prisma.order.update({
+                where: { id: orderId },
+                data: { status: newOrderStatus, correctionDeadlineAt: correctionDeadline }
+            })
+        ]);
+
+        await this.auditLogs.logAction({
+            orderId, action: `VERIFICATION_${decision}`, entity: 'Order',
+            actorType: ActorType.ADMIN, actorId: adminId, actorName: 'Admin',
+            previousState: order.status, newState: newOrderStatus
+        });
+
+        // Fetch store to get the ownerId for the notification recipient
+        const store = await this.prisma.store.findUnique({
+            where: { id: latestDoc.storeId },
+            select: { ownerId: true }
+        });
+        const merchantUserId = store?.ownerId;
+
+        // Notifications are secondary — never let them crash the core verification response
+        try {
+            if (merchantUserId) {
+                console.log('[DEBUG adminReviewVerification] latestDoc.storeId =', latestDoc.storeId, '| merchantUserId =', merchantUserId);
+                if (decision === 'APPROVED') {
+                    await this.notifications.create({
+                        recipientId: merchantUserId, recipientRole: 'MERCHANT', type: 'system_alert',
+                        titleAr: 'تم قبول مطابقة القطعة', titleEn: 'Part Verification Approved',
+                        messageAr: `تم الموافقة على توثيق الطلب #${order.orderNumber}. يمكنك الآن تسليمه للمندوب ومتابعة الشحن.`,
+                        messageEn: `Verification for #${order.orderNumber} approved. You can now handover to courier.`,
+                        link: `/merchant/orders/${order.id}`
+                    });
+                } else {
+                    await this.notifications.create({
+                        recipientId: merchantUserId, recipientRole: 'MERCHANT', type: 'system_alert',
+                        titleAr: '⚠️ رفض مطابقة القطعة - مطلوب تصحيح', titleEn: '⚠️ Verification Rejected - Correction Required',
+                        messageAr: `تم اكتشاف عدم مطابقة في الطلب #${order.orderNumber}. أمامك 48 ساعة لتصحيح القطعة وإعادة التوثيق.`,
+                        messageEn: `Non-matching part detected for #${order.orderNumber}. You have 48h to submit correction.`,
+                        link: `/merchant/orders/${order.id}`
+                    });
+                }
+            }
+        } catch (notifErr) {
+            console.error('[adminReviewVerification] Notification failed (non-blocking):', notifErr.message);
+        }
+
+        return { success: true, status: newOrderStatus };
+    }
+
+    async submitCorrectionVerification(orderId: string, storeId: string, data: any) {
+        const order = await this.prisma.order.findUnique({ 
+            where: { id: orderId },
+            include: { 
+                offers: true,
+                verificationDocuments: { orderBy: { createdAt: 'desc' }, take: 1 } 
+            }
+        });
+        if (!order) throw new NotFoundException('Order not found');
+        
+        const hasAcceptedOffer = order.offers.some(o => o.status === 'accepted' && o.storeId === storeId);
+        if (!hasAcceptedOffer) {
+            throw new ForbiddenException('Not your order');
+        }
+        if (order.status !== OrderStatus.CORRECTION_PERIOD && order.status !== OrderStatus.NON_MATCHING) {
+            throw new BadRequestException('Order not in correction period.');
+        }
+
+        const originalDoc = order.verificationDocuments[0];
+
+        const [doc] = await this.prisma.$transaction([
+            this.prisma.verificationDocument.create({
+                data: {
+                    orderId, storeId,
+                    isCorrection: true,
+                    originalDocumentId: originalDoc?.id,
+                    images: data.images || [],
+                    videoUrl: data.videoUrl,
+                    description: data.description,
+                    recipientName: data.recipientName,
+                    recipientSignature: data.recipientSignature,
+                    signatureType: data.signatureType || 'DRAWN',
+                    signatureText: data.signatureText || null,
+                    handoverDate: data.handoverDate ? new Date(data.handoverDate) : null,
+                    handoverTime: data.handoverTime,
+                }
+            }),
+            this.prisma.order.update({
+                where: { id: orderId },
+                data: { status: OrderStatus.CORRECTION_SUBMITTED }
+            })
+        ]);
+
+        await this.auditLogs.logAction({
+            orderId, action: 'SUBMIT_CORRECTION', entity: 'Order',
+            actorType: ActorType.VENDOR, actorId: storeId, actorName: 'Merchant',
+            previousState: order.status, newState: OrderStatus.CORRECTION_SUBMITTED
+        });
+
+        const admins = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } });
+        for (const admin of admins) {
+            await this.notifications.create({
+                recipientId: admin.id, recipientRole: 'ADMIN', type: 'system_alert',
+                titleAr: 'إعادة توثيق لطلب غير مطابق', titleEn: 'Corrected Verification Submitted',
+                messageAr: `قام المتجر برفع توثيق جديد للطلب #${order.orderNumber}. بانتظار إعادة التقييم.`,
+                messageEn: `Store uploaded corrected verification for #${order.orderNumber}. Pending re-evaluation.`,
+                link: `/admin/orders/${order.id}`
+            });
+        }
+        return { success: true, doc };
     }
 }

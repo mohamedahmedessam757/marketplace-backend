@@ -5,10 +5,10 @@ import { OrderStateMachine } from './fsm/order-state-machine.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ChatModule } from '../chat/chat.module';
-// AuditLogsModule is global, so no need to import if @Global() is used, but good practice to verify
+import { ShipmentsModule } from '../shipments/shipments.module';
 
 @Module({
-    imports: [PrismaModule, NotificationsModule, ChatModule],
+    imports: [PrismaModule, NotificationsModule, ChatModule, ShipmentsModule],
     controllers: [OrdersController],
     providers: [OrdersService, OrderStateMachine],
     exports: [OrderStateMachine, OrdersService], // Export for Scheduler

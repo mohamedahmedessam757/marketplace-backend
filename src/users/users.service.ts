@@ -25,29 +25,87 @@ export class UsersService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // Generate unique referral code
+        let referralCode = '';
+        let isUniqueCode = false;
+        while (!isUniqueCode) {
+          referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+          const existing = await tx.user.findUnique({ where: { referralCode } });
+          if (!existing) isUniqueCode = true;
+        }
+
+        // Resolve Referrer
+        let referredById: string | null = null;
+        if ((createUserDto as any).referralCode) {
+          const referrer = await tx.user.findUnique({ 
+            where: { referralCode: (createUserDto as any).referralCode } 
+          });
+          if (referrer) referredById = referrer.id;
+        }
+
         const user = await tx.user.create({
           data: {
             passwordHash: hashedPassword,
             email: createUserDto.email,
             name: createUserDto.name,
             phone: createUserDto.phone,
+            countryCode: createUserDto.countryCode,
+            country: createUserDto.country,
             role: createUserDto.role || 'CUSTOMER',
+            referralCode,
+            referredById,
           },
         });
 
         // If user is a VENDOR, create a Store record immediately
         if (createUserDto.role === 'VENDOR') {
+          // Generate a unique store code
+          let generatedStoreCode = '';
+          let isUnique = false;
+          while (!isUnique) {
+            generatedStoreCode = 'D-' + String(Math.floor(1000 + Math.random() * 9000));
+            const existing = await tx.store.findUnique({ where: { storeCode: generatedStoreCode } });
+            if (!existing) isUnique = true;
+          }
+
           const store = await tx.store.create({
             data: {
               ownerId: user.id,
               name: createUserDto.storeName || `${createUserDto.name}'s Store`,
+              description: createUserDto.description,
+              storeCode: generatedStoreCode,
               status: 'PENDING_DOCUMENTS',
               address: createUserDto.address,
               lat: createUserDto.lat,
               lng: createUserDto.lng,
-              category: createUserDto.category
+              category: createUserDto.category,
+              selectedMakes: createUserDto.selectedMakes || [],
+              selectedModels: createUserDto.selectedModels || [],
+              customMake: createUserDto.customMake || null,
+              customModel: createUserDto.customModel || null,
+              contractId: createUserDto.contractData?.contractId || createUserDto.contractId || null,
+              contractAcceptedAt: (createUserDto.contractData || createUserDto.contractId) ? new Date() : null,
             }
           });
+
+          // Create Contract Acceptance if data provided
+          if (createUserDto.contractData) {
+            await tx.contractAcceptance.create({
+              data: {
+                storeId: store.id,
+                contractId: createUserDto.contractData.contractId,
+                contractVersion: createUserDto.contractData.contractVersion,
+                secondPartyData: createUserDto.contractData.secondPartyData || {},
+                signatureData: createUserDto.contractData.signatureData || {},
+                firstPartySnapshot: createUserDto.contractData.firstPartySnapshot || {},
+                contentArSnapshot: createUserDto.contractData.contentArSnapshot,
+                contentEnSnapshot: createUserDto.contractData.contentEnSnapshot,
+                ipAddress: createUserDto.contractData.ipAddress,
+                userAgent: createUserDto.contractData.userAgent,
+                acceptedAt: new Date()
+              }
+            });
+          }
 
           // Create Store Documents if provided
           if (createUserDto.documents && createUserDto.documents.length > 0) {
@@ -198,6 +256,115 @@ export class UsersService {
     }).catch(e => console.error('Failed to dispatch profile update alert', e));
 
     return user;
+  }
+
+  // --- Administrative Methods (v2026 Ready) ---
+
+  async adminFindAllCustomers() {
+    const customers = await this.prisma.user.findMany({
+      where: { role: 'CUSTOMER' },
+      include: {
+        orders: {
+          include: {
+            acceptedOffer: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return customers.map(user => {
+      const totalOrders = user.orders.length;
+      const completedOrders = user.orders.filter(o => ['COMPLETED', 'DELIVERED'].includes(o.status));
+      const successRate = totalOrders > 0 ? Math.round((completedOrders.length / totalOrders) * 100) : 0;
+
+      const ltv = completedOrders.reduce((sum, order) => {
+        const base = Number(order.acceptedOffer?.unitPrice || 0);
+        const shipping = Number(order.acceptedOffer?.shippingCost || 0);
+        const commission = base > 0 ? Math.max(Math.round(base * 0.25), 100) : 0;
+        return sum + base + shipping + commission;
+      }, 0);
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        status: user.status || 'ACTIVE',
+        joinedAt: user.createdAt,
+        ltv,
+        successRate,
+        ordersCount: totalOrders,
+        adminNotes: user.adminNotes || ''
+      };
+    });
+  }
+
+  async adminFindCustomerById(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        Session: {
+          orderBy: { lastActive: 'desc' },
+          take: 10
+        },
+        securityLogs: {
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        },
+        orders: {
+          include: {
+            acceptedOffer: {
+              include: { store: true }
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        },
+        disputes: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    if (!user) return null;
+
+    const totalOrders = user.orders.length;
+    const completedOrders = user.orders.filter(o => ['COMPLETED', 'DELIVERED'].includes(o.status));
+    const successRate = totalOrders > 0 ? Math.round((completedOrders.length / totalOrders) * 100) : 0;
+    const ltv = completedOrders.reduce((sum, order) => {
+      const base = Number(order.acceptedOffer?.unitPrice || 0);
+      const shipping = Number(order.acceptedOffer?.shippingCost || 0);
+      const commission = base > 0 ? Math.max(Math.round(base * 0.25), 100) : 0;
+      return sum + base + shipping + commission;
+    }, 0);
+
+    return {
+      ...user,
+      ltv,
+      successRate,
+      status: user.status || 'ACTIVE',
+      adminNotes: user.adminNotes || ''
+    };
+  }
+
+  async adminUpdateNotes(id: string, notes: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { adminNotes: notes }
+    });
+  }
+
+  async adminToggleStatus(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) return null;
+
+    const currentStatus = user.status || 'ACTIVE';
+    const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { status: newStatus }
+    });
   }
 }
 

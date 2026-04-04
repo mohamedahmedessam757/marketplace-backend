@@ -34,4 +34,20 @@ export class UploadsController {
         const url = await this.uploadsService.uploadFile(file, `disputes/${orderId}`);
         return { url };
     }
+
+    @Post('verification')
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadVerificationDocs(
+        @UploadedFile() file: Express.Multer.File,
+        @Body('orderId') orderId: string,
+        @Body('folder') folder: string
+    ) {
+        if (!orderId) throw new BadRequestException('Order ID is required');
+        const subFolder = folder || 'misc';
+
+        // Path: {subFolder}/{orderId}/filename
+        const url = await this.uploadsService.uploadFile(file, `${subFolder}/${orderId}`, 'verification-docs');
+        return { url };
+    }
 }

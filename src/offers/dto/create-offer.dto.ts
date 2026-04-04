@@ -4,6 +4,10 @@ export class CreateOfferDto {
     @IsUUID()
     orderId: string;
 
+    @IsUUID()
+    @IsOptional()
+    orderPartId?: string;
+
     @IsNumber()
     unitPrice: number;
 
@@ -21,7 +25,8 @@ export class CreateOfferDto {
     warrantyDuration?: string;
 
     @IsString()
-    deliveryDays: string; // e.g., 'd1_3'
+    @IsOptional()
+    deliveryDays?: string; // e.g., 'd1_3'
 
     @IsString()
     condition: string; // e.g., 'new', 'used_clean'
@@ -33,4 +38,9 @@ export class CreateOfferDto {
     @IsString()
     @IsOptional()
     offerImage?: string;
+
+    @IsNumber()
+    @IsOptional()
+    shippingCost?: number;
 }
+

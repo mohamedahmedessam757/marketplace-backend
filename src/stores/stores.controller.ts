@@ -16,6 +16,11 @@ export class StoresController {
         return this.storesService.findMyStore(req.user.id);
     }
 
+    @Patch('me')
+    updateMyStore(@Request() req, @Body() dto: any) {
+        return this.storesService.updateMyStore(req.user.id, dto);
+    }
+
     @Post('onboarding/documents')
     uploadDocument(@Request() req, @Body() dto: UploadStoreDocumentDto) {
         return this.storesService.uploadDocument(req.user.id, dto);
@@ -45,8 +50,11 @@ export class StoresController {
     @Patch(':id/status')
     @UseGuards(RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-    updateStatus(@Param('id') id: string, @Body('status') status: StoreStatus) {
-        return this.storesService.updateStatus(id, status);
+    updateStatus(
+        @Param('id') id: string, 
+        @Body() body: { status: StoreStatus, reason?: string }
+    ) {
+        return this.storesService.updateStatus(id, body.status, body.reason);
     }
 
     @Patch(':id/documents/:docType/status')

@@ -47,10 +47,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     @SubscribeMessage('joinChat')
     handleJoinChat(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { chatId: string },
+        @MessageBody() payload: { chatId: string; role?: string },
     ) {
         client.join(payload.chatId);
-        console.log(`Client ${client.id} joined chat: ${payload.chatId}`);
+        console.log(`Client ${client.id} (${payload.role || 'user'}) joined chat: ${payload.chatId}`);
         return { event: 'joined', data: payload.chatId };
     }
 
@@ -80,6 +80,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
             userId: payload.userId,
             isTyping: payload.isTyping,
         });
+    }
+
+    /**
+     * Handle read receipts via WebSocket (alternative to HTTP POST /chats/:id/read).
+     * Clients emit 'markRead' with { chatId, userId } to mark messages as read.
+     */
+    @SubscribeMessage('markRead')
+    async handleMarkRead(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() payload: { chatId: string; userId: string },
+    ) {
+        try {
+            await this.chatService.markMessagesAsRead(payload.chatId, payload.userId);
+        } catch (e) {
+            console.error('WebSocket markRead failed:', e);
+        }
     }
 
     /**

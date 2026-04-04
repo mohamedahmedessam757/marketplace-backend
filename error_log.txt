@@ -1,0 +1,14 @@
+PrismaClientUnknownRequestError: 
+Invalid `this.prisma.verificationDocument.create()` invocation in
+C:\Users\attar\Desktop\Marketplace Admin System\backend\src\orders\orders.service.ts:1153:50
+
+  1150 
+  1151 try {
+  1152     const [doc] = await this.prisma.$transaction([
+→ 1153         this.prisma.verificationDocument.create(
+Error in batch request 0: Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "54000", message: "number of array dimensions (1528981620) exceeds the maximum allowed (6)", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+    at $n.handleRequestError (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:121:7505)
+    at $n.handleAndLogRequestError (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at async l (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:130:9633)

@@ -4,9 +4,11 @@ import { ReturnsService } from './returns.service';
 import { UploadsModule } from '../uploads/uploads.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
+import { ReturnsCronService } from './returns.cron';
+
 @Module({
     imports: [UploadsModule, NotificationsModule],
     controllers: [ReturnsController],
-    providers: [ReturnsService],
+    providers: [ReturnsService, ReturnsCronService],
 })
 export class ReturnsModule { }

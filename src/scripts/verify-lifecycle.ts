@@ -45,8 +45,9 @@ async function main() {
         });
         const store = await prisma.store.create({
             data: {
-                name: `Store ${emailSuffix}`,
+                name: 'Test Store',
                 ownerId: vendor.id,
+                storeCode: 'D-TEST-' + Math.floor(Math.random() * 9000),
                 status: 'ACTIVE',
                 licenseExpiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // +1 year
             }

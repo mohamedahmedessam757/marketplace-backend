@@ -50,4 +50,12 @@ export class AuditLogsService {
       orderBy: { timestamp: 'desc' },
     });
   }
+
+  async findByAction(action: string) {
+    return this.prisma.auditLog.findMany({
+      where: { action },
+      orderBy: { timestamp: 'desc' },
+      take: 200, // Limit to recent 200 for monitoring
+    });
+  }
 }

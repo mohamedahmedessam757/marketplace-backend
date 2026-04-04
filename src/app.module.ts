@@ -15,6 +15,14 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { ReturnsModule } from './returns/returns.module';
 import { ChatModule } from './chat/chat.module';
+import { PaymentsModule } from './payments/payments.module';
+import { CardsModule } from './cards/cards.module';
+import { InvoicesModule } from './invoices/invoices.module';
+import { ContractsModule } from './contracts/contracts.module';
+import { WaybillsModule } from './waybills/waybills.module';
+import { ShipmentsModule } from './shipments/shipments.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
 
 @Module({
     imports: [
@@ -35,6 +43,14 @@ import { ChatModule } from './chat/chat.module';
         UploadsModule,
         ReturnsModule,
         ChatModule,
+        PaymentsModule,
+        CardsModule,
+        InvoicesModule,
+        ContractsModule,
+        WaybillsModule,
+        ShipmentsModule,
+        ReviewsModule,
+        LoyaltyModule,
     ],
     controllers: [AppController],
     providers: [],

@@ -1,6 +1,9 @@
-import { Controller, Get, Param, UseGuards, Request, Post, Body } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Request, Post, Body, Patch, ForbiddenException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 
 @Controller('users')
 export class UsersController {
@@ -11,6 +14,38 @@ export class UsersController {
   getProfile(@Request() req) {
     return req.user;
   }
+
+  // --- Administrative Endpoints (ADMIN/SUPER_ADMIN Only) ---
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('admin/customers')
+  async getAllCustomers() {
+    return this.usersService.adminFindAllCustomers();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('admin/customers/:id')
+  async getCustomerById(@Param('id') id: string) {
+    return this.usersService.adminFindCustomerById(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Patch('admin/customers/:id/status')
+  async toggleCustomerStatus(@Param('id') id: string) {
+    return this.usersService.adminToggleStatus(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Patch('admin/customers/:id/notes')
+  async updateCustomerNotes(@Param('id') id: string, @Body() body: { notes: string }) {
+    return this.usersService.adminUpdateNotes(id, body.notes);
+  }
+
+  // --- Profile Endpoints ---
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')

@@ -1,0 +1,17 @@
+PrismaClientUnknownRequestError: 
+Invalid `this.prisma.verificationDocument.create()` invocation in
+C:\Users\attar\Desktop\Marketplace Admin System\backend\src\orders\orders.service.ts:1160:50
+
+  1157 
+  1158 try {
+  1159     const [doc] = await this.prisma.$transaction([
+→ 1160         this.prisma.verificationDocument.create(
+Error in batch request 0: Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "54000", message: "number of array dimensions (1528981620) exceeds the maximum allowed (6)", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })
+    at $n.handleRequestError (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:121:7505)
+    at $n.handleAndLogRequestError (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:121:6623)
+    at $n.request (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:121:6307)
+    at async l (C:\Users\attar\Desktop\Marketplace Admin System\backend\node_modules\@prisma\client\runtime\library.js:130:9633)
+
+PAYLOAD:
+{"images":["https://yhasbbmieqcgyjktgyro.supabase.co/storage/v1/object/public/verification-docs/images/67086c0a-a710-4bc3-a083-95596fdbd1d5/1774242802226_vdz22o.PNG","https://yhasbbmieqcgyjktgyro.supabase.co/storage/v1/object/public/verification-docs/images/67086c0a-a710-4bc3-a083-95596fdbd1d5/1774242803389_8nggwh.PNG"],"videoUrl":"https://yhasbbmieqcgyjktgyro.supabase.co/storage/v1/object/public/verification-docs/videos/67086c0a-a710-4bc3-a083-95596fdbd1d5/1774242804511_1edk44.mp4","description":"السلام عليكم ورحمه الله وبركاته ","recipientName":"mohamed essam","handoverDate":"2026-03-23","handoverTime":"07:13","recipientSignature":"https://yhasbbmieqcgyjktgyro.supabase.co/storage/v1/object/public/verification-docs/signatures/67086c0a-a710-4bc3-a083-95596fdbd1d5/1774242810723_17jocl.png","signatureType":"DRAWN","signatureText":null}

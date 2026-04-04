@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { TransitionOrderDto } from './dto/transition-order.dto';
@@ -18,8 +18,40 @@ export class OrdersController {
     }
 
     @Get()
-    findAll(@Request() req) {
-        return this.ordersService.findAll(req.user);
+    async findAll(@Request() req) {
+        const orders = await this.ordersService.findAll(req.user);
+        // For vendors, include their storeId so frontend can reliably identify own offers
+        if (req.user.role === 'VENDOR' && req.user.storeId) {
+            return { orders, requestingStoreId: req.user.storeId };
+        }
+        return orders;
+    }
+
+    @Get('delivered')
+    getDeliveredOrders(@Request() req) {
+        return this.ordersService.getDeliveredOrders(req.user.id);
+    }
+
+    @Get('assembly-cart')
+    getAssemblyCart(@Request() req) {
+        return this.ordersService.getAssemblyCart(req.user.id);
+    }
+
+    @Get('merchant-assembly-cart')
+    getMerchantAssemblyCart(@Request() req) {
+        return this.ordersService.getMerchantAssemblyCart(req.user.id, req.user.storeId);
+    }
+
+    @Post('request-shipping')
+    requestShipping(@Request() req, @Body() data: { orderIds: string[] }) {
+        return this.ordersService.requestShipping(req.user.id, data.orderIds);
+    }
+
+    @Patch(':id/merchant-request-shipping')
+    requestShippingByMerchant(@Request() req, @Param('id') orderId: string) {
+        const storeId = req.user.storeId;
+        if (!storeId) throw new ForbiddenException('Only verified merchants can request shipping.');
+        return this.ordersService.requestShippingByMerchant(orderId, storeId, req.user.id);
     }
 
     @Get(':id')
@@ -56,5 +88,91 @@ export class OrdersController {
         @Param('offerId') offerId: string
     ) {
         return this.ordersService.acceptOffer(orderId, offerId, req.user.id);
+    }
+
+    @Post(':id/part/:partId/offer/:offerId/accept')
+    acceptOfferForPart(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Param('partId') partId: string,
+        @Param('offerId') offerId: string
+    ) {
+        return this.ordersService.acceptOfferForPart(orderId, partId, offerId, req.user.id);
+    }
+
+    @Post(':id/offer/:offerId/reject')
+    rejectOffer(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Param('offerId') offerId: string,
+        @Body('reason') reason: string,
+        @Body('customReason') customReason?: string
+    ) {
+        return this.ordersService.rejectOffer(orderId, offerId, req.user.id, reason, customReason);
+    }
+
+    @Patch(':id/checkout-data')
+    saveCheckoutData(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Body() data: any
+    ) {
+        return this.ordersService.saveCheckoutData(orderId, req.user.id, data);
+    }
+
+    @Patch('admin/:id/notes')
+    updateAdminNotes(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Body('notes') notes: string
+    ) {
+        return this.ordersService.updateAdminNotes(orderId, notes, req.user);
+    }
+
+    @Patch(':id/prepare')
+    markAsPrepared(
+        @Request() req,
+        @Param('id') orderId: string,
+    ) {
+        const storeId = req.user.storeId;
+        if (!storeId) {
+            throw new ForbiddenException('Only verified merchants can mark orders as prepared.');
+        }
+        return this.ordersService.markAsPrepared(orderId, storeId);
+    }
+
+    @Post(':id/verification')
+    submitVerification(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Body() data: any
+    ) {
+        const storeId = req.user.storeId;
+        if (!storeId) throw new ForbiddenException('Only verified merchants can submit verification docs.');
+        return this.ordersService.submitVerification(orderId, storeId, data);
+    }
+
+    @Patch(':id/verification/review')
+    adminReviewVerification(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Body() data: any
+    ) {
+        // Assume ONLY admins can trigger this endpoint
+        if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ADMIN') {
+            throw new ForbiddenException('Only admins can review verification docs.');
+        }
+        return this.ordersService.adminReviewVerification(orderId, req.user.id, data);
+    }
+
+    @Post(':id/verification/correction')
+    submitCorrectionVerification(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Body() data: any
+    ) {
+        const storeId = req.user.storeId;
+        if (!storeId) throw new ForbiddenException('Only verified merchants can submit corrections.');
+        return this.ordersService.submitCorrectionVerification(orderId, storeId, data);
     }
 }
