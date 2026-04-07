@@ -152,15 +152,10 @@ export class LoyaltyService {
           loyaltyPoints: true,
           referralCount: true,
           referralCode: true,
-          submittedReviews: {
-            include: { store: true },
-            orderBy: { createdAt: 'desc' }
-          }
         }
       });
 
       if (!user) {
-        // Return default structure if user not found to prevent frontend crash
         return {
           loyaltyTier: 'BASIC',
           totalSpent: 0,
@@ -171,7 +166,23 @@ export class LoyaltyService {
         };
       }
 
-      return user;
+      // Safe separate fetch for reviews to prevent schema mismatch from crashing the whole page
+      let submittedReviews = [];
+      try {
+        const reviews = await this.prisma.review.findMany({
+            where: { customerId: userId },
+            include: { store: true },
+            orderBy: { createdAt: 'desc' }
+        });
+        submittedReviews = reviews;
+      } catch (reviewError) {
+        this.logger.warn(`Failed to fetch reviews for user ${userId} (Schema mismatch likely): ${reviewError.message}`);
+      }
+
+      return {
+          ...user,
+          submittedReviews
+      };
     } catch (error) {
       this.logger.error(`Error fetching loyalty data for user ${userId}`, error);
       // Fallback empty state for DB schema mismatch/migration issues
