@@ -1,10 +1,12 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoyaltyTier, StoreLoyaltyTier } from '@prisma/client';
 import { LoyaltyGateway } from './loyalty.gateway';
 
 @Injectable()
 export class LoyaltyService {
+  private readonly logger = new Logger(LoyaltyService.name);
+
   constructor(
     private prisma: PrismaService,
     @Inject(forwardRef(() => LoyaltyGateway))
@@ -141,22 +143,47 @@ export class LoyaltyService {
   }
 
   async getLoyaltyData(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        loyaltyTier: true,
-        totalSpent: true,
-        loyaltyPoints: true,
-        referralCount: true,
-        referralCode: true,
-        submittedReviews: {
-          include: { store: true },
-          orderBy: { createdAt: 'desc' }
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          loyaltyTier: true,
+          totalSpent: true,
+          loyaltyPoints: true,
+          referralCount: true,
+          referralCode: true,
+          submittedReviews: {
+            include: { store: true },
+            orderBy: { createdAt: 'desc' }
+          }
         }
-      }
-    });
+      });
 
-    return user;
+      if (!user) {
+        // Return default structure if user not found to prevent frontend crash
+        return {
+          loyaltyTier: 'BASIC',
+          totalSpent: 0,
+          loyaltyPoints: 0,
+          referralCount: 0,
+          referralCode: null,
+          submittedReviews: []
+        };
+      }
+
+      return user;
+    } catch (error) {
+      this.logger.error(`Error fetching loyalty data for user ${userId}`, error);
+      // Fallback empty state for DB schema mismatch/migration issues
+      return {
+          loyaltyTier: 'BASIC',
+          totalSpent: 0,
+          loyaltyPoints: 0,
+          referralCount: 0,
+          referralCode: null,
+          submittedReviews: []
+      };
+    }
   }
 
   async getMerchantLoyalty(storeId: string) {
