@@ -16,7 +16,11 @@ export class StoresService {
             where: { ownerId: userId },
             include: {
                 owner: { select: { name: true, email: true, phone: true } },
-                documents: true
+                documents: true,
+                contractAcceptances: {
+                    orderBy: { acceptedAt: 'desc' },
+                    take: 1
+                }
             },
         });
 
@@ -39,7 +43,11 @@ export class StoresService {
                 },
                 include: {
                     owner: { select: { name: true, email: true, phone: true } },
-                    documents: true
+                    documents: true,
+                    contractAcceptances: {
+                        orderBy: { acceptedAt: 'desc' },
+                        take: 1
+                    }
                 },
             });
         }
