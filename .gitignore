@@ -34,3 +34,8 @@ Thumbs.db
 
 # Testing
 coverage
+
+# Binaries & Tooling
+stripe.exe
+.agents/
+skills-lock.json

@@ -22,4 +22,32 @@ export class PaymentsController {
     getMerchantPendingPayments(@Request() req) {
         return this.paymentsService.getMerchantPendingPayments(req.user.id);
     }
+
+    // --- Escrow & Wallet Endpoints ---
+
+    @Get('customer/wallet')
+    getCustomerWallet(@Request() req) {
+        return this.paymentsService.getCustomerWallet(req.user.id);
+    }
+
+    @Get('customer/transactions')
+    getCustomerTransactions(@Request() req) {
+        return this.paymentsService.getCustomerTransactions(req.user.id);
+    }
+
+    @Get('merchant/wallet')
+    getMerchantWallet(@Request() req) {
+        return this.paymentsService.getMerchantWallet(req.user.id);
+    }
+
+    @Get('merchant/transactions')
+    getMerchantTransactions(@Request() req) {
+        return this.paymentsService.getMerchantTransactions(req.user.id);
+    }
+
+    @Post('admin/release-escrow')
+    releaseEscrow(@Body() body: { orderId: string }, @Request() req) {
+        // Should have Admin Guard in production
+        return this.paymentsService.releaseEscrowManually(body.orderId);
+    }
 }

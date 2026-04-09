@@ -4,6 +4,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { Prisma } from '@prisma/client';
 
+import { EscrowService } from './escrow.service';
+
 @Injectable()
 export class PaymentsService {
     private readonly logger = new Logger(PaymentsService.name);
@@ -11,6 +13,7 @@ export class PaymentsService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly notifications: NotificationsService,
+        private readonly escrowService: EscrowService,
     ) { }
 
     /**
@@ -104,6 +107,16 @@ export class PaymentsService {
                         status: 'SUCCESS',
                         paidAt: new Date(),
                     },
+                });
+
+                // 7b-i. Update user lifetime stats (totalSpent and loyaltyPoints)
+                // Atomic increment to ensure performance and consistency
+                await tx.user.update({
+                    where: { id: customerId },
+                    data: {
+                        totalSpent: { increment: totalAmount },
+                        loyaltyPoints: { increment: Math.floor(totalAmount) } // 1 Point per 1 AED
+                    }
                 });
 
                 // 7c. Credit merchant wallet (unitPrice + shippingCost)
@@ -382,5 +395,114 @@ export class PaymentsService {
             },
             orderBy: { createdAt: 'desc' }
         });
+    }
+
+    // --- New Wallet APIs ---
+
+    async getCustomerWallet(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                totalSpent: true,
+                loyaltyPoints: true,
+                loyaltyTier: true,
+                referralCount: true,
+                customerBalance: true
+            }
+        });
+
+        const customerTransactions = await this.prisma.paymentTransaction.findMany({
+            where: { customerId: userId, status: 'SUCCESS' },
+            select: { totalAmount: true }
+        });
+
+        const totalSpent = customerTransactions.reduce((sum, tx) => sum + Number(tx.totalAmount), 0);
+
+        const completedOrders = await this.prisma.order.count({
+            where: { 
+                customerId: userId, 
+                status: { in: ['COMPLETED', 'DELIVERED'] } 
+            }
+        });
+
+        const refundedPayments = await this.prisma.paymentTransaction.findMany({
+            where: { customerId: userId, status: 'REFUNDED' },
+            select: { refundedAmount: true }
+        });
+        const refundedAmount = refundedPayments.reduce((sum, p) => sum + Number(p.refundedAmount), 0);
+
+        return {
+            ...user,
+            totalSpent, // Override with aggregated value for absolute accuracy
+            completedOrders,
+            refundedAmount
+        };
+    }
+
+    async getCustomerTransactions(userId: string) {
+        return this.prisma.paymentTransaction.findMany({
+            where: { customerId: userId },
+            orderBy: { createdAt: 'desc' },
+            include: { order: true }
+        });
+    }
+
+    async getMerchantWallet(userId: string) {
+        const store = await this.prisma.store.findUnique({
+            where: { ownerId: userId },
+            select: {
+                balance: true,
+                pendingBalance: true,
+                frozenBalance: true,
+                stripeAccountId: true,
+                stripeOnboarded: true,
+                payoutSchedule: true,
+                lifetimeEarnings: true
+            }
+        });
+
+        if (!store) throw new NotFoundException('Store not found');
+
+        const balance = Number(store.balance);
+        const pendingBalance = Number(store.pendingBalance);
+        const frozenBalance = Number(store.frozenBalance);
+        const totalSales = Number(store.lifetimeEarnings);
+
+        // Logic for "Net Earnings" or "Monthly Sales" could go here
+        return {
+            ...store,
+            balance,
+            pendingBalance,
+            frozenBalance,
+            totalSales
+        };
+    }
+
+    async getMerchantTransactions(userId: string) {
+        const store = await this.prisma.store.findUnique({ where: { ownerId: userId }});
+        if(!store) throw new NotFoundException('Store not found');
+
+        return this.prisma.walletTransaction.findMany({
+            where: { userId: store.ownerId, role: 'VENDOR' },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                payment: {
+                    select: {
+                        orderId: true,
+                        order: {
+                            select: {
+                                orderNumber: true,
+                                status: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async releaseEscrowManually(orderId: string) {
+        await this.escrowService.releaseFunds(orderId, 'ADMIN_RELEASE');
+        return { success: true, message: 'Funds released successfully.' };
     }
 }

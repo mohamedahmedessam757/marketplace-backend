@@ -95,18 +95,18 @@ enum DocType {
 }
 
 model User {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email           String    @unique
-  phone           String?   @unique
-  passwordHash    String    @map("password_hash")
-  countryCode     String?   @map("country_code")
-  country         String?   @map("country")
-  role            UserRole  @default(CUSTOMER)
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String     @unique
+  phone           String?    @unique
+  passwordHash    String     @map("password_hash")
+  countryCode     String?    @map("country_code")
+  country         String?    @map("country")
+  role            UserRole   @default(CUSTOMER)
   status          UserStatus @default(ACTIVE)
   name            String?
-  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
-  otpCode         String?   @map("otp_code")
-  otpExpiresAt    DateTime? @map("otp_expires_at") @db.Timestamptz
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz
+  otpCode         String?    @map("otp_code")
+  otpExpiresAt    DateTime?  @map("otp_expires_at") @db.Timestamptz
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -135,10 +135,11 @@ model User {
   createdContracts        PlatformContract[]
   verificationReviews     VerificationDocument[]
 
-  adminNotes      String?           @map("admin_notes") @db.Text
+  adminNotes       String?           @map("admin_notes") @db.Text
   shippingWaybills ShippingWaybill[]
-  
+
   // Loyalty & Referral System
+  customerBalance Decimal     @default(0) @map("customer_balance") @db.Decimal(14, 2)
   loyaltyTier     LoyaltyTier @default(BASIC) @map("loyalty_tier")
   totalSpent      Decimal     @default(0) @map("total_spent") @db.Decimal(14, 2)
   loyaltyPoints   Int         @default(0) @map("loyalty_points")
@@ -152,11 +153,11 @@ model User {
   submittedReviews Review[]
 
   // Shipping Management
-  updatedShipments          Shipment[]
-  changedShipmentStatuses   ShipmentStatusLog[]
-  
+  updatedShipments        Shipment[]
+  changedShipmentStatuses ShipmentStatusLog[]
+
   // Phase 4: Case Messaging
-  caseMessages    CaseMessage[]
+  caseMessages CaseMessage[]
 
   @@map("users")
 }
@@ -195,6 +196,11 @@ model Store {
   status          StoreStatus @default(PENDING_DOCUMENTS)
   licenseExpiry   DateTime?   @map("license_expiry") @db.Date
   balance         Decimal     @default(0) @db.Decimal(14, 2)
+  pendingBalance  Decimal     @default(0) @map("pending_balance") @db.Decimal(14, 2)
+  frozenBalance   Decimal     @default(0) @map("frozen_balance") @db.Decimal(14, 2)
+  stripeAccountId String?     @map("stripe_account_id")
+  stripeOnboarded Boolean     @default(false) @map("stripe_onboarded")
+  payoutSchedule  String      @default("MANUAL") @map("payout_schedule")
   rating          Decimal     @default(0) @db.Decimal(3, 2)
   rejectionReason String?     @map("rejection_reason")
 
@@ -319,8 +325,8 @@ model Order {
 
   // Verification
   verificationDocuments VerificationDocument[]
-  shippingWaybills ShippingWaybill[]
-  shipments        Shipment[]
+  shippingWaybills      ShippingWaybill[]
+  shipments             Shipment[]
 
   @@index([customerId])
   @@index([storeId])
@@ -468,9 +474,9 @@ model OrderPart {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  order           Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  offers          Offer[]
-  shippingAddress OrderShippingAddress?
+  order            Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  offers           Offer[]
+  shippingAddress  OrderShippingAddress?
   shippingWaybills ShippingWaybill[]
 
   @@map("order_parts")
@@ -509,23 +515,23 @@ model ReturnRequest {
   offerId     String? @map("offer_id") @db.Uuid
   customerId  String  @map("customer_id") @db.Uuid
 
-  reason         String
-  description    String?
-  status         String  @default("PENDING") 
-  evidenceFiles  Json    @default("[]") @map("evidence_files")
-  
+  reason        String
+  description   String?
+  status        String  @default("PENDING")
+  evidenceFiles Json    @default("[]") @map("evidence_files")
+
   // 2026 Enhanced Fields
-  usageCondition   String? @map("usage_condition") // UNUSED | OPENED | INSTALLED
-  returnType       String  @default("REFUND") @map("return_type") // REFUND | EXCHANGE
-  storeId          String? @map("store_id") @db.Uuid
-  invoiceId        String? @map("invoice_id") @db.Uuid
-  shipmentId       String? @map("shipment_id") @db.Uuid
-  returnWaybillId  String? @map("return_waybill_id") @db.Uuid
+  usageCondition   String?   @map("usage_condition") // UNUSED | OPENED | INSTALLED
+  returnType       String    @default("REFUND") @map("return_type") // REFUND | EXCHANGE
+  storeId          String?   @map("store_id") @db.Uuid
+  invoiceId        String?   @map("invoice_id") @db.Uuid
+  shipmentId       String?   @map("shipment_id") @db.Uuid
+  returnWaybillId  String?   @map("return_waybill_id") @db.Uuid
   handoverDeadline DateTime? @map("handover_deadline") @db.Timestamptz
-  merchantEvidence Json    @default("[]") @map("merchant_evidence")
+  merchantEvidence Json      @default("[]") @map("merchant_evidence")
 
   // Phase 4 Governance
-  verdictNotes  String? @map("verdict_notes")
+  verdictNotes String? @map("verdict_notes")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -547,7 +553,7 @@ model Dispute {
   description   String?
   status        String  @default("OPEN")
   evidenceFiles Json    @default("[]") @map("evidence_files")
-  
+
   // 2026 Enhanced Fields
   storeId          String? @map("store_id") @db.Uuid
   invoiceId        String? @map("invoice_id") @db.Uuid
@@ -555,13 +561,13 @@ model Dispute {
   merchantEvidence Json    @default("[]") @map("merchant_evidence")
 
   // Phase 4 Governance
-  faultParty       String?   @map("fault_party")
-  refundAmount     Decimal?  @map("refund_amount") @db.Decimal(14, 2)
-  shippingRefund   Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
-  stripeFee        Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
-  verdictNotes     String?   @map("verdict_notes")
-  verdictIssuedAt  DateTime? @map("verdict_issued_at") @db.Timestamptz
-  verdictLocked    Boolean   @default(false) @map("verdict_locked")
+  faultParty      String?   @map("fault_party")
+  refundAmount    Decimal?  @map("refund_amount") @db.Decimal(14, 2)
+  shippingRefund  Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
+  stripeFee       Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
+  verdictNotes    String?   @map("verdict_notes")
+  verdictIssuedAt DateTime? @map("verdict_issued_at") @db.Timestamptz
+  verdictLocked   Boolean   @default(false) @map("verdict_locked")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -573,14 +579,14 @@ model Dispute {
 }
 
 model CaseMessage {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  caseId     String   @map("case_id") @db.Uuid
-  caseType   String   @map("case_type") // 'return' or 'dispute'
-  senderId   String   @map("sender_id") @db.Uuid
-  senderRole String   @map("sender_role") // 'CUSTOMER', 'MERCHANT', 'ADMIN'
-  text       String   @db.Text
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId      String   @map("case_id") @db.Uuid
+  caseType    String   @map("case_type") // 'return' or 'dispute'
+  senderId    String   @map("sender_id") @db.Uuid
+  senderRole  String   @map("sender_role") // 'CUSTOMER', 'MERCHANT', 'ADMIN'
+  text        String   @db.Text
   attachments Json     @default("[]")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
@@ -640,8 +646,8 @@ model OrderChatMessage {
   // Administrative Moderation (2026 Enhancement)
   isDeletedByAdmin Boolean @default(false) @map("is_deleted_by_admin")
 
-  priority       String? @map("priority")
-  subject        String? @map("subject")
+  priority String? @map("priority")
+  subject  String? @map("subject")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
@@ -700,9 +706,9 @@ model SecurityLog {
 }
 
 model Session {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  token       String   @unique
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  token       String  @unique
   fingerprint String?
   device      String?
   os          String?
@@ -770,7 +776,13 @@ model PaymentTransaction {
   failureReason String? @map("failure_reason")
 
   // Future Stripe integration
-  stripePaymentId String? @map("stripe_payment_id")
+  stripePaymentId  String?   @map("stripe_payment_id")
+  stripeTransferId String?   @map("stripe_transfer_id")
+  gatewayFee       Decimal   @default(0) @map("gateway_fee") @db.Decimal(14, 2)
+  refundedAmount   Decimal   @default(0) @map("refunded_amount") @db.Decimal(14, 2)
+  refundedAt       DateTime? @map("refunded_at") @db.Timestamptz
+  refundReason     String?   @map("refund_reason")
+  escrowStatus     String    @default("HELD") @map("escrow_status")
 
   paidAt    DateTime? @map("paid_at") @db.Timestamptz
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -778,6 +790,7 @@ model PaymentTransaction {
   order    Order @relation(fields: [orderId], references: [id])
   offer    Offer @relation(fields: [offerId], references: [id])
   customer User  @relation(fields: [customerId], references: [id])
+  walletTransactions WalletTransaction[]
 
   @@unique([offerId]) // Prevent duplicate payments at DB level — race-condition safe
   @@index([orderId])
@@ -792,17 +805,55 @@ model WalletTransaction {
   role      String // VENDOR | ADMIN
   paymentId String? @map("payment_id") @db.Uuid
 
-  type         String // CREDIT | DEBIT
-  amount       Decimal @db.Decimal(14, 2)
-  currency     String  @default("AED")
-  description  String?
-  balanceAfter Decimal @map("balance_after") @db.Decimal(14, 2)
+  type            String // CREDIT | DEBIT
+  transactionType String  @default("payment") @map("transaction_type") // payment | commission | refund | withdrawal | penalty
+  amount          Decimal @db.Decimal(14, 2)
+  currency        String  @default("AED")
+  description     String?
+  balanceAfter    Decimal @map("balance_after") @db.Decimal(14, 2)
+  metadata        Json?   @default("{}")
+  escrowId        String? @map("escrow_id") @db.Uuid
+
+  payment PaymentTransaction? @relation(fields: [paymentId], references: [id])
+  escrow  EscrowTransaction?  @relation(fields: [escrowId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([userId])
   @@index([paymentId])
   @@map("wallet_transactions")
+}
+
+model EscrowTransaction {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId        String    @map("payment_id") @db.Uuid
+  orderId          String    @map("order_id") @db.Uuid
+  merchantAmount   Decimal   @map("merchant_amount") @db.Decimal(14, 2)
+  commissionAmount Decimal   @map("commission_amount") @db.Decimal(14, 2)
+  shippingAmount   Decimal   @map("shipping_amount") @db.Decimal(14, 2)
+  gatewayFee       Decimal   @default(0) @map("gateway_fee") @db.Decimal(14, 2)
+  status           String    @default("HELD") // HELD | RELEASED | REFUNDED | FROZEN
+  releaseCondition String?   @map("release_condition") // CUSTOMER_CONFIRM | AUTO_48H | ADMIN_RELEASE
+  releasedAt       DateTime? @map("released_at") @db.Timestamptz
+  frozenReason     String?   @map("frozen_reason")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  walletTransactions WalletTransaction[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("escrow_transactions")
+}
+
+model PlatformWallet {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  commissionBalance Decimal  @default(0) @map("commission_balance") @db.Decimal(14, 2)
+  feesBalance       Decimal  @default(0) @map("fees_balance") @db.Decimal(14, 2)
+  totalRevenue      Decimal  @default(0) @map("total_revenue") @db.Decimal(14, 2)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("platform_wallet")
 }
 
 model Invoice {
@@ -859,7 +910,7 @@ model PlatformContract {
   createdBy String? @map("created_by") @db.Uuid
   creator   User?   @relation(fields: [createdBy], references: [id])
 
-  stores Store[]
+  stores              Store[]
   contractAcceptances ContractAcceptance[]
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -869,24 +920,24 @@ model PlatformContract {
 }
 
 model ContractAcceptance {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  storeId             String   @map("store_id") @db.Uuid
-  contractId          String   @map("contract_id") @db.Uuid
-  contractVersion     Int      @map("contract_version")
-  
-  secondPartyData     Json     @default("{}") @map("second_party_data")
-  signatureData       Json     @default("{}") @map("signature_data")
-  firstPartySnapshot  Json     @default("{}") @map("first_party_snapshot")
-  contentArSnapshot   String   @map("content_ar_snapshot") @db.Text
-  contentEnSnapshot   String   @map("content_en_snapshot") @db.Text
-  
-  ipAddress           String?  @map("ip_address") @db.VarChar(45)
-  userAgent           String?  @map("user_agent") @db.Text
-  
-  acceptedAt          DateTime @default(now()) @map("accepted_at") @db.Timestamptz
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId         String @map("store_id") @db.Uuid
+  contractId      String @map("contract_id") @db.Uuid
+  contractVersion Int    @map("contract_version")
 
-  store               Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  contract            PlatformContract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  secondPartyData    Json   @default("{}") @map("second_party_data")
+  signatureData      Json   @default("{}") @map("signature_data")
+  firstPartySnapshot Json   @default("{}") @map("first_party_snapshot")
+  contentArSnapshot  String @map("content_ar_snapshot") @db.Text
+  contentEnSnapshot  String @map("content_en_snapshot") @db.Text
+
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.Text
+
+  acceptedAt DateTime @default(now()) @map("accepted_at") @db.Timestamptz
+
+  store    Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  contract PlatformContract @relation(fields: [contractId], references: [id], onDelete: Restrict)
 
   @@unique([storeId, contractId])
   @@index([storeId])
@@ -973,32 +1024,32 @@ enum CarrierType {
 }
 
 model Shipment {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId         String         @map("order_id") @db.Uuid
-  waybillId       String?        @map("waybill_id") @db.Uuid
-  
-  carrierType     CarrierType    @default(NO_TRACKING) @map("carrier_type")
-  carrierName     String?        @map("carrier_name")
-  trackingNumber  String?        @map("tracking_number")
-  carrierApiUrl   String?        @map("carrier_api_url")
-  
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId   String  @map("order_id") @db.Uuid
+  waybillId String? @map("waybill_id") @db.Uuid
+
+  carrierType    CarrierType @default(NO_TRACKING) @map("carrier_type")
+  carrierName    String?     @map("carrier_name")
+  trackingNumber String?     @map("tracking_number")
+  carrierApiUrl  String?     @map("carrier_api_url")
+
   // Initial status when merchant requests shipping
-  status          ShipmentStatus @default(RECEIVED_AT_HUB)
-  statusNotes     String?        @map("status_notes")
-  customsDelayNote String?       @map("customs_delay_note")
-  
-  estimatedDelivery DateTime?    @map("estimated_delivery") @db.Timestamptz
-  actualDelivery    DateTime?    @map("actual_delivery") @db.Timestamptz
-  updatedBy         String?      @map("updated_by") @db.Uuid
-  
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  status           ShipmentStatus @default(RECEIVED_AT_HUB)
+  statusNotes      String?        @map("status_notes")
+  customsDelayNote String?        @map("customs_delay_note")
+
+  estimatedDelivery DateTime? @map("estimated_delivery") @db.Timestamptz
+  actualDelivery    DateTime? @map("actual_delivery") @db.Timestamptz
+  updatedBy         String?   @map("updated_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
-  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  waybill         ShippingWaybill? @relation(fields: [waybillId], references: [id])
-  updater         User?          @relation(fields: [updatedBy], references: [id])
-  statusLogs      ShipmentStatusLog[]
+  order      Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  waybill    ShippingWaybill?    @relation(fields: [waybillId], references: [id])
+  updater    User?               @relation(fields: [updatedBy], references: [id])
+  statusLogs ShipmentStatusLog[]
 
   @@index([orderId])
   @@index([status])
@@ -1006,18 +1057,18 @@ model Shipment {
 }
 
 model ShipmentStatusLog {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  shipmentId      String         @map("shipment_id") @db.Uuid
-  fromStatus      ShipmentStatus? @map("from_status")
-  toStatus        ShipmentStatus @map("to_status")
-  changedBy       String?        @map("changed_by") @db.Uuid
-  notes           String?
-  source          String?        @default("MANUAL") // 'MANUAL' | 'API'
-  
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipmentId String          @map("shipment_id") @db.Uuid
+  fromStatus ShipmentStatus? @map("from_status")
+  toStatus   ShipmentStatus  @map("to_status")
+  changedBy  String?         @map("changed_by") @db.Uuid
+  notes      String?
+  source     String?         @default("MANUAL") // 'MANUAL' | 'API'
 
-  shipment        Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  changer         User?          @relation(fields: [changedBy], references: [id])
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  changer  User?    @relation(fields: [changedBy], references: [id])
 
   @@index([shipmentId])
   @@map("shipment_status_logs")
@@ -1028,20 +1079,20 @@ model ShipmentStatusLog {
 // -----------------------------------------------------
 
 model Review {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId      String   @unique @map("order_id") @db.Uuid
-  customerId   String   @map("customer_id") @db.Uuid
-  storeId      String   @map("store_id") @db.Uuid
-  rating       Int      @db.SmallInt
-  comment      String   @db.Text
-  adminStatus  String   @default("PENDING") @map("admin_status") // PENDING, PUBLISHED, REJECTED
-  
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  
-  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  customer     User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String @unique @map("order_id") @db.Uuid
+  customerId  String @map("customer_id") @db.Uuid
+  storeId     String @map("store_id") @db.Uuid
+  rating      Int    @db.SmallInt
+  comment     String @db.Text
+  adminStatus String @default("PENDING") @map("admin_status") // PENDING, PUBLISHED, REJECTED
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer User  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store    Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
   @@index([customerId])

@@ -23,6 +23,7 @@ import { WaybillsModule } from './waybills/waybills.module';
 import { ShipmentsModule } from './shipments/shipments.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
+import { StripeModule } from './stripe/stripe.module';
 
 @Module({
     imports: [
@@ -51,6 +52,7 @@ import { LoyaltyModule } from './loyalty/loyalty.module';
         ShipmentsModule,
         ReviewsModule,
         LoyaltyModule,
+        StripeModule,
     ],
     controllers: [AppController],
     providers: [],
