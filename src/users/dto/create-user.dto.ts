@@ -126,4 +126,10 @@ export class CreateUserDto {
     @ValidateNested()
     @Type(() => ContractDataDto)
     contractData?: ContractDataDto;
+
+    // Referral System: Code from the referring user (used at registration)
+    @IsOptional()
+    @IsString()
+    referralCode?: string;
 }
+

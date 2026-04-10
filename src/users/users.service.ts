@@ -36,7 +36,7 @@ export class UsersService {
 
         // Resolve Referrer
         let referredById: string | null = null;
-        const incomingReferralCode = (createUserDto as any).referralCode;
+        const incomingReferralCode = createUserDto.referralCode;
         if (incomingReferralCode) {
           console.log(`[UsersService] Referral code received: '${incomingReferralCode}' for new user: ${createUserDto.email}`);
           const referrer = await tx.user.findUnique({ 
