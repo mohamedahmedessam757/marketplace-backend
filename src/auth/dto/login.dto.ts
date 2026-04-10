@@ -1,4 +1,4 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsEmail, IsString, IsOptional } from 'class-validator';
 
 export class LoginDto {
     @IsEmail()
@@ -7,6 +7,7 @@ export class LoginDto {
     @IsString()
     password: string;
 
+    @IsOptional()
     @IsString()
     fingerprint?: string;
 }

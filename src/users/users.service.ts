@@ -50,7 +50,6 @@ export class UsersService {
           }
         }
 
-
         const user = await tx.user.create({
           data: {
             passwordHash: hashedPassword,
@@ -64,6 +63,16 @@ export class UsersService {
             referredById,
           },
         });
+
+        // Increment referralCount on the referrer immediately upon successful registration
+        // (Financial reward/points fire later via processReferralReward after first order closed)
+        if (referredById) {
+          await tx.user.update({
+            where: { id: referredById },
+            data: { referralCount: { increment: 1 } }
+          });
+          console.log(`[UsersService] referralCount incremented for referrer: ${referredById}`);
+        }
 
         // If user is a VENDOR, create a Store record immediately
         if (createUserDto.role === 'VENDOR') {
