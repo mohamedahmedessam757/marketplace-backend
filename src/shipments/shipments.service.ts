@@ -5,22 +5,22 @@ import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { UpdateShipmentStatusDto } from './dto/update-shipment-status.dto';
 import { ShipmentStatus } from '@prisma/client';
 
-// Bilingual status labels for notifications
+// Premium Bilingual status labels for notifications (Enthusiastic & Clear)
 const STATUS_LABELS: Record<ShipmentStatus, { ar: string; en: string }> = {
-    RECEIVED_AT_HUB:           { ar: 'تم استلام الطلب في المركز', en: 'Order received at hub' },
-    QUALITY_CHECK_PASSED:      { ar: 'اجتاز قطعة التفتيش وفحص الجودة', en: 'Quality check passed' },
-    PACKAGED_FOR_SHIPPING:     { ar: 'تم تغليف الطلب وتجهيزه للشحن', en: 'Packaged for shipping' },
-    AWAITING_CARRIER_PICKUP:   { ar: 'في انتظار شركة الشحن لاستلام الطرد', en: 'Awaiting carrier pickup' },
-    PICKED_UP_BY_CARRIER:      { ar: 'تم استلام الطرد من قبل شركة الشحن', en: 'Picked up by carrier' },
-    IN_TRANSIT_TO_DESTINATION: { ar: 'الطرد في طريقه إلى وجهته', en: 'In transit to destination' },
-    ARRIVED_AT_LOCAL_FACILITY: { ar: 'وصل الطرد إلى المستودع المحلي', en: 'Arrived at local facility' },
-    CUSTOMS_CLEARANCE:         { ar: 'الطرد قيد التخليص الجمركي', en: 'Customs clearance in progress' },
-    AT_LOCAL_WAREHOUSE:        { ar: 'وصل الطرد إلى مستودع الشحن في مدينتك', en: 'At local carrier warehouse in your city' },
-    OUT_FOR_DELIVERY:          { ar: 'خرج الطرد للتوصيل - سيصلك اليوم', en: 'Out for delivery - arriving today' },
-    DELIVERY_ATTEMPTED:        { ar: 'تمت محاولة التوصيل ولم تنجح - سيعاد المحاولة', en: 'Delivery attempted - will retry' },
-    DELIVERED_TO_CUSTOMER:     { ar: 'تم تسليم الطرد بنجاح', en: 'Delivered to customer successfully' },
-    RETURN_TO_SENDER_INITIATED:{ ar: 'بدء إجراءات الإرجاع', en: 'Return to sender initiated' },
-    RETURNED_TO_SENDER:        { ar: 'تم إرجاع الطرد للمرسل', en: 'Returned to sender' },
+    RECEIVED_AT_HUB:           { ar: 'وصلت شحنتك إلى مستودعنا الرئيسي 🏢 نحن الآن بصدد فرزها وتجهيزها.', en: 'Your shipment arrived at our main hub 🏢 We are now sorting and preparing it.' },
+    QUALITY_CHECK_PASSED:      { ar: 'اجتازت الشحنة فحص الجودة بنجاح! ✅ نحن نحرص دائماً على تسليمك الأفضل.', en: 'Shipment passed quality check successfully! ✅ We always ensure you receive the best.' },
+    PACKAGED_FOR_SHIPPING:     { ar: 'تم تغليف طلبك بعناية 📦 وهو الآن في وضع الاستعداد للانطلاق.', en: 'Your order is carefully packaged 📦 and is ready to head out.' },
+    AWAITING_CARRIER_PICKUP:   { ar: 'في انتظار مندوب شركة الشحن 🚚 لاستلام طردك الثمين.', en: 'Awaiting shipping courier 🚚 to pick up your precious package.' },
+    PICKED_UP_BY_CARRIER:      { ar: 'انطلقت الشحنة! 🚀 استلمت شركة الشحن طردك وهي في طريقها إليك.', en: 'Shipment has launched! 🚀 The courier picked up your package and is on the way.' },
+    IN_TRANSIT_TO_DESTINATION: { ar: 'شحنتك بين أيدٍ أمينة 🛣️ وهي الآن تتحرك نحو وجهتها النهائية.', en: 'Your shipment is in safe hands 🛣️ and is moving towards its destination.' },
+    ARRIVED_AT_LOCAL_FACILITY: { ar: 'وصلت الشحنة إلى مركز التوزيع المحلي 📍 أصبحت قريبة جداً منك.', en: 'Shipment reached the local distribution hub 📍 It is very close now.' },
+    CUSTOMS_CLEARANCE:         { ar: 'إجراءات روتينية 🛠️ الشحنة حالياً في مرحلة التخليص الجمركي.', en: 'Routine procedures 🛠️ Shipment is currently in customs clearance.' },
+    AT_LOCAL_WAREHOUSE:        { ar: 'وصلت إلى مدينتك! 🌆 الشحنة الآن في مستودع الشحن المحلي بانتظار خروج المندوب.', en: 'Reached your city! 🌆 Shipment is at the local warehouse awaiting delivery.' },
+    OUT_FOR_DELIVERY:          { ar: 'استعد للاستلام! 🛵 المندوب في الطريق إليك اليوم، يرجى التواجد.', en: 'Get ready! 🛵 The courier is on the way to you today, please be available.' },
+    DELIVERY_ATTEMPTED:        { ar: 'حاولنا الوصول إليك 🔔 ولكن لم نتمكن من التسليم. سنعيد المحاولة قريباً.', en: 'We tried to reach you 🔔 but could not deliver. We will retry soon.' },
+    DELIVERED_TO_CUSTOMER:     { ar: 'تم التسليم بنجاح! ✅ نأمل أن تكون تجربتك معنا رائعة، يومك سعيد.', en: 'Delivered successfully! ✅ We hope you had a great experience with us.' },
+    RETURN_TO_SENDER_INITIATED:{ ar: 'بدء إجراءات الإرجاع 🔄 لضمان وصول الشحنة للمرسل بأمان.', en: 'Return to sender initiated 🔄 to ensure safe arrival.' },
+    RETURNED_TO_SENDER:        { ar: 'تم إرجاع الطرد للمرسل بنجاح.', en: 'Returned to sender successfully.' },
 };
 
 @Injectable()
@@ -337,8 +337,8 @@ export class ShipmentsService {
             : '';
 
         const notifyData = {
-            titleAr: 'تحديث حالة الشحنة',
-            titleEn: 'Shipment Status Updated',
+            titleAr: 'تحديث شحنتك 🚚',
+            titleEn: 'Shipment Update 🚚',
             messageAr: `طلب #${order.orderNumber}: ${labels.ar}${note ? '\n' + note : ''}${customsSuffixAr}`,
             messageEn: `Order #${order.orderNumber}: ${labels.en}${note ? '\n' + note : ''}${customsSuffixEn}`,
             type: 'ORDER_UPDATE',

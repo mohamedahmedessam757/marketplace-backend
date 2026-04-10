@@ -234,29 +234,29 @@ export class PaymentsService {
 
         // 8. Send notifications (outside transaction for performance)
         try {
-            // Notify customer
+            // Notify customer with "Premium" encouraging tone
             await this.notifications.create({
                 recipientId: customerId,
                 recipientRole: 'CUSTOMER',
                 type: 'payment',
-                titleAr: 'تم الدفع بنجاح',
-                titleEn: 'Payment Successful',
-                messageAr: `تم دفع ${totalAmount} درهم بنجاح للعرض #${offer.offerNumber}`,
-                messageEn: `Payment of AED ${totalAmount} successful for offer #${offer.offerNumber}`,
+                titleAr: 'تم الدفع بنجاح! 🎉',
+                titleEn: 'Payment Successful! 🎉',
+                messageAr: `اختيار رائع! 👌 تم دفع ${totalAmount} درهم بنجاح للعرض #${offer.offerNumber}. نحن الآن بصدد البدء في تجهيز طلبك.`,
+                messageEn: `Great choice! 👌 Payment of AED ${totalAmount} successful for offer #${offer.offerNumber}. We are now starting to prepare your order.`,
                 link: 'checkout',
                 metadata: { orderId, offerId, amount: totalAmount },
             });
 
-            // Notify merchant
+            // Notify merchant with professional financial alert
             if (offer.store) {
                 await this.notifications.create({
                     recipientId: offer.store.ownerId,
                     recipientRole: 'VENDOR',
                     type: 'payment',
-                    titleAr: 'تم استلام مبلغ جديد',
-                    titleEn: 'New Payment Received',
-                    messageAr: `💰 تم دفع الطلب #${order.orderNumber}. المبلغ: ${unitPrice + shippingCost} درهم`,
-                    messageEn: `💰 Payment received for Order #${order.orderNumber}. Amount: AED ${unitPrice + shippingCost}`,
+                    titleAr: 'مبيعة جديدة! 💰',
+                    titleEn: 'New Sale! 💰',
+                    messageAr: `ممتاز! تم دفع الطلب #${order.orderNumber}. المبلغ المضاف لحسابك: ${unitPrice + shippingCost} درهم. يرجى البدء في التجهيز.`,
+                    messageEn: `Excellent! Payment received for Order #${order.orderNumber}. Amount credited: AED ${unitPrice + shippingCost}. Please start preparation.`,
                     link: 'active-orders',
                     metadata: { orderId, amount: unitPrice + shippingCost },
                 });

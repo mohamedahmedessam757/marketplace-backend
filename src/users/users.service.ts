@@ -71,7 +71,20 @@ export class UsersService {
             where: { id: referredById },
             data: { referralCount: { increment: 1 } }
           });
-          console.log(`[UsersService] referralCount incremented for referrer: ${referredById}`);
+          
+          // Notify the referrer with a "Premium" congratulatory message
+          this.notificationsService.create({
+            recipientId: referredById,
+            recipientRole: 'CUSTOMER', // Referrals are for customers/users
+            type: 'referral',
+            titleAr: 'إحالة ناجحة! 🎉',
+            titleEn: 'Successful Referral! 🎉',
+            messageAr: `خبر رائع! لقد انضم عضو جديد للمنصة من خلال رابطك الخاص. أنت الآن أقرب لربح مكافآتك القادمة، شكراً لمساندتك لنا! 🌟`,
+            messageEn: `Great news! A new member has joined using your link. You're now one step closer to your next reward. Thanks for sharing the success! 🌟`,
+            link: '/dashboard/wallet'
+          }).catch(err => console.error('Failed to send referral notification:', err));
+
+          console.log(`[UsersService] Referral notification sent and count incremented for referrer: ${referredById}`);
         }
 
         // If user is a VENDOR, create a Store record immediately

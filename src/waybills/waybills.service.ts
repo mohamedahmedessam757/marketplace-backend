@@ -132,10 +132,10 @@ export class WaybillsService {
                 recipientId: order.customerId,
                 recipientRole: 'CUSTOMER',
                 type: 'order_update',
-                titleAr: 'تم إصدار بوليصة الشحن',
-                titleEn: 'Shipping Waybill Issued',
-                messageAr: `تم إصدار خطة الشحن بنجاح لطلبك #${order.orderNumber}. طلبك قيد التجهيز للتوصيل.`,
-                messageEn: `Shipping plan has been issued for order #${order.orderNumber}. Your order is being prepared for delivery.`,
+                titleAr: 'تم إصدار بوليصه الشحن بنجاح! 📑',
+                titleEn: 'Shipping Waybill Ready! 📑',
+                messageAr: `خبر سار! تم إصدار بوليصة الشحن لطلبك #${order.orderNumber}. طلبك الآن في مرحلة التجهيز النهائي للتسليم.`,
+                messageEn: `Great news! Your shipping waybill for #${order.orderNumber} is ready. Your order is now in final preparation for delivery.`,
                 link: `/customer/orders/${order.id}`
             } as any);
         } catch (e) {

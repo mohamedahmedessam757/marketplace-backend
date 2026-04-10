@@ -98,14 +98,14 @@ export class OrdersService {
 
         // 3. Notification: Notify Customer & Admin (Async)
         try {
-            // Notify Customer
+            // Notify Customer with welcoming tone
             await this.notifications.create({
                 recipientId: customerId,
                 recipientRole: 'CUSTOMER',
-                titleAr: 'تم استلام طلبك بنجاح',
-                titleEn: 'Order Received Successfully',
-                messageAr: `تم إنشاء الطلب رقم ${orderNumber} وهو قيد المراجعة بانتظار العروض`,
-                messageEn: `Order #${orderNumber} has been created and is awaiting offers`,
+                titleAr: 'تم استلام طلبك بنجاح! 🌟',
+                titleEn: 'Order Received Successfully! 🌟',
+                messageAr: `شكراً لثقتك بنا! طلبك رقم ${orderNumber} قيد المراجعة الآن وسنقوم بجلب أفضل العروض لك في أقرب وقت.`,
+                messageEn: `Thank you for your trust! Order #${orderNumber} is now under review, and we'll bring you the best offers soon.`,
                 type: 'ORDER',
                 link: `/dashboard/orders`,
                 metadata: { orderId: result.id, orderNumber }
@@ -276,20 +276,20 @@ export class OrdersService {
         // 3. Notification: Notify Customer & Merchant (Async)
         try {
             const statusMessagesAr: Record<string, string> = {
-                [OrderStatus.PREPARATION]: 'طلبك قيد التحضير والتجهيز',
-                [OrderStatus.SHIPPED]: 'تم شحن طلبك',
-                [OrderStatus.DELIVERED]: 'تم توصيل طلبك',
-                [OrderStatus.CANCELLED]: 'تم إلغاء طلبك',
-                [OrderStatus.AWAITING_PAYMENT]: 'يرجى إتمام عملية الدفع',
-                [OrderStatus.RETURNED]: 'تمت الموافقة على طلب الإرجاع الخاص بك'
+                [OrderStatus.PREPARATION]: 'بدأ الحماس! 🔥 القِطع الخاصة بك قيد التجهيز الآن بكل عناية.',
+                [OrderStatus.SHIPPED]: 'انطلقت إليك! 🚀 طلبك الآن في الطريق، استعد لاستلام الجودة.',
+                [OrderStatus.DELIVERED]: 'وصلت الأمانة! 🏠 نأمل أن تنال إعجابك، يومك سعيد بقطعك الجديدة.',
+                [OrderStatus.CANCELLED]: 'تم إلغاء طلبك بنجاح. نتمنى خدمتك في أقرب وقت ممكن.',
+                [OrderStatus.AWAITING_PAYMENT]: 'اختيار موفق! 👌 يرجى إتمام عملية الدفع لنبدأ في تجهيز طلبك فوراً.',
+                [OrderStatus.RETURNED]: 'حقك محفوظ 🤝 تمت الموافقة على طلب الإرجاع الخاص بك، سنقوم باللازم فوراً.'
             };
             const statusMessagesEn: Record<string, string> = {
-                [OrderStatus.PREPARATION]: 'Your order is being processed and prepared',
-                [OrderStatus.SHIPPED]: 'Your order has been shipped',
-                [OrderStatus.DELIVERED]: 'Your order has been delivered',
-                [OrderStatus.CANCELLED]: 'Your order has been canceled',
-                [OrderStatus.AWAITING_PAYMENT]: 'Please complete your payment',
-                [OrderStatus.RETURNED]: 'Your return request has been approved'
+                [OrderStatus.PREPARATION]: 'The excitement begins! 🔥 Your items are being carefully prepared now.',
+                [OrderStatus.SHIPPED]: 'On its way! 🚀 Your order is now shipped and heading to you.',
+                [OrderStatus.DELIVERED]: 'Delivered! 🏠 We hope you love it. Have a great day with your new items!',
+                [OrderStatus.CANCELLED]: 'Your order has been cancelled. We look forward to serving you again soon.',
+                [OrderStatus.AWAITING_PAYMENT]: 'Great choice! 👌 Please complete payment to start processing your order right away.',
+                [OrderStatus.RETURNED]: 'Your rights are protected 🤝 Your return request has been approved.'
             };
 
             // 3.1 Notify Customer
@@ -658,10 +658,10 @@ export class OrdersService {
         this.notifications.create({
             recipientId: order.customerId,
             recipientRole: 'CUSTOMER',
-            titleAr: 'طلبك جاهز للشحن!',
-            titleEn: 'Order Ready for Tracking!',
-            messageAr: `قام التاجر بتجهيز طلبك #${order.orderNumber} وهو الآن في انتظار شركة الشحن لاستلامه.`,
-            messageEn: `The vendor has prepared your order #${order.orderNumber}. Awaiting shipping courier pickup.`,
+            titleAr: 'طلبك جاهز للشحن! ✨',
+            titleEn: 'Order Ready for Pickup! ✨',
+            messageAr: `خبر رائع! التاجر انتهى من تجهيز طلبك #${order.orderNumber} وهو الآن ينتظر شركة الشحن لاستلامه وإرساله لك.`,
+            messageEn: `Great news! The vendor finished preparing your order #${order.orderNumber}. Awaiting shipping courier pickup.`,
             type: 'ORDER',
             link: `/dashboard/orders/${order.id}`
         }).catch(e => console.error('Failed to notify customer upon preparation completion', e));
