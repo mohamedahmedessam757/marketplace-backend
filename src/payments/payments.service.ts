@@ -399,75 +399,74 @@ export class PaymentsService {
 
     // --- New Wallet APIs ---
 
-    async getCustomerWallet(userId: string) {
-        const user = await this.prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                totalSpent: true,
-                loyaltyPoints: true,
-                loyaltyTier: true,
-                referralCount: true,
-                referralCode: true,
-                customerBalance: true
-            }
-        });
+    async getCustomerWalletDashboard(userId: string) {
+        // Run aggregations and main data fetching in parallel for maximum speed
+        const [user, stats, monthStats, ordersCount, refundedStats, pendingCount, transactions] = await Promise.all([
+            this.prisma.user.findUnique({
+                where: { id: userId },
+                select: {
+                    totalSpent: true,
+                    loyaltyPoints: true,
+                    loyaltyTier: true,
+                    referralCount: true,
+                    referralCode: true,
+                    customerBalance: true
+                }
+            }),
+            this.prisma.paymentTransaction.aggregate({
+                where: { customerId: userId, status: 'SUCCESS' },
+                _sum: { totalAmount: true }
+            }),
+            this.prisma.paymentTransaction.aggregate({
+                where: { 
+                    customerId: userId, 
+                    status: 'SUCCESS',
+                    createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } 
+                },
+                _sum: { totalAmount: true }
+            }),
+            this.prisma.order.aggregate({
+                where: { customerId: userId },
+                _count: { id: true, status: true }
+            }),
+            this.prisma.paymentTransaction.aggregate({
+                where: { customerId: userId, status: 'REFUNDED' },
+                _sum: { refundedAmount: true }
+            }),
+            this.prisma.paymentTransaction.count({
+                where: { customerId: userId, status: 'PENDING' }
+            }),
+            this.getCustomerTransactions(userId) // Limited set for dashboard
+        ]);
 
-        const customerTransactions = await this.prisma.paymentTransaction.findMany({
-            where: { customerId: userId, status: 'SUCCESS' },
-            select: { totalAmount: true }
-        });
+        if (!user) throw new NotFoundException('User not found');
 
-        const totalSpent = customerTransactions.reduce((sum, tx) => sum + Number(tx.totalAmount), 0);
-
-        // Calculate Monthly Spent (2026 Analytics)
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-
-        const monthlyTransactions = await this.prisma.paymentTransaction.findMany({
-            where: { 
-                customerId: userId, 
-                status: 'SUCCESS',
-                createdAt: { gte: startOfMonth }
-            },
-            select: { totalAmount: true }
-        });
-        const monthlySpent = monthlyTransactions.reduce((sum, tx) => sum + Number(tx.totalAmount), 0);
-
-        const totalOrdersCount = await this.prisma.order.count({
-            where: { customerId: userId }
-        });
-
+        const totalOrdersCount = ordersCount._count.id;
+        // In a real scenario, we might want to fetch the exact count of completed orders separately or using a more complex aggregate
         const completedOrders = await this.prisma.order.count({
-            where: { 
-                customerId: userId, 
-                status: { in: ['COMPLETED', 'DELIVERED'] } 
-            }
+            where: { customerId: userId, status: { in: ['COMPLETED', 'DELIVERED'] } }
         });
 
         const acceptanceRate = totalOrdersCount > 0 ? (completedOrders / totalOrdersCount) * 100 : 100;
 
-        const refundedPayments = await this.prisma.paymentTransaction.findMany({
-            where: { customerId: userId, status: 'REFUNDED' },
-            select: { refundedAmount: true }
-        });
-        const refundedAmount = refundedPayments.reduce((sum, p) => sum + Number(p.refundedAmount), 0);
-
-        // Get Pending Earnings (from escrow if applicable, or logic based on current system)
-        const pendingEarnings = await this.prisma.paymentTransaction.count({
-            where: { customerId: userId, status: 'PENDING' }
-        });
-
         return {
-            ...user,
-            totalSpent,
-            monthlySpent,
-            completedOrders,
-            totalOrdersCount,
-            acceptanceRate: Math.round(acceptanceRate),
-            refundedAmount,
-            pendingEarnings: pendingEarnings * 100 // Mock or calculate based on pending payments
+            stats: {
+                ...user,
+                totalSpent: Number(stats._sum.totalAmount || 0),
+                monthlySpent: Number(monthStats._sum.totalAmount || 0),
+                completedOrders,
+                totalOrdersCount,
+                acceptanceRate: Math.round(acceptanceRate),
+                refundedAmount: Number(refundedStats._sum.refundedAmount || 0),
+                pendingEarnings: pendingCount * 100 // Logic based on your current simplified model
+            },
+            transactions
         };
+    }
+
+    async getCustomerWallet(userId: string) {
+        const dashboard = await this.getCustomerWalletDashboard(userId);
+        return dashboard.stats;
     }
 
     async getCustomerTransactions(userId: string) {

@@ -25,10 +25,12 @@ export class PaymentsController {
 
     // --- Escrow & Wallet Endpoints ---
 
-    @Get('customer/wallet')
-    getCustomerWallet(@Request() req) {
-        return this.paymentsService.getCustomerWallet(req.user.id);
+    @Get('customer/dashboard')
+    getCustomerDashboard(@Request() req) {
+        return this.paymentsService.getCustomerWalletDashboard(req.user.id);
     }
+
+    @Get('customer/wallet')
 
     @Get('customer/transactions')
     getCustomerTransactions(@Request() req) {
