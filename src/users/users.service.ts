@@ -36,12 +36,20 @@ export class UsersService {
 
         // Resolve Referrer
         let referredById: string | null = null;
-        if ((createUserDto as any).referralCode) {
+        const incomingReferralCode = (createUserDto as any).referralCode;
+        if (incomingReferralCode) {
+          console.log(`[UsersService] Referral code received: '${incomingReferralCode}' for new user: ${createUserDto.email}`);
           const referrer = await tx.user.findUnique({ 
-            where: { referralCode: (createUserDto as any).referralCode } 
+            where: { referralCode: incomingReferralCode } 
           });
-          if (referrer) referredById = referrer.id;
+          if (referrer) {
+            referredById = referrer.id;
+            console.log(`[UsersService] Referral LINKED. New user will be linked to referrer: ${referrer.id} (${referrer.email})`);
+          } else {
+            console.warn(`[UsersService] Referral code '${incomingReferralCode}' NOT FOUND in database. Skipping referral link.`);
+          }
         }
+
 
         const user = await tx.user.create({
           data: {
