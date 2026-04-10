@@ -407,6 +407,7 @@ export class PaymentsService {
                 loyaltyPoints: true,
                 loyaltyTier: true,
                 referralCount: true,
+                referralCode: true,
                 customerBalance: true
             }
         });
@@ -418,6 +419,25 @@ export class PaymentsService {
 
         const totalSpent = customerTransactions.reduce((sum, tx) => sum + Number(tx.totalAmount), 0);
 
+        // Calculate Monthly Spent (2026 Analytics)
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const monthlyTransactions = await this.prisma.paymentTransaction.findMany({
+            where: { 
+                customerId: userId, 
+                status: 'SUCCESS',
+                createdAt: { gte: startOfMonth }
+            },
+            select: { totalAmount: true }
+        });
+        const monthlySpent = monthlyTransactions.reduce((sum, tx) => sum + Number(tx.totalAmount), 0);
+
+        const totalOrdersCount = await this.prisma.order.count({
+            where: { customerId: userId }
+        });
+
         const completedOrders = await this.prisma.order.count({
             where: { 
                 customerId: userId, 
@@ -425,17 +445,28 @@ export class PaymentsService {
             }
         });
 
+        const acceptanceRate = totalOrdersCount > 0 ? (completedOrders / totalOrdersCount) * 100 : 100;
+
         const refundedPayments = await this.prisma.paymentTransaction.findMany({
             where: { customerId: userId, status: 'REFUNDED' },
             select: { refundedAmount: true }
         });
         const refundedAmount = refundedPayments.reduce((sum, p) => sum + Number(p.refundedAmount), 0);
 
+        // Get Pending Earnings (from escrow if applicable, or logic based on current system)
+        const pendingEarnings = await this.prisma.paymentTransaction.count({
+            where: { customerId: userId, status: 'PENDING' }
+        });
+
         return {
             ...user,
-            totalSpent, // Override with aggregated value for absolute accuracy
+            totalSpent,
+            monthlySpent,
             completedOrders,
-            refundedAmount
+            totalOrdersCount,
+            acceptanceRate: Math.round(acceptanceRate),
+            refundedAmount,
+            pendingEarnings: pendingEarnings * 100 // Mock or calculate based on pending payments
         };
     }
 
@@ -443,7 +474,15 @@ export class PaymentsService {
         return this.prisma.paymentTransaction.findMany({
             where: { customerId: userId },
             orderBy: { createdAt: 'desc' },
-            include: { order: true }
+            include: { 
+                order: {
+                    select: {
+                        id: true,
+                        orderNumber: true,
+                        status: true
+                    }
+                }
+            }
         });
     }
 

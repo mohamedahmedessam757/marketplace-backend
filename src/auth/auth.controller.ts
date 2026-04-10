@@ -31,11 +31,27 @@ export class AuthController {
         return result;
     }
 
+    @Post('email-login-init')
+    async initiateEmailLogin(@Body() body: { email: string }) {
+        const result = await this.authService.initiateEmailLogin(body.email);
+        if (!result) {
+            throw new UnauthorizedException('Account not found');
+        }
+        return result;
+    }
+
     @Post('mobile-login-verify')
     async verifyMobileLogin(@Body() body: { phone: string; code: string; fingerprint?: string }, @Request() req) {
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         const userAgent = req.headers['user-agent'];
         return this.authService.verifyMobileLogin(body.phone, body.code, ip, userAgent, body.fingerprint);
+    }
+
+    @Post('email-login-verify')
+    async verifyEmailLogin(@Body() body: { email: string; code: string; fingerprint?: string }, @Request() req) {
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        const userAgent = req.headers['user-agent'];
+        return this.authService.verifyEmailLogin(body.email, body.code, ip, userAgent, body.fingerprint);
     }
 
 

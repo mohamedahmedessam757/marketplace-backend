@@ -139,6 +139,45 @@ export class AuthService {
         };
     }
 
+    async initiateEmailLogin(email: string) {
+        console.log(`[AuthService] Initiating login for email: ${email}`);
+        const user = await this.usersService.findByEmail(email);
+        
+        if (!user) {
+            console.warn(`[AuthService] User not found for email: ${email}`);
+            return null;
+        }
+
+        console.log(`[AuthService] Email user found: ${user.id}, Role: ${user.role}`);
+
+        return {
+            exists: true,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone || '',
+                role: user.role
+            }
+        };
+    }
+
+    async verifyEmailLogin(email: string, code: string, ip?: string, userAgent?: string, fingerprint?: string) {
+        // 1. Verify OTP (Mock for now)
+        if (code !== '123456') { 
+            throw new UnauthorizedException('Invalid verification code');
+        }
+
+        // 2. Find User
+        const user = await this.usersService.findByEmail(email);
+        if (!user) {
+            throw new UnauthorizedException('User not found');
+        }
+
+        // 3. Generate Token
+        return this.login(user, ip, userAgent, fingerprint); 
+    }
+
     async verifyMobileLogin(phone: string, code: string, ip?: string, userAgent?: string, fingerprint?: string) {
         // 1. Verify OTP (Mock for now)
         if (code !== '123456') { 
