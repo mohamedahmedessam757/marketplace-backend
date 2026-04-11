@@ -6,9 +6,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ChatModule } from '../chat/chat.module';
 import { ShipmentsModule } from '../shipments/shipments.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 @Module({
-    imports: [PrismaModule, NotificationsModule, ChatModule, ShipmentsModule],
+    imports: [PrismaModule, NotificationsModule, ChatModule, ShipmentsModule, LoyaltyModule],
     controllers: [OrdersController],
     providers: [OrdersService, OrderStateMachine],
     exports: [OrderStateMachine, OrdersService], // Export for Scheduler

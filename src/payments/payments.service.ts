@@ -109,15 +109,10 @@ export class PaymentsService {
                     },
                 });
 
-                // 7b-i. Update user lifetime stats (totalSpent and loyaltyPoints)
-                // Atomic increment to ensure performance and consistency
-                await tx.user.update({
-                    where: { id: customerId },
-                    data: {
-                        totalSpent: { increment: totalAmount },
-                        loyaltyPoints: { increment: Math.floor(totalAmount) } // 1 Point per 1 AED
-                    }
-                });
+
+                // 7b-i. Note: TotalSpent and LoyaltyPoints are now updated upon Order COMPLETION 
+                // in OrdersService/LoyaltyService to ensure return period has passed.
+
 
                 // 7c. Credit merchant wallet (unitPrice + shippingCost)
                 const merchantAmount = unitPrice + shippingCost;
@@ -400,8 +395,20 @@ export class PaymentsService {
     // --- New Wallet APIs ---
 
     async getCustomerWalletDashboard(userId: string) {
-        // Run aggregations and main data fetching in parallel for maximum speed
-        const [user, stats, monthStats, ordersCount, refundedStats, pendingCount, transactions] = await Promise.all([
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        // Parallel execution of heavy aggregations for 2026 performance standards
+        const [
+            user, 
+            purchaseStats, 
+            monthRewardStats, 
+            ordersCount, 
+            refundedStats, 
+            pendingOrders, 
+            transactions
+        ] = await Promise.all([
             this.prisma.user.findUnique({
                 where: { id: userId },
                 select: {
@@ -410,55 +417,77 @@ export class PaymentsService {
                     loyaltyTier: true,
                     referralCount: true,
                     referralCode: true,
-                    customerBalance: true
+                    customerBalance: true,
+                    name: true
                 }
             }),
+            // 1. Total Purchases (All Successful Payments)
             this.prisma.paymentTransaction.aggregate({
                 where: { customerId: userId, status: 'SUCCESS' },
                 _sum: { totalAmount: true }
             }),
-            this.prisma.paymentTransaction.aggregate({
+            // 2. Monthly Rewards (Profits earned this month)
+            this.prisma.walletTransaction.aggregate({
                 where: { 
-                    customerId: userId, 
-                    status: 'SUCCESS',
-                    createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } 
+                    userId: userId, 
+                    type: 'CREDIT',
+                    transactionType: { in: ['ORDER_PROFIT', 'REFERRAL_PROFIT'] },
+                    createdAt: { gte: startOfMonth } 
                 },
-                _sum: { totalAmount: true }
+                _sum: { amount: true }
             }),
+            // 3. Acceptance Rate Basis (Total vs Completed)
             this.prisma.order.aggregate({
                 where: { customerId: userId },
-                _count: { id: true, status: true }
+                _count: { id: true }
             }),
+            // 4. Refunded Amount
             this.prisma.paymentTransaction.aggregate({
                 where: { customerId: userId, status: 'REFUNDED' },
                 _sum: { refundedAmount: true }
             }),
-            this.prisma.paymentTransaction.count({
-                where: { customerId: userId, status: 'PENDING' }
+            // 5. Pending Rewards Basis (Orders paid but not completed)
+            this.prisma.order.findMany({
+                where: { 
+                    customerId: userId, 
+                    status: { in: ['PREPARATION', 'SHIPPED', 'DELIVERED', 'READY_FOR_SHIPPING'] } 
+                },
+                include: { payments: { where: { status: 'SUCCESS' } } }
             }),
-            this.getCustomerTransactions(userId) // Limited set for dashboard
+            this.getCustomerTransactions(userId)
         ]);
 
         if (!user) throw new NotFoundException('User not found');
 
-        const totalOrdersCount = ordersCount._count.id;
-        // In a real scenario, we might want to fetch the exact count of completed orders separately or using a more complex aggregate
+        // Logic Engineering: Compute Pending Rewards based on REAL SYSTEM COMMISSIONS (25% or 100 AED)
+        const tierConfig: any = { BASIC: 0.02, SILVER: 0.03, GOLD: 0.04, VIP: 0.05, PARTNER: 0.06 };
+        const userRate = tierConfig[user.loyaltyTier] || 0.02;
+        
+        const pendingRewards = pendingOrders.reduce((sum, order) => {
+            // Aggregate absolute commission taken by the system for this order's successful payments
+            const realOrderCommission = order.payments.reduce((cSum, p) => cSum + Number((p as any).commission || 0), 0);
+            return sum + (realOrderCommission * userRate);
+        }, 0);
+
         const completedOrders = await this.prisma.order.count({
-            where: { customerId: userId, status: { in: ['COMPLETED', 'DELIVERED'] } }
+            where: { customerId: userId, status: 'COMPLETED' }
         });
 
+        const totalOrdersCount = ordersCount._count.id;
         const acceptanceRate = totalOrdersCount > 0 ? (completedOrders / totalOrdersCount) * 100 : 100;
 
         return {
             stats: {
                 ...user,
-                totalSpent: Number(stats._sum.totalAmount || 0),
-                monthlySpent: Number(monthStats._sum.totalAmount || 0),
+                totalSpent: Number(user.totalSpent || 0),
+                totalPurchases: Number(purchaseStats._sum.totalAmount || 0),
+                monthlyRewards: Number(monthRewardStats._sum.amount || 0),
+                pendingRewards: Number(pendingRewards.toFixed(2)),
+                refundedAmount: Number(refundedStats._sum.refundedAmount || 0),
                 completedOrders,
                 totalOrdersCount,
                 acceptanceRate: Math.round(acceptanceRate),
-                refundedAmount: Number(refundedStats._sum.refundedAmount || 0),
-                pendingEarnings: pendingCount * 100 // Logic based on your current simplified model
+                profitPercentage: userRate * 100
             },
             transactions
         };
@@ -470,8 +499,8 @@ export class PaymentsService {
     }
 
     async getCustomerTransactions(userId: string) {
-        return this.prisma.paymentTransaction.findMany({
-            where: { customerId: userId },
+        const payments = await this.prisma.paymentTransaction.findMany({
+            where: { customerId: userId, status: { not: 'FAILED' } },
             orderBy: { createdAt: 'desc' },
             include: { 
                 order: {
@@ -483,6 +512,86 @@ export class PaymentsService {
                 }
             }
         });
+
+        // Ensure backward compatibility with the UI and statement report
+        // by injecting the exact fields the frontend expects exclusively for payments.
+        return payments.map(p => ({
+            ...p,
+            amount: Number(p.totalAmount),
+            type: 'DEBIT',
+            transactionType: 'PAYMENT'
+        }));
+    }
+
+    async getMerchantWalletDashboard(userId: string) {
+        const store = await this.prisma.store.findUnique({
+            where: { ownerId: userId },
+            include: { owner: true }
+        });
+
+        if (!store) throw new NotFoundException('Store not found');
+
+        const [transactions, notifications, pendingOrders] = await Promise.all([
+            this.getMerchantTransactions(userId),
+            this.prisma.notification.findMany({
+                where: { recipientId: userId, recipientRole: 'MERCHANT' },
+                orderBy: { createdAt: 'desc' },
+                take: 5
+            }),
+            this.prisma.order.findMany({
+                where: { 
+                    storeId: store.id,
+                    status: { in: ['PREPARATION', 'SHIPPED', 'DELIVERED', 'READY_FOR_SHIPPING'] } 
+                },
+                include: { payments: { where: { status: 'SUCCESS' } } }
+            })
+        ]);
+
+        // Logic Engineering: Compute Loyalty Profits from Referrals (Same as Customer)
+        const tierConfig: any = { BRONZE: 0.02, SILVER: 0.03, GOLD: 0.04, PLATINUM: 0.05, PARTNER: 0.06 };
+        const userRate = tierConfig[store.loyaltyTier] || 0.02;
+        
+        const pendingRewards = pendingOrders.reduce((sum, order) => {
+            const realOrderCommission = order.payments.reduce((cSum, p) => cSum + Number((p as any).commission || 0), 0);
+            return sum + (realOrderCommission * userRate);
+        }, 0);
+
+        const monthlyRewards = await this.prisma.walletTransaction.aggregate({
+            where: { 
+                userId: userId, 
+                type: 'CREDIT',
+                transactionType: 'REFERRAL_PROFIT',
+                createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } 
+            },
+            _sum: { amount: true }
+        });
+
+        const completedOrdersCount = await this.prisma.order.count({
+            where: { storeId: store.id, status: 'COMPLETED' }
+        });
+
+        return {
+            stats: {
+                available: Number(store.balance),
+                pending: Number(store.pendingBalance),
+                frozen: Number(store.frozenBalance),
+                totalSales: Number(store.lifetimeEarnings),
+                netEarnings: Number(store.balance) + Number(store.pendingBalance),
+                completedOrders: completedOrdersCount,
+                loyaltyTier: store.loyaltyTier,
+                performanceScore: Number(store.performanceScore),
+                rating: Number(store.rating),
+                storeName: store.name || 'Merchant',
+                referralCode: store.owner.referralCode,
+                referralCount: store.owner.referralCount,
+                loyaltyPoints: store.owner.loyaltyPoints,
+                pendingRewards: Number(pendingRewards.toFixed(2)),
+                monthlyRewards: Number(monthlyRewards._sum.amount || 0),
+                profitPercentage: userRate * 100
+            },
+            transactions,
+            notifications
+        };
     }
 
     async getMerchantWallet(userId: string) {

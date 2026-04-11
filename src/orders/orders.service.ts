@@ -8,6 +8,7 @@ import { ActorType, Order, OrderStatus } from '@prisma/client';
 
 import { ChatService } from '../chat/chat.service';
 import { ShipmentsService } from '../shipments/shipments.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class OrdersService {
@@ -17,7 +18,8 @@ export class OrdersService {
         private auditLogs: AuditLogsService,
         private notifications: NotificationsService,
         private chatService: ChatService, // Injected
-        private shipmentsService: ShipmentsService
+        private shipmentsService: ShipmentsService,
+        private loyaltyService: LoyaltyService
     ) { }
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -291,6 +293,13 @@ export class OrdersService {
                 [OrderStatus.AWAITING_PAYMENT]: 'Great choice! 👌 Please complete payment to start processing your order right away.',
                 [OrderStatus.RETURNED]: 'Your rights are protected 🤝 Your return request has been approved.'
             };
+
+            // 3.0 Real-time Reward Engine: Trigger 2026 Loyalty System upon COMPLETION
+            if (newStatus === OrderStatus.COMPLETED) {
+                this.loyaltyService.grantOrderCompletionRewards(orderId).catch(err => {
+                    console.error(`Failed to grant rewards for order ${orderId}:`, err);
+                });
+            }
 
             // 3.1 Notify Customer
             if (statusMessagesAr[newStatus]) {

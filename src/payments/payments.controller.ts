@@ -37,6 +37,11 @@ export class PaymentsController {
         return this.paymentsService.getCustomerTransactions(req.user.id);
     }
 
+    @Get('merchant/dashboard')
+    getMerchantDashboard(@Request() req) {
+        return this.paymentsService.getMerchantWalletDashboard(req.user.id);
+    }
+
     @Get('merchant/wallet')
     getMerchantWallet(@Request() req) {
         return this.paymentsService.getMerchantWallet(req.user.id);
