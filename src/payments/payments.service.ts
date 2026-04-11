@@ -582,7 +582,19 @@ export class PaymentsService {
                 performanceScore: Number(store.performanceScore),
                 rating: Number(store.rating),
                 storeName: store.name || 'Merchant',
-                referralCode: store.owner.referralCode,
+                referralCode: await (async () => {
+                    if (store.owner.referralCode) return store.owner.referralCode;
+                    // Self-healing: Generate missing referral code
+                    let code = '';
+                    let isUnique = false;
+                    while (!isUnique) {
+                        code = Math.random().toString(36).substring(2, 8).toUpperCase();
+                        const existing = await this.prisma.user.findUnique({ where: { referralCode: code } });
+                        if (!existing) isUnique = true;
+                    }
+                    await this.prisma.user.update({ where: { id: userId }, data: { referralCode: code } });
+                    return code;
+                })(),
                 referralCount: store.owner.referralCount,
                 loyaltyPoints: store.owner.loyaltyPoints,
                 pendingRewards: Number(pendingRewards.toFixed(2)),
