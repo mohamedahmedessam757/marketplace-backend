@@ -42,4 +42,40 @@ export class NotificationsService {
             where: { recipientId: userId, isRead: false }
         });
     }
+
+    /**
+     * Helper to send urgent notifications to all platform administrators
+     * Following 2026 Admin Alerting standards
+     */
+    async notifyAdmins(data: Omit<CreateNotificationDto, 'recipientId' | 'recipientRole'>) {
+        const admins = await this.prisma.user.findMany({
+            where: {
+                role: { in: ['ADMIN', 'SUPER_ADMIN'] }
+            },
+            select: { id: true }
+        });
+
+        const notifications = admins.map(admin => ({
+            ...data,
+            recipientId: admin.id,
+            recipientRole: 'ADMIN',
+            type: data.type || 'alert'
+        }));
+
+        return this.prisma.notification.createMany({
+            data: notifications
+        });
+    }
+
+    /**
+     * Standardized helper for bilingual user notifications
+     */
+    async notifyUser(recipientId: string, role: string, data: Omit<CreateNotificationDto, 'recipientId' | 'recipientRole'>) {
+        return this.create({
+            ...data,
+            recipientId,
+            recipientRole: role,
+            type: data.type || 'system'
+        });
+    }
 }

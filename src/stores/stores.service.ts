@@ -3,12 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UploadStoreDocumentDto } from './dto/upload-store-document.dto';
 import { StoreStatus, OrderStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class StoresService {
     constructor(
         private prisma: PrismaService,
-        private notificationsService: NotificationsService
+        private notificationsService: NotificationsService,
+        private auditLogs: AuditLogsService
     ) { }
 
     async findMyStore(userId: string) {
@@ -143,25 +145,159 @@ export class StoresService {
         const store = await this.prisma.store.findUnique({
             where: { id },
             include: {
-                owner: { select: { id: true, email: true, name: true, phone: true } }, // Include owner details
+                owner: { 
+                    select: { 
+                        id: true, 
+                        email: true, 
+                        name: true, 
+                        phone: true, 
+                        avatar: true,
+                        Session: {
+                            orderBy: { lastActive: 'desc' },
+                            take: 10
+                        },
+                        securityLogs: {
+                            orderBy: { createdAt: 'desc' },
+                            take: 10
+                        }
+                    } 
+                },
+                offers: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 10
+                },
                 documents: true,
                 contractAcceptances: {
                     orderBy: { acceptedAt: 'desc' },
-                    take: 1
+                    take: 5
                 },
-                orders: { take: 5, orderBy: { createdAt: 'desc' } }, // Brief history
-                _count: { select: { orders: true } }
+                reviews: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 20,
+                    include: {
+                        customer: { select: { name: true, avatar: true } }
+                    }
+                },
+                _count: { 
+                    select: { 
+                        orders: true,
+                        reviews: true,
+                        offers: true
+                    } 
+                }
             }
         });
+
         if (!store) throw new NotFoundException('Store not found');
-        return store;
+
+        // 2. Resolve Inclusive Orders (Directly Assigned + Accepted Offers)
+        // This fixes the issue where orders were missing from the simple Prisma relation
+        const inclusiveOrders = await this.prisma.order.findMany({
+            where: {
+                OR: [
+                    { storeId: id }, // Directly assigned
+                    { offers: { some: { storeId: id } } } // ANY offer by this store
+                ]
+            },
+            take: 50, // Increased visibility for Admin
+            orderBy: { createdAt: 'desc' },
+            include: {
+                customer: { select: { name: true } },
+                parts: { select: { id: true, name: true, quantity: true } },
+                acceptedOffer: {
+                    select: { id: true, unitPrice: true, shippingCost: true, status: true, storeId: true }
+                },
+                offers: {
+                    where: { storeId: id }, // Fetch this store's specific offer(s)
+                    select: { 
+                        id: true, unitPrice: true, shippingCost: true, status: true, createdAt: true,
+                        payments: {
+                            where: { status: 'SUCCESS' },
+                            select: { totalAmount: true }
+                        }
+                    }
+                },
+                disputes: { select: { id: true, status: true, reason: true, createdAt: true } },
+                returns: { select: { id: true, status: true, reason: true, createdAt: true } }
+            }
+        });
+
+        // 3. Real-time Metric Calculation (Strict Financial Accuracy)
+        // Lifetime Earnings: Sum of ALL successful payments
+        const lifetimeSum = await this.prisma.paymentTransaction.aggregate({
+            where: {
+                status: 'SUCCESS',
+                offer: { storeId: id }
+            },
+            _sum: { totalAmount: true }
+        });
+
+        // Available Balance: ONLY COMPLETED orders (released funds)
+        const availableSum = await this.prisma.paymentTransaction.aggregate({
+            where: {
+                status: 'SUCCESS',
+                offer: { storeId: id },
+                order: { status: 'COMPLETED' }
+            },
+            _sum: { totalAmount: true }
+        });
+
+        // Pending Balance: PAID but NOT COMPLETED (escrowed funds)
+        const pendingSum = await this.prisma.paymentTransaction.aggregate({
+            where: {
+                status: 'SUCCESS',
+                offer: { storeId: id },
+                order: {
+                    status: {
+                        in: [
+                            'PREPARATION', 
+                            'SHIPPED', 
+                            'DELIVERED', 
+                            'VERIFICATION',
+                            'PREPARED',
+                            'READY_FOR_SHIPPING',
+                            'DISPUTED'
+                        ]
+                    }
+                }
+            },
+            _sum: { totalAmount: true }
+        });
+
+        // Calculate Performance Score (Success Rate: Delivered/Completed/Fullfilled vs Total)
+        const totalCount = inclusiveOrders.length;
+        const successCount = inclusiveOrders.filter(o => 
+            ['DELIVERED', 'COMPLETED', 'VERIFICATION_SUCCESS'].includes(o.status)
+        ).length;
+        const calculatedScore = totalCount > 0 ? (successCount / totalCount) * 100 : 0;
+
+        // 4. Inject Dynamic Data into Store Object
+        const enrichedStore = {
+            ...store,
+            owner: store.owner ? {
+                ...store.owner,
+                sessions: (store.owner as any).Session || []
+            } : null,
+            orders: inclusiveOrders,
+            lifetimeEarnings: Number(lifetimeSum._sum.totalAmount || 0),
+            balance: Number(availableSum._sum.totalAmount || 0), // available = balance for UI
+            pendingBalance: Number(pendingSum._sum.totalAmount || 0),
+            performanceScore: calculatedScore,
+            _count: {
+                ...store._count,
+                orders: totalCount // Corrected metadata count
+            }
+        };
+
+        return enrichedStore;
     }
-    async updateStatus(id: string, status: StoreStatus, reason?: string) {
+    async updateStatus(id: string, status: StoreStatus, reason?: string, suspendedUntil?: Date) {
         const result = await this.prisma.store.update({
             where: { id },
             data: { 
                 status, 
                 rejectionReason: status === StoreStatus.REJECTED ? reason : null,
+                suspendedUntil: status === StoreStatus.SUSPENDED ? suspendedUntil : null,
                 updatedAt: new Date() 
             },
             include: { owner: true }
@@ -207,6 +343,42 @@ export class StoresService {
             }
         }
 
+        // --- Task 12.1: Log Status Change with Store Metadata ---
+        await this.auditLogs.logAction({
+            action: 'STORE_STATUS_CHANGE',
+            entity: 'STORE',
+            actorType: 'ADMIN',
+            actorId: id,
+            reason: reason || 'Manual Admin Update',
+            metadata: { 
+                storeId: id, 
+                storeName: result.name, // Added for global transparency
+                newStatus: status,
+                suspendedUntil: suspendedUntil 
+            }
+        });
+
+        return result;
+    }
+
+    async updateAdminNotes(id: string, notes: string) {
+        const result = await this.prisma.store.update({
+            where: { id },
+            data: { adminNotes: notes, updatedAt: new Date() }
+        });
+
+        // --- Task 12.1: Log Notes Update with Store Metadata ---
+        await this.auditLogs.logAction({
+            action: 'STORE_NOTES_UPDATE',
+            entity: 'STORE',
+            actorType: 'ADMIN',
+            reason: 'Internal Admin Note Added/Modified',
+            metadata: { 
+                storeId: id,
+                storeName: result.name // Added for global transparency
+            }
+        });
+
         return result;
     }
 
@@ -238,9 +410,28 @@ export class StoresService {
             data: dataToUpdate
         });
 
+        // --- Task 12.1: Fetch Store Name for Global Audit Transparency ---
+        const store = await this.prisma.store.findUnique({ 
+            where: { id: storeId },
+            select: { name: true, ownerId: true }
+        });
+
+        // --- Task 11.3: Log Individual Document Activity ---
+        await this.auditLogs.logAction({
+            action: `DOC_${status.toUpperCase()}`,
+            entity: 'STORE_DOCUMENT',
+            actorType: 'ADMIN',
+            reason: reason || 'Document Review Protocol',
+            metadata: { 
+                storeId, 
+                storeName: store?.name || 'Unknown Store',
+                docType, 
+                status 
+            }
+        });
+
         // Notify if rejected
         if (status === 'rejected' || status === 'REJECTED') {
-            const store = await this.prisma.store.findUnique({ where: { id: storeId } });
             if (store && store.ownerId) {
                 this.notificationsService.create({
                     recipientId: store.ownerId,

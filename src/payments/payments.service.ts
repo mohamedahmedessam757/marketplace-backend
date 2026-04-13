@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { StripeService } from '../stripe/stripe.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { Prisma } from '@prisma/client';
 
@@ -14,6 +15,7 @@ export class PaymentsService {
         private readonly prisma: PrismaService,
         private readonly notifications: NotificationsService,
         private readonly escrowService: EscrowService,
+        private readonly stripeService: StripeService,
     ) { }
 
     /**
@@ -523,7 +525,7 @@ export class PaymentsService {
         }));
     }
 
-    async getMerchantWalletDashboard(userId: string) {
+    async getMerchantWalletDashboard(userId: string, filters?: { startDate?: string; endDate?: string }) {
         const store = await this.prisma.store.findUnique({
             where: { ownerId: userId },
             include: { owner: true }
@@ -531,60 +533,225 @@ export class PaymentsService {
 
         if (!store) throw new NotFoundException('Store not found');
 
-        const [transactions, notifications, pendingOrders] = await Promise.all([
-            this.getMerchantTransactions(userId),
-            this.prisma.notification.findMany({
-                where: { recipientId: userId, recipientRole: 'MERCHANT' },
-                orderBy: { createdAt: 'desc' },
-                take: 5
-            }),
-            this.prisma.order.findMany({
-                where: { 
-                    storeId: store.id,
-                    status: { in: ['PREPARATION', 'SHIPPED', 'DELIVERED', 'READY_FOR_SHIPPING'] } 
-                },
-                include: { payments: { where: { status: 'SUCCESS' } } }
-            })
-        ]);
+        const dateFilter: any = {};
+        if (filters?.startDate) dateFilter.gte = new Date(filters.startDate);
+        if (filters?.endDate) {
+            const end = new Date(filters.endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter.lte = end;
+        }
+        const hasDateFilter = Object.keys(dateFilter).length > 0;
 
-        // Logic Engineering: Compute Loyalty Profits from Referrals (Same as Customer)
-        const tierConfig: any = { BRONZE: 0.02, SILVER: 0.03, GOLD: 0.04, PLATINUM: 0.05, PARTNER: 0.06 };
-        const userRate = tierConfig[store.loyaltyTier] || 0.02;
-        
-        const pendingRewards = pendingOrders.reduce((sum, order) => {
-            const realOrderCommission = order.payments.reduce((cSum, p) => cSum + Number((p as any).commission || 0), 0);
-            return sum + (realOrderCommission * userRate);
-        }, 0);
-
-        const monthlyRewards = await this.prisma.walletTransaction.aggregate({
+        // ═══════════════════════════════════════════════════════
+        // 1. Fetch wallet transactions (The Single Source of Truth)
+        // ═══════════════════════════════════════════════════════
+        const walletActions = await this.prisma.walletTransaction.findMany({
             where: { 
-                userId: userId, 
+                userId: store.ownerId,
+                role: 'VENDOR',
+                ...(hasDateFilter ? { createdAt: dateFilter } : {})
+            },
+            include: {
+                payment: {
+                    select: {
+                        orderId: true,
+                        status: true,
+                        totalAmount: true,
+                        unitPrice: true,
+                        commission: true,
+                        order: {
+                            select: {
+                                id: true,
+                                orderNumber: true,
+                                status: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // ═══════════════════════════════════════════════════════
+        // 2. Variables & FSM Definitions
+        // ═══════════════════════════════════════════════════════
+        const stats = {
+            available: 0, 
+            pending: 0,   
+            frozen: 0,    
+            totalSales: 0, 
+            netEarnings: 0, 
+            completedOrders: 0, 
+            referralCount: store.owner.referralCount,
+            loyaltyPoints: store.owner.loyaltyPoints,
+            pendingRewards: 0,
+            monthlyRewards: 0,
+            earnedReferralProfits: 0 
+        };
+
+        const tierConfig: Record<string, { rate: number; benefits: { ar: string; en: string }[] }> = { 
+            BRONZE: { 
+                rate: 0.02, 
+                benefits: [
+                    { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' }
+                ]
+            }, 
+            SILVER: { 
+                rate: 0.03, 
+                benefits: [
+                    { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' },
+                    { ar: 'أولوية في نتائج البحث', en: 'Search Result Priority' }
+                ]
+            }, 
+            GOLD: { 
+                rate: 0.04, 
+                benefits: [
+                    { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' },
+                    { ar: 'أولوية في نتائج البحث', en: 'Search Result Priority' },
+                    { ar: 'خصم 5% على عمولة المنصة', en: '5% Platform Fee Discount' }
+                ]
+            }, 
+            PLATINUM: { 
+                rate: 0.05, 
+                benefits: [
+                    { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' },
+                    { ar: 'أولوية في نتائج البحث', en: 'Search Result Priority' },
+                    { ar: 'خصم 5% على عمولة المنصة', en: '5% Platform Fee Discount' },
+                    { ar: 'مدير حساب VIP (24/7)', en: '24/7 VIP Account Manager' }
+                ]
+            } 
+        };
+        
+        const currentTierData = tierConfig[store.loyaltyTier] || tierConfig.BRONZE;
+        const userRate = currentTierData.rate;
+
+        const tiers = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'];
+        const currentIdx = tiers.indexOf(store.loyaltyTier);
+        const nextTier = currentIdx < tiers.length - 1 ? tiers[currentIdx + 1] : null;
+        const nextTierData = nextTier ? tierConfig[nextTier] : null;
+
+        const COMPLETED_STATUSES = ['COMPLETED', 'DELIVERED'];
+        const ACTIVE_STATUSES = ['PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'DELAYED_PREPARATION', 'NON_MATCHING'];
+        const FROZEN_STATUSES = ['DISPUTED', 'RETURN_REQUESTED', 'RETURNED', 'RETURN_APPROVED'];
+        const EXCLUDED_STATUSES = ['CANCELLED', 'AWAITING_PAYMENT', 'AWAITING_OFFERS', 'REFUNDED'];
+
+        const processedOrderIds = new Set<string>();
+
+        // ═══════════════════════════════════════════════════════
+        // 3. Process Financials with extreme precision
+        // ═══════════════════════════════════════════════════════
+        walletActions.forEach(action => {
+            const amount = Number(action.amount);
+
+            // A) Referral Profits Earned
+            if (action.transactionType === 'REFERRAL_PROFIT' && action.type === 'CREDIT') {
+                stats.available += amount;
+                stats.netEarnings += amount;
+                stats.earnedReferralProfits += amount;
+            } 
+            // B) Withdrawals
+            else if (action.transactionType === 'WITHDRAWAL' && action.type === 'DEBIT') {
+                stats.available -= amount;
+            } 
+            // C) Sales & Platform Income Flows
+            else if (['payment', 'SALE', 'commission'].includes(action.transactionType) && action.type === 'CREDIT') {
+                const orderStatus = action.payment?.order?.status || 'COMPLETED'; // fallback to completed if standalone
+
+                if (COMPLETED_STATUSES.includes(orderStatus)) {
+                    stats.available += amount;
+                    stats.netEarnings += amount;
+                    
+                    if (action.payment?.order?.id && !processedOrderIds.has(action.payment.order.id)) {
+                        stats.completedOrders += 1;
+                        processedOrderIds.add(action.payment.order.id);
+                    }
+                }
+                else if (ACTIVE_STATUSES.includes(orderStatus)) {
+                    stats.pending += amount;
+                }
+                else if (FROZEN_STATUSES.includes(orderStatus)) {
+                    stats.frozen += amount;
+                }
+
+                if (!EXCLUDED_STATUSES.includes(orderStatus)) {
+                    stats.totalSales += amount;
+                }
+            }
+            // D) Refunds Debited
+            else if (action.transactionType === 'refund' && action.type === 'DEBIT') {
+                stats.totalSales -= amount; // Deduct from sales since it was cancelled
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════
+        // 4. Monthly Context
+        // ═══════════════════════════════════════════════════════
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const monthlyAggr = await this.prisma.walletTransaction.aggregate({
+            where: {
+                userId: store.ownerId,
                 type: 'CREDIT',
                 transactionType: 'REFERRAL_PROFIT',
-                createdAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } 
+                createdAt: { gte: startOfMonth }
             },
             _sum: { amount: true }
         });
+        stats.monthlyRewards = Number(monthlyAggr._sum.amount || 0);
 
-        const completedOrdersCount = await this.prisma.order.count({
-            where: { storeId: store.id, status: 'COMPLETED' }
+        // ═══════════════════════════════════════════════════════
+        // 6. True Pending Referral Rewards
+        //    (5% of active first-time orders from referred users)
+        // ═══════════════════════════════════════════════════════
+        const pendingReferrals = await this.prisma.order.findMany({
+            where: {
+                status: { in: ACTIVE_STATUSES as any },
+                customer: { 
+                    referredById: store.ownerId,
+                    // Must be their first order (no completed ones yet)
+                    orders: {
+                        none: { status: { in: COMPLETED_STATUSES as any } }
+                    }
+                }
+            },
+            include: { payments: { where: { status: 'SUCCESS' } } }
+        });
+
+        let truePendingRewards = 0;
+        for (const order of pendingReferrals) {
+            const payments = (order as any).payments || [];
+            const orderTotal = payments.reduce((sum: number, p: any) => sum + Number(p.totalAmount || 0), 0);
+            if (orderTotal > 0) {
+                truePendingRewards += (orderTotal * 0.05); // 5% referral reward rate
+            } else if (order.totalAmount) {
+                truePendingRewards += (Number(order.totalAmount) * 0.05);
+            }
+        }
+        stats.pendingRewards = truePendingRewards;
+
+        // ═══════════════════════════════════════════════════════
+        // 7. Notifications
+        // ═══════════════════════════════════════════════════════
+        const notifications = await this.prisma.notification.findMany({
+            where: { recipientId: userId, recipientRole: 'MERCHANT' },
+            orderBy: { createdAt: 'desc' },
+            take: 5
         });
 
         return {
             stats: {
-                available: Number(store.balance),
-                pending: Number(store.pendingBalance),
-                frozen: Number(store.frozenBalance),
-                totalSales: Number(store.lifetimeEarnings),
-                netEarnings: Number(store.balance) + Number(store.pendingBalance),
-                completedOrders: completedOrdersCount,
+                ...stats,
+                available: Number(stats.available.toFixed(2)),
+                pending: Number(stats.pending.toFixed(2)),
+                frozen: Number(stats.frozen.toFixed(2)),
+                totalSales: Number(stats.totalSales.toFixed(2)),
+                netEarnings: Number(stats.netEarnings.toFixed(2)),
                 loyaltyTier: store.loyaltyTier,
                 performanceScore: Number(store.performanceScore),
                 rating: Number(store.rating),
                 storeName: store.name || 'Merchant',
+                storeId: store.id,
                 referralCode: await (async () => {
                     if (store.owner.referralCode) return store.owner.referralCode;
-                    // Self-healing: Generate missing referral code
                     let code = '';
                     let isUnique = false;
                     while (!isUnique) {
@@ -595,14 +762,12 @@ export class PaymentsService {
                     await this.prisma.user.update({ where: { id: userId }, data: { referralCode: code } });
                     return code;
                 })(),
-                referralCount: store.owner.referralCount,
-                loyaltyPoints: store.owner.loyaltyPoints,
-                pendingRewards: Number(pendingRewards.toFixed(2)),
-                monthlyRewards: Number(monthlyRewards._sum.amount || 0),
-                profitPercentage: userRate * 100
+                profitPercentage: userRate * 100,
+                tierBenefits: currentTierData.benefits,
+                nextTierBenefits: nextTierData?.benefits || []
             },
-            transactions,
-            notifications
+            notifications,
+            transactions: walletActions // Wallet actions has exactly all sales, cancellations, and referrals
         };
     }
 
@@ -664,4 +829,424 @@ export class PaymentsService {
         await this.escrowService.releaseFunds(orderId, 'ADMIN_RELEASE');
         return { success: true, message: 'Funds released successfully.' };
     }
+
+    // ═══════════════════════════════════════════════════════
+    // 7. Withdrawal & Stripe Connect Logic
+    // ═══════════════════════════════════════════════════════
+
+    async getStripeOnboardingLink(userId: string) {
+        const store = await this.prisma.store.findUnique({
+            where: { ownerId: userId },
+            include: { owner: true }
+        });
+
+        if (!store) throw new NotFoundException('Store not found');
+
+        let stripeAccountId = store.stripeAccountId;
+        if (!stripeAccountId) {
+            try {
+                const account = await this.stripeService.createConnectedAccount(store.id, store.owner.email);
+                stripeAccountId = account.id;
+            } catch (err: any) {
+                this.logger.error(`Stripe Connect account creation failed: ${err.message}`);
+                // Handle the specific "not signed up for Connect" error
+                if (err.message?.includes('signed up for Connect') || err.type === 'StripeInvalidRequestError') {
+                    throw new BadRequestException(
+                        'Stripe Connect is not enabled on this platform. Please use Bank Transfer for withdrawals, or contact the admin to enable Stripe Connect.'
+                    );
+                }
+                throw new BadRequestException(`Failed to create Stripe account: ${err.message}`);
+            }
+        }
+
+        const returnUrl = `http://localhost:5173/dashboard/wallet?stripe_status=return`;
+        const refreshUrl = `http://localhost:5173/dashboard/wallet?stripe_status=refresh`;
+
+        return this.stripeService.createOnboardingLink(stripeAccountId, returnUrl, refreshUrl);
+    }
+
+    async getCustomerStripeOnboardingLink(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!user) throw new NotFoundException('User not found');
+
+        let stripeAccountId = user.stripeAccountId;
+        if (!stripeAccountId) {
+            try {
+                // For customers, we use their email and a generic 'customer' identifier
+                const account = await this.stripeService.createConnectedAccount(`cust_${user.id}`, user.email, true);
+                stripeAccountId = account.id;
+                await this.prisma.user.update({
+                    where: { id: userId },
+                    data: { stripeAccountId }
+                });
+            } catch (err: any) {
+                this.logger.error(`Customer Stripe Connect account creation failed: ${err.message}`);
+                if (err.message?.includes('signed up for Connect')) {
+                    throw new BadRequestException('Stripe Connect is not enabled on this platform.');
+                }
+                throw new BadRequestException(`Failed to create Stripe account: ${err.message}`);
+            }
+        }
+
+        const returnUrl = `http://localhost:5173/dashboard/wallet?stripe_status=return`;
+        const refreshUrl = `http://localhost:5173/dashboard/wallet?stripe_status=refresh`;
+
+        return this.stripeService.createOnboardingLink(stripeAccountId, returnUrl, refreshUrl);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 7b. Bank Details Management
+    // ═══════════════════════════════════════════════════════
+
+    async saveBankDetails(userId: string, details: { bankName: string; accountHolder: string; iban: string; swift?: string }) {
+        const store = await this.prisma.store.findUnique({ where: { ownerId: userId } });
+        if (!store) throw new NotFoundException('Store not found');
+
+        // Basic IBAN validation (length and prefix)
+        const iban = details.iban.replace(/\s/g, '').toUpperCase();
+        if (iban.length < 15 || iban.length > 34) {
+            throw new BadRequestException('Invalid IBAN format');
+        }
+
+        await (this.prisma.store.update as any)({
+            where: { id: store.id },
+            data: {
+                bankName: details.bankName,
+                bankAccountHolder: details.accountHolder,
+                bankIban: iban,
+                bankSwift: details.swift || null,
+                bankDetailsVerified: false // Admin must verify
+            }
+        });
+
+        return { success: true, message: 'Bank details saved successfully. Pending admin verification.' };
+    }
+
+    async saveCustomerBankDetails(userId: string, details: { bankName: string; accountHolder: string; iban: string; swift?: string }) {
+        const iban = details.iban.replace(/\s/g, '').toUpperCase();
+        if (iban.length < 15 || iban.length > 34) {
+            throw new BadRequestException('Invalid IBAN format');
+        }
+
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                bankName: details.bankName,
+                bankAccountHolder: details.accountHolder,
+                bankIban: iban,
+                bankSwift: details.swift || null,
+                bankDetailsVerified: false
+            }
+        });
+
+        return { success: true, message: 'Bank details saved successfully. Pending admin verification.' };
+    }
+
+    async getCustomerBankDetails(userId: string) {
+        const user = await this.prisma.user.findUnique({ 
+            where: { id: userId },
+            select: {
+                bankName: true,
+                bankAccountHolder: true,
+                bankIban: true,
+                bankSwift: true,
+                bankDetailsVerified: true,
+                stripeOnboarded: true,
+                stripeAccountId: true
+            }
+        });
+        if (!user) throw new NotFoundException('User not found');
+
+        return {
+            bankName: user.bankName,
+            accountHolder: user.bankAccountHolder,
+            iban: user.bankIban,
+            swift: user.bankSwift,
+            verified: user.bankDetailsVerified,
+            stripeOnboarded: user.stripeOnboarded,
+            stripeAccountId: user.stripeAccountId
+        };
+    }
+
+    async getBankDetails(userId: string) {
+        const store = await this.prisma.store.findUnique({ where: { ownerId: userId } });
+        if (!store) throw new NotFoundException('Store not found');
+
+        const s = store as any;
+        return {
+            bankName: s.bankName,
+            accountHolder: s.bankAccountHolder,
+            iban: s.bankIban,
+            swift: s.bankSwift,
+            verified: s.bankDetailsVerified,
+            stripeOnboarded: store.stripeOnboarded,
+            stripeAccountId: store.stripeAccountId
+        };
+    }
+
+    async requestWithdrawal(userId: string, amount: number, payoutMethod: string = 'BANK_TRANSFER') {
+        const store = await this.prisma.store.findUnique({
+            where: { ownerId: userId }
+        });
+
+        if (!store) throw new NotFoundException('Store not found');
+
+        // Validate payout method prerequisites
+        if (payoutMethod === 'STRIPE' && !store.stripeOnboarded) {
+            throw new BadRequestException('Please complete Stripe onboarding first');
+        }
+        if (payoutMethod === 'BANK_TRANSFER' && !(store as any).bankIban) {
+            throw new BadRequestException('Please add your bank details first');
+        }
+
+        // Check against global limits
+        const limits = await this.getWithdrawalLimits();
+        if (amount < limits.min) throw new BadRequestException(`Minimum withdrawal is ${limits.min} AED`);
+        if (amount > limits.max) throw new BadRequestException(`Maximum withdrawal is ${limits.max} AED`);
+
+        // Check balance
+        if (Number(store.balance) < amount) {
+            throw new BadRequestException('Insufficient balance');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Create request
+            const request = await (tx.withdrawalRequest.create as any)({
+                data: {
+                    storeId: store.id,
+                    amount,
+                    payoutMethod,
+                    status: 'PENDING'
+                }
+            });
+
+            // 2. Notify Admins
+            const admins = await tx.user.findMany({
+                where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } }
+            });
+
+            const methodLabel = payoutMethod === 'STRIPE' ? 'Stripe' : 'Bank Transfer';
+            for (const admin of admins) {
+                await this.notifications.create({
+                    recipientId: admin.id,
+                    titleAr: 'طلب سحب جديد',
+                    titleEn: 'New Withdrawal Request',
+                    messageAr: `قام التاجر ${store.name} بطلب سحب ${amount} AED عبر ${payoutMethod === 'STRIPE' ? 'Stripe' : 'تحويل بنكي'}`,
+                    messageEn: `Merchant ${store.name} requested a ${methodLabel} withdrawal of ${amount} AED`,
+                    type: 'SYSTEM',
+                    metadata: { type: 'WITHDRAWAL_REQUEST', requestId: request.id, payoutMethod }
+                });
+            }
+
+            return request;
+        });
+    }
+
+    async requestCustomerWithdrawal(userId: string, amount: number, payoutMethod: string = 'BANK_TRANSFER') {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId }
+        });
+
+        if (!user) throw new NotFoundException('User not found');
+
+        // Validate payout method prerequisites
+        if (payoutMethod === 'STRIPE' && !user.stripeOnboarded) {
+            throw new BadRequestException('Please complete Stripe onboarding first');
+        }
+        if (payoutMethod === 'BANK_TRANSFER' && !user.bankIban) {
+            throw new BadRequestException('Please add your bank details first');
+        }
+
+        // Check against global limits
+        const limits = await this.getWithdrawalLimits();
+        if (amount < limits.min) throw new BadRequestException(`Minimum withdrawal is ${limits.min} AED`);
+        if (amount > limits.max) throw new BadRequestException(`Maximum withdrawal is ${limits.max} AED`);
+
+        // Check balance (customerBalance instead of store balance)
+        if (Number(user.customerBalance) < amount) {
+            throw new BadRequestException('Insufficient balance in your rewards wallet');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Create request with role 'CUSTOMER'
+            const request = await tx.withdrawalRequest.create({
+                data: {
+                    userId: user.id,
+                    amount,
+                    payoutMethod,
+                    role: 'CUSTOMER',
+                    status: 'PENDING'
+                }
+            });
+
+            // 2. Notify Admins
+            const admins = await tx.user.findMany({
+                where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } }
+            });
+
+            const methodLabel = payoutMethod === 'STRIPE' ? 'Stripe' : 'Bank Transfer';
+            for (const admin of admins) {
+                await this.notifications.create({
+                    recipientId: admin.id,
+                    titleAr: 'طلب سحب عميل جديد',
+                    titleEn: 'New Customer Withdrawal Request',
+                    messageAr: `قام العميل ${user.name || user.email} بطلب سحب ${amount} AED عبر ${methodLabel}`,
+                    messageEn: `Customer ${user.name || user.email} requested a ${methodLabel} withdrawal of ${amount} AED`,
+                    type: 'SYSTEM',
+                    metadata: { type: 'WITHDRAWAL_REQUEST', requestId: request.id, role: 'CUSTOMER', payoutMethod }
+                });
+            }
+
+            return request;
+        });
+    }
+
+    async getWithdrawalRequests(userId: string, role: string) {
+        if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+            return this.prisma.withdrawalRequest.findMany({
+                include: { 
+                    store: { select: { name: true, id: true } },
+                    user: { select: { name: true, email: true, id: true } }
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+        }
+
+        const store = await this.prisma.store.findUnique({ where: { ownerId: userId } });
+        
+        return this.prisma.withdrawalRequest.findMany({
+            where: { 
+                OR: [
+                    { storeId: store?.id || undefined },
+                    { userId: userId }
+                ]
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    async processWithdrawalRequest(adminId: string, requestId: string, action: 'APPROVE' | 'REJECT', notes?: string) {
+        const request = await this.prisma.withdrawalRequest.findUnique({
+            where: { id: requestId },
+            include: { store: true }
+        });
+
+        if (!request) throw new NotFoundException('Request not found');
+        if (request.status !== 'PENDING') throw new BadRequestException('Request already processed');
+
+        if (action === 'REJECT') {
+            return this.prisma.withdrawalRequest.update({
+                where: { id: requestId },
+                data: { status: 'REJECTED', adminNotes: notes }
+            });
+        }
+
+        // APPROVAL FLOW
+        return this.prisma.$transaction(async (tx) => {
+            let balanceAfter = 0;
+            let stripeId = null;
+            let finalStatus = 'COMPLETED';
+
+            if (request.role === 'CUSTOMER') {
+                // 1. Re-check customer balance
+                const user = await tx.user.findUnique({ where: { id: request.userId } });
+                if (Number(user.customerBalance) < Number(request.amount)) {
+                    throw new BadRequestException('Customer balance is now insufficient');
+                }
+
+                // 2. Deduct from customer balance
+                await tx.user.update({
+                    where: { id: request.userId },
+                    data: { customerBalance: { decrement: request.amount } }
+                });
+
+                balanceAfter = Number(user.customerBalance) - Number(request.amount);
+                stripeId = user.stripeAccountId;
+            } else {
+                // 1. Re-check store balance
+                const store = await tx.store.findUnique({ where: { id: request.storeId } });
+                if (Number(store.balance) < Number(request.amount)) {
+                    throw new BadRequestException('Store balance is now insufficient');
+                }
+
+                // 2. Deduct from store balance
+                await tx.store.update({
+                    where: { id: request.storeId },
+                    data: { balance: { decrement: request.amount } }
+                });
+
+                balanceAfter = Number(store.balance) - Number(request.amount);
+                stripeId = store.stripeAccountId;
+            }
+
+            // 3. Create Debit Wallet Transaction for audit
+            await tx.walletTransaction.create({
+                data: {
+                    userId: request.role === 'CUSTOMER' ? request.userId : request.store.ownerId,
+                    role: request.role === 'CUSTOMER' ? 'CUSTOMER' : 'VENDOR',
+                    type: 'DEBIT',
+                    transactionType: 'withdrawal',
+                    amount: request.amount,
+                    description: `Withdrawal via ${request.payoutMethod}: ${request.id}`,
+                    balanceAfter: balanceAfter,
+                    metadata: { requestId: request.id, payoutMethod: request.payoutMethod }
+                }
+            });
+
+            // 4. Process based on payout method
+            let transferId = null;
+
+            if (request.payoutMethod === 'STRIPE') {
+                // Stripe Transfer Flow
+                try {
+                    const transfer = await this.stripeService.createTransfer(
+                        request.amount.toString(),
+                        request.currency,
+                        stripeId,
+                        `WITHDRAWAL_${request.id}`,
+                        { requestId: request.id, role: request.role }
+                    );
+                    transferId = transfer.id;
+                } catch (err: any) {
+                    this.logger.error(`Stripe Transfer failed for request ${request.id}: ${err.message}`);
+                    finalStatus = 'FAILED';
+                }
+            } else {
+                // Bank Transfer Flow - Mark as COMPLETED (admin transfers manually)
+                finalStatus = 'COMPLETED';
+                this.logger.log(`Bank Transfer approved for request ${request.id} for ${request.role}`);
+            }
+
+            // 5. Update Request
+            return tx.withdrawalRequest.update({
+                where: { id: requestId },
+                data: { 
+                    status: finalStatus,
+                    stripeTransferId: transferId,
+                    adminNotes: notes || (finalStatus === 'COMPLETED' ? `Processed via ${request.payoutMethod}` : 'Stripe transfer failed')
+                }
+            });
+        });
+    }
+
+    async getWithdrawalLimits() {
+        const settings = await this.prisma.platformSettings.findUnique({
+            where: { settingKey: 'withdrawal_limits' }
+        });
+
+        if (!settings) return { min: 50, max: 10000 };
+        return settings.settingValue as any;
+    }
+
+    async updateWithdrawalLimits(limits: { min: number, max: number }) {
+        return this.prisma.platformSettings.upsert({
+            where: { settingKey: 'withdrawal_limits' },
+            update: { settingValue: limits },
+            create: { settingKey: 'withdrawal_limits', settingValue: limits }
+        });
+    }
 }
+

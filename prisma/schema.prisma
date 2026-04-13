@@ -138,6 +138,15 @@ model User {
   adminNotes       String?           @map("admin_notes") @db.Text
   shippingWaybills ShippingWaybill[]
 
+  // Payout & Stripe Details
+  bankName            String? @map("bank_name")
+  bankAccountHolder   String? @map("bank_account_holder")
+  bankIban            String? @map("bank_iban")
+  bankSwift           String? @map("bank_swift")
+  bankDetailsVerified Boolean @default(false) @map("bank_details_verified")
+  stripeAccountId     String? @map("stripe_account_id")
+  stripeOnboarded     Boolean @default(false) @map("stripe_onboarded")
+
   // Loyalty & Referral System
   customerBalance Decimal     @default(0) @map("customer_balance") @db.Decimal(14, 2)
   loyaltyTier     LoyaltyTier @default(BASIC) @map("loyalty_tier")
@@ -148,6 +157,8 @@ model User {
   referredById    String?     @map("referred_by_id") @db.Uuid
   referredBy      User?       @relation("ReferralHistory", fields: [referredById], references: [id])
   referredUsers   User[]      @relation("ReferralHistory")
+
+  withdrawalRequests WithdrawalRequest[]
 
   // Reviews
   submittedReviews Review[]
@@ -201,6 +212,13 @@ model Store {
   stripeAccountId String?     @map("stripe_account_id")
   stripeOnboarded Boolean     @default(false) @map("stripe_onboarded")
   payoutSchedule  String      @default("MANUAL") @map("payout_schedule")
+
+  // Bank Transfer Details
+  bankName              String?  @map("bank_name")
+  bankAccountHolder     String?  @map("bank_account_holder")
+  bankIban              String?  @map("bank_iban")
+  bankSwift             String?  @map("bank_swift")
+  bankDetailsVerified   Boolean  @default(false) @map("bank_details_verified")
   rating          Decimal     @default(0) @db.Decimal(3, 2)
   rejectionReason String?     @map("rejection_reason")
 
@@ -226,6 +244,9 @@ model Store {
   lat     Decimal? @db.Decimal(10, 8)
   lng     Decimal? @db.Decimal(11, 8)
 
+  adminNotes     String?   @map("admin_notes") @db.Text
+  suspendedUntil DateTime? @map("suspended_until") @db.Timestamptz
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
@@ -239,8 +260,10 @@ model Store {
   verificationDocuments VerificationDocument[]
   shippingWaybills      ShippingWaybill[]
   reviews               Review[]
+  withdrawalRequests    WithdrawalRequest[]
 
   @@index([status])
+  @@index([suspendedUntil])
   @@map("stores")
 }
 
@@ -446,6 +469,7 @@ model AuditLog {
 
   @@index([orderId])
   @@index([actorId])
+  @@index([timestamp])
   @@map("audit_logs")
 }
 
@@ -1011,6 +1035,8 @@ enum ShipmentStatus {
   // Return states
   RETURN_TO_SENDER_INITIATED
   RETURNED_TO_SENDER
+  // Customs delay state
+  CUSTOMS_DELAY
 
   @@map("shipment_status")
 }
@@ -1031,6 +1057,7 @@ model Shipment {
   carrierType    CarrierType @default(NO_TRACKING) @map("carrier_type")
   carrierName    String?     @map("carrier_name")
   trackingNumber String?     @map("tracking_number")
+  trackingLink   String?     @map("tracking_link")
   carrierApiUrl  String?     @map("carrier_api_url")
 
   // Initial status when merchant requests shipping
@@ -1098,4 +1125,40 @@ model Review {
   @@index([customerId])
   @@index([adminStatus])
   @@map("reviews")
+}
+
+// -----------------------------------------------------
+// Withdrawal & Platform Settings
+// -----------------------------------------------------
+
+model WithdrawalRequest {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId          String?  @map("store_id") @db.Uuid
+  userId           String?  @map("user_id") @db.Uuid
+  role             String   @default("VENDOR") // VENDOR | CUSTOMER
+  amount           Decimal  @db.Decimal(14, 2)
+  currency         String   @default("AED")
+  status           String   @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED, FAILED
+  payoutMethod     String   @default("BANK_TRANSFER") @map("payout_method") // STRIPE | BANK_TRANSFER
+  stripeTransferId String?  @map("stripe_transfer_id")
+  adminNotes       String?  @map("admin_notes")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([userId])
+  @@index([status])
+  @@map("withdrawal_requests")
+}
+
+model PlatformSettings {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  settingKey   String   @unique @map("setting_key")
+  settingValue Json     @map("setting_value")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("platform_settings")
 }

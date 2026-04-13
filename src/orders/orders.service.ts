@@ -4,7 +4,8 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStateMachine } from './fsm/order-state-machine.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ActorType, Order, OrderStatus } from '@prisma/client';
+import { ActorType, Order, OrderStatus, Prisma } from '@prisma/client';
+import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 
 import { ChatService } from '../chat/chat.service';
 import { ShipmentsService } from '../shipments/shipments.service';
@@ -132,15 +133,17 @@ export class OrdersService {
         return result;
     }
 
-    async findAll(user: any) {
-        const where: any = {};
+    async findAll(user: any, query: FindAllOrdersDto = {}) {
+        const { page = 1, limit = 20, status, search } = query;
+        const skip = (page - 1) * limit;
+        const take = limit;
 
-        // 1. Customer: Only see their own orders
+        const where: Prisma.OrderWhereInput = {};
+
+        // 1. Role-Based Access Control Filtering
         if (user.role === 'CUSTOMER') {
             where.customerId = user.id;
         }
-
-        // 2. Vendor: See OPEN orders (to bid) OR orders they are personally involved in
         else if (user.role === 'VENDOR') {
             const store = await this.prisma.store.findFirst({
                 where: { ownerId: user.id },
@@ -153,7 +156,6 @@ export class OrdersService {
                 const hasModels = store.selectedModels && store.selectedModels.length > 0;
 
                 where.OR = [
-                    // Specialized New Requests: Case-insensitive matching
                     {
                         status: OrderStatus.AWAITING_OFFERS,
                         AND: [
@@ -169,39 +171,84 @@ export class OrdersService {
                             } : {}
                         ]
                     },
-                    
-                    // Involved Orders: Projects I've already touched or won
                     { storeId: storeId },
                     { acceptedOffer: { storeId: storeId } },
-                    {
-                        offers: { some: { storeId: storeId } }
-                    }
+                    { offers: { some: { storeId: storeId } } }
                 ];
             } else {
-                where.id = '00000000-0000-0000-0000-000000000000'; // Return none if no store
+                where.offers = { some: { store: { ownerId: user.id } } };
             }
         }
 
-        // 3. Admin: See ALL (No filter)
-
-        return this.prisma.order.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            include: {
-                parts: true,
-                customer: { select: { id: true, name: true, email: true } },
-                offers: {
-                    include: {
-                        store: { select: { id: true, name: true, storeCode: true, logo: true } }
-                    }
-                },
-                verificationDocuments: { orderBy: { createdAt: 'desc' } },
-                shipments: { orderBy: { createdAt: 'desc' } },
-                _count: {
-                    select: { offers: true }
-                }
+        // 2. Status Filtering
+        if (status) {
+            if (where.OR) {
+                where.AND = [
+                    { status: status },
+                    { OR: where.OR } // Combine with existing RBAC OR
+                ];
+                delete where.OR;
+            } else {
+                where.status = status;
             }
-        });
+        }
+
+        // 3. Search Logic (OrderNumber, Part, Car, Customer)
+        if (search) {
+            const searchFilter: Prisma.OrderWhereInput = {
+                OR: [
+                    { orderNumber: { contains: search, mode: 'insensitive' } },
+                    { partName: { contains: search, mode: 'insensitive' } },
+                    { vehicleMake: { contains: search, mode: 'insensitive' } },
+                    { vehicleModel: { contains: search, mode: 'insensitive' } },
+                    { customer: { name: { contains: search, mode: 'insensitive' } } }
+                ]
+            };
+
+            if (where.AND) {
+                (where.AND as any).push(searchFilter);
+            } else if (where.id || where.customerId || where.OR || where.status) {
+                // If we already have some primitive filters, wrap them in AND
+                const existing = { ...where };
+                for (const key in where) delete where[key];
+                where.AND = [existing, searchFilter];
+            } else {
+                Object.assign(where, searchFilter);
+            }
+        }
+
+        // 4. Optimized Execution (Parallel Count + Fetch)
+        const [items, total] = await Promise.all([
+            this.prisma.order.findMany({
+                where,
+                skip,
+                take,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    parts: true,
+                    customer: { select: { id: true, name: true, email: true, avatar: true } },
+                    offers: {
+                        include: {
+                            store: { select: { id: true, name: true, storeCode: true, logo: true } }
+                        }
+                    },
+                    verificationDocuments: { orderBy: { createdAt: 'desc' } },
+                    shipments: { orderBy: { createdAt: 'desc' } },
+                    _count: {
+                        select: { offers: true }
+                    }
+                }
+            }),
+            this.prisma.order.count({ where })
+        ]);
+
+        return {
+            items,
+            total,
+            page,
+            limit,
+            hasMore: total > skip + items.length
+        };
     }
 
     async findOne(id: string) {

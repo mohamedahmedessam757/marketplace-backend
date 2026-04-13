@@ -36,11 +36,16 @@ export class AuthService {
         const browserName = ua.browser.name ? `${ua.browser.name} ${ua.browser.version || ''}` : 'Unknown Browser';
         const deviceName = ua.device.model ? `${ua.device.vendor || ''} ${ua.device.model}` : browserName;
 
+        // Clean IP: Handle '::ffff:127.0.0.1' or proxy lists '1.1.1.1, 2.2.2.2'
+        let cleanIp = ip || 'Unknown';
+        if (cleanIp.includes(',')) cleanIp = cleanIp.split(',')[0].trim();
+        if (cleanIp.startsWith('::ffff:')) cleanIp = cleanIp.substring(7);
+
         let location = 'Unknown Location';
-        if (ip && ip !== '::1' && ip !== '127.0.0.1' && !ip.startsWith('192.168.')) {
-            const geo = geoip.lookup(ip);
+        if (cleanIp && cleanIp !== '::1' && cleanIp !== '127.0.0.1' && !cleanIp.startsWith('192.168.')) {
+            const geo = geoip.lookup(cleanIp);
             if (geo) {
-                location = `${geo.city || ''}, ${geo.country || geo.timezone || ''}`.trim().replace(/^,/, '');
+                location = [geo.city, geo.region, geo.country].filter(Boolean).join(', ');
             }
         }
 
@@ -56,7 +61,7 @@ export class AuthService {
                     where: { id: sessions[0].id },
                     data: {
                         token: token,
-                        ip: ip || 'Unknown',
+                        ip: cleanIp,
                         os: osName,
                         location: location,
                         device: deviceName,
@@ -77,7 +82,7 @@ export class AuthService {
                 userId: user.id,
                 token: token,
                 fingerprint: fingerprint,
-                ip: ip || 'Unknown',
+                ip: cleanIp,
                 device: deviceName,
                 os: osName,
                 location: location,

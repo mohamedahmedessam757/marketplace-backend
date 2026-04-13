@@ -6,6 +6,7 @@ import { OrdersModule } from '../orders/orders.module'; // To access OrderStateM
 import { NotificationsModule } from '../notifications/notifications.module';
 import { EscrowCronService } from './escrow-cron.service';
 import { PaymentsModule } from '../payments/payments.module';
+import { StoreSuspensionService } from './store-suspension.service';
 
 @Module({
     imports: [
@@ -15,6 +16,6 @@ import { PaymentsModule } from '../payments/payments.module';
         NotificationsModule,
         PaymentsModule
     ],
-    providers: [OrderCleanupService, EscrowCronService],
+    providers: [OrderCleanupService, EscrowCronService, StoreSuspensionService],
 })
 export class SchedulerModule { }

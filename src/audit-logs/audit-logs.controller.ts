@@ -10,11 +10,16 @@ export class AuditLogsController {
     constructor(private readonly auditLogsService: AuditLogsService) { }
 
     @Get()
-    findAll(@Query('orderId') orderId?: string) {
+    findAll(
+        @Query('orderId') orderId?: string,
+        @Query('cursor') cursor?: string,
+        @Query('limit') limit?: string,
+    ) {
         if (orderId) {
             return this.auditLogsService.findByOrder(orderId);
         }
-        return this.auditLogsService.findAll();
+        const parsedLimit = limit ? parseInt(limit, 10) : 25;
+        return this.auditLogsService.findAll(cursor, parsedLimit);
     }
 
     @Get('order/:orderId')

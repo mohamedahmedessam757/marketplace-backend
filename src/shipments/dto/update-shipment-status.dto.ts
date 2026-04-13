@@ -33,5 +33,9 @@ export class UpdateShipmentStatusDto {
 
     @IsOptional()
     @IsString()
+    trackingLink?: string;
+
+    @IsOptional()
+    @IsString()
     estimatedDelivery?: string; // ISO date string
 }

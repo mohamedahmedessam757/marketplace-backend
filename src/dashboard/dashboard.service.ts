@@ -7,117 +7,189 @@ import { OrderStatus, StoreStatus, UserRole } from '@prisma/client';
 export class DashboardService {
     constructor(private prisma: PrismaService) { }
 
-    async getStats() {
+    async getStats(startDateStr?: string, endDateStr?: string) {
         // 0. Base Timestamps setup for queries
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        
+        // Use provided dates or fallback to defaults
+        const startDate = startDateStr ? new Date(startDateStr) : thirtyDaysAgo;
+        const endDate = endDateStr ? new Date(endDateStr) : now;
+
+        // For trend comparisons (Last period)
+        const periodDiff = endDate.getTime() - startDate.getTime();
+        const prevStartDate = new Date(startDate.getTime() - periodDiff);
+        const prevEndDate = new Date(startDate.getTime());
+
         const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
         const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-        // 1. Massive Concurrent Query execution (11 parallel queries down from sequentially loading)
+        // Define valid sales statuses
+        const activeSalesStatuses: OrderStatus[] = [
+            OrderStatus.PREPARATION, 
+            OrderStatus.SHIPPED, 
+            OrderStatus.DELIVERED, 
+            OrderStatus.COMPLETED
+        ];
+
+        // 1. Massive Concurrent Query execution
         const [
             totalOrders,
             activeCustomers,
             activeStores,
             openDisputes,
-            completedOrders,
-            recentOrders,
-            storeStats,
+            // Accurate Financials from PaymentTransaction
+            financialStats,
+            prevFinancialStats,
+            // Sales Trend
+            trendTransactions,
+            // Top Stores with Revenue
+            storeRevenueStats,
+            // Donut Distribution
             statusDist,
+            // Alerts
             lateResponseCount,
             latePrepCount,
             expiringLicensesCount,
-            expiredLicensesCount
+            expiredLicensesCount,
+            lastOrders
         ] = await Promise.all([
-            this.prisma.order.count(),
+            this.prisma.order.count({
+                where: { createdAt: { gte: startDate, lte: endDate } }
+            }),
             this.prisma.user.count({ where: { role: UserRole.CUSTOMER } }),
             this.prisma.store.count({ where: { status: StoreStatus.ACTIVE } }),
             this.prisma.order.count({ where: { status: { in: [OrderStatus.DISPUTED, OrderStatus.RETURN_REQUESTED] } } }),
-            // Fetch completed for Total Sales & Commission
-            this.prisma.order.findMany({
-                where: {
-                    status: { in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] },
-                    acceptedOfferId: { not: null }
+            
+            // Current Period Financials
+            this.prisma.paymentTransaction.aggregate({
+                where: { 
+                    status: 'SUCCESS',
+                    createdAt: { gte: startDate, lte: endDate }
                 },
-                include: { acceptedOffer: { select: { unitPrice: true, shippingCost: true } } }
+                _sum: { totalAmount: true, commission: true }
             }),
-            // Sales Trend
-            this.prisma.order.findMany({
-                where: {
-                    createdAt: { gte: thirtyDaysAgo },
-                    status: { in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED, OrderStatus.SHIPPED, OrderStatus.PREPARATION, OrderStatus.AWAITING_PAYMENT, OrderStatus.AWAITING_OFFERS] },
+            
+            // Previous Period Financials (for trend calculation)
+            this.prisma.paymentTransaction.aggregate({
+                where: { 
+                    status: 'SUCCESS',
+                    createdAt: { gte: prevStartDate, lte: prevEndDate }
                 },
-                include: { acceptedOffer: { select: { unitPrice: true } } },
+                _sum: { totalAmount: true, commission: true }
+            }),
+
+            // Sales Trend (Timeline)
+            this.prisma.paymentTransaction.findMany({
+                where: {
+                    status: 'SUCCESS',
+                    createdAt: { gte: startDate, lte: endDate },
+                },
+                select: { createdAt: true, totalAmount: true },
                 orderBy: { createdAt: 'asc' }
             }),
-            // Top Stores Initial Stats
-            this.prisma.order.groupBy({
-                by: ['storeId'],
+
+            // Top Stores logic: Group by storeId inside PaymentTransaction or join
+            this.prisma.paymentTransaction.groupBy({
+                by: ['offerId'], // We'll link this to store later, or use Order relation
                 where: {
-                    status: { in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] },
-                    storeId: { not: null }
+                    status: 'SUCCESS',
+                    createdAt: { gte: startDate, lte: endDate }
                 },
-                _count: { id: true },
+                _sum: { totalAmount: true },
+                _count: { id: true }
             }),
-            // Donut Distribution
+
             this.prisma.order.groupBy({
                 by: ['status'],
                 _count: { id: true }
             }),
-            // Alert 1
             this.prisma.order.count({ where: { status: OrderStatus.AWAITING_OFFERS, createdAt: { lt: oneDayAgo } } }),
-            // Alert 2
             this.prisma.order.count({ where: { status: OrderStatus.PREPARATION, updatedAt: { lt: twoDaysAgo } } }),
-            // Alert 3
             this.prisma.store.count({ where: { licenseExpiry: { lte: thirtyDaysFromNow, gte: now } } }),
-            // Alert 4
-            this.prisma.store.count({ where: { licenseExpiry: { lt: now } } })
+            this.prisma.store.count({ where: { licenseExpiry: { lt: now } } }),
+            
+            this.prisma.order.findMany({
+                take: 5,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    customer: { select: { id: true, name: true, avatar: true } },
+                    acceptedOffer: {
+                        select: {
+                            unitPrice: true,
+                            shippingCost: true,
+                            store: { select: { id: true, name: true, logo: true, rating: true } }
+                        }
+                    },
+                    offers: {
+                        include: { store: { select: { name: true } } }
+                    },
+                    _count: { select: { offers: true } }
+                }
+            })
         ]);
 
         // 2. Compute Financials
-        const totalSales = completedOrders.reduce((sum, order) => {
-            const price = Number(order.acceptedOffer?.unitPrice || 0);
-            const shipping = Number(order.acceptedOffer?.shippingCost || 0);
-            return sum + price + shipping;
-        }, 0);
-        const estimatedCommission = totalSales * 0.10;
+        const totalSales = Number(financialStats._sum.totalAmount || 0);
+        const totalCommission = Number(financialStats._sum.commission || 0);
+        
+        const prevSales = Number(prevFinancialStats._sum.totalAmount || 0);
+        const salesTrendPercent = prevSales > 0 ? ((totalSales - prevSales) / prevSales) * 100 : 0;
 
         // 3. Compute Timeline Trend Map
         const trendMap = new Map<string, number>();
-        for (let i = 0; i < 30; i++) {
-            const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24));
+        for (let i = 0; i <= diffDays; i++) {
+            const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
             trendMap.set(d.toISOString().split('T')[0], 0);
         }
-        recentOrders.forEach(o => {
-            if (o.status === 'COMPLETED' || o.status === 'DELIVERED') {
-                const key = o.createdAt.toISOString().split('T')[0];
-                const val = Number(o.acceptedOffer?.unitPrice || 0);
-                if (trendMap.has(key)) {
-                    trendMap.set(key, trendMap.get(key)! + val);
-                }
+
+        trendTransactions.forEach(tx => {
+            const key = tx.createdAt.toISOString().split('T')[0];
+            if (trendMap.has(key)) {
+                trendMap.set(key, trendMap.get(key)! + Number(tx.totalAmount));
             }
         });
+
         const salesTrend = Array.from(trendMap.entries())
             .map(([date, value]) => ({ date, value }))
             .sort((a, b) => a.date.localeCompare(b.date));
 
         // 4. Resolve Top Stores details
-        const topStoreIds = storeStats.map(s => s.storeId).filter(id => id !== null) as string[];
-        const storesArray = topStoreIds.length > 0 ? await this.prisma.store.findMany({
-            where: { id: { in: topStoreIds } },
-            select: { id: true, name: true }
-        }) : [];
+        // Since groupBy was on offerId (or store would be better if denormalized), we fetch store via offers
+        const topStoresList = await Promise.all(
+            storeRevenueStats.map(async (stat) => {
+                const offer = await this.prisma.offer.findUnique({
+                    where: { id: stat.offerId },
+                    select: { store: { select: { id: true, name: true, logo: true, rating: true } } }
+                });
+                return {
+                    storeId: offer?.store?.id,
+                    name: offer?.store?.name || 'Unknown',
+                    logo: offer?.store?.logo,
+                    rating: Number(offer?.store?.rating || 0),
+                    revenue: Number(stat._sum.totalAmount || 0),
+                    ordersCount: stat._count.id
+                };
+            })
+        );
 
-        const topStores = storeStats.map(stat => {
-            const store = storesArray.find(s => s.id === stat.storeId);
-            return {
-                storeId: stat.storeId,
-                name: store?.name || 'Unknown',
-                ordersCount: stat._count.id,
-                value: stat._count.id
-            };
-        }).sort((a, b) => b.ordersCount - a.ordersCount).slice(0, 5);
+        // Aggregate by storeId (in case one store has multiple offers)
+        const aggregatedStores = topStoresList.reduce((acc, curr) => {
+            if (!curr.storeId) return acc;
+            if (!acc[curr.storeId]) {
+                acc[curr.storeId] = { ...curr };
+            } else {
+                acc[curr.storeId].revenue += curr.revenue;
+                acc[curr.storeId].ordersCount += curr.ordersCount;
+            }
+            return acc;
+        }, {} as Record<string, any>);
+
+        const topStores = Object.values(aggregatedStores)
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 5);
 
         // 5. Build Alerts array
         const alerts = [
@@ -130,16 +202,18 @@ export class DashboardService {
 
         return {
             totalSales,
-            totalCommission: estimatedCommission,
+            totalCommission,
+            salesTrendPercent: Number(salesTrendPercent.toFixed(1)),
             totalOrders,
             activeCustomers,
             activeStores,
             openDisputes,
             salesTrend,
             topStores,
-
+            recentOrders: lastOrders,
             statusDistribution: statusDist.map(s => ({ status: s.status, count: s._count.id })),
             alerts
         };
     }
+
 }

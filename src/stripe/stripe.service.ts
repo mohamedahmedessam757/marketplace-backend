@@ -24,7 +24,7 @@ export class StripeService {
     /**
      * Creates a new connected Express account
      */
-    async createConnectedAccount(storeId: string, email: string): Promise<any> {
+    async createConnectedAccount(storeId: string, email: string, isCustomer: boolean = false): Promise<any> {
         const account = await this.stripe.accounts.create({
             controller: {
                 fees: { payer: 'application' },
@@ -33,7 +33,10 @@ export class StripeService {
                 requirement_collection: 'stripe',
             },
             email: email,
-            metadata: { storeId },
+            metadata: { 
+                id: storeId,
+                type: isCustomer ? 'customer' : 'store'
+            },
             settings: {
                 payouts: {
                     schedule: { interval: 'manual' } // Important for Escrow
@@ -41,13 +44,15 @@ export class StripeService {
             }
         } as any);
 
-        await this.prisma.store.update({
-            where: { id: storeId },
-            data: { 
-                stripeAccountId: account.id,
-                payoutSchedule: 'MANUAL'
-            }
-        });
+        if (!isCustomer) {
+            await this.prisma.store.update({
+                where: { id: storeId },
+                data: { 
+                    stripeAccountId: account.id,
+                    payoutSchedule: 'MANUAL'
+                }
+            });
+        }
 
         return account;
     }

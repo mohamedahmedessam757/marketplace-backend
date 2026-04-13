@@ -294,10 +294,9 @@ export class UsersService {
     const customers = await this.prisma.user.findMany({
       where: { role: 'CUSTOMER' },
       include: {
-        orders: {
-          include: {
-            acceptedOffer: true
-          }
+        orders: true,
+        payments: {
+          where: { status: 'SUCCESS' }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -308,12 +307,8 @@ export class UsersService {
       const completedOrders = user.orders.filter(o => ['COMPLETED', 'DELIVERED'].includes(o.status));
       const successRate = totalOrders > 0 ? Math.round((completedOrders.length / totalOrders) * 100) : 0;
 
-      const ltv = completedOrders.reduce((sum, order) => {
-        const base = Number(order.acceptedOffer?.unitPrice || 0);
-        const shipping = Number(order.acceptedOffer?.shippingCost || 0);
-        const commission = base > 0 ? Math.max(Math.round(base * 0.25), 100) : 0;
-        return sum + base + shipping + commission;
-      }, 0);
+      // Calculate LTV objectively from successful payments
+      const ltv = user.payments.reduce((sum, payment) => sum + Number(payment.totalAmount || 0), 0);
 
       return {
         id: user.id,
@@ -322,6 +317,7 @@ export class UsersService {
         phone: user.phone,
         status: user.status || 'ACTIVE',
         joinedAt: user.createdAt,
+        avatar: user.avatar,
         ltv,
         successRate,
         ordersCount: totalOrders,
@@ -361,12 +357,12 @@ export class UsersService {
     const totalOrders = user.orders.length;
     const completedOrders = user.orders.filter(o => ['COMPLETED', 'DELIVERED'].includes(o.status));
     const successRate = totalOrders > 0 ? Math.round((completedOrders.length / totalOrders) * 100) : 0;
-    const ltv = completedOrders.reduce((sum, order) => {
-      const base = Number(order.acceptedOffer?.unitPrice || 0);
-      const shipping = Number(order.acceptedOffer?.shippingCost || 0);
-      const commission = base > 0 ? Math.max(Math.round(base * 0.25), 100) : 0;
-      return sum + base + shipping + commission;
-    }, 0);
+    
+    // Calculate LTV objectively from successful payments
+    const successfulPayments = await this.prisma.paymentTransaction.findMany({
+      where: { customerId: id, status: 'SUCCESS' }
+    });
+    const ltv = successfulPayments.reduce((sum, payment) => sum + Number(payment.totalAmount || 0), 0);
 
     return {
       ...user,

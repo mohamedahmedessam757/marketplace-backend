@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, ForbiddenException, Query } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { TransitionOrderDto } from './dto/transition-order.dto';
+import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActorType, UserRole } from '@prisma/client';
 
@@ -18,13 +19,14 @@ export class OrdersController {
     }
 
     @Get()
-    async findAll(@Request() req) {
-        const orders = await this.ordersService.findAll(req.user);
+    async findAll(@Request() req, @Query() query: FindAllOrdersDto) {
+        const result = await this.ordersService.findAll(req.user, query);
+        
         // For vendors, include their storeId so frontend can reliably identify own offers
         if (req.user.role === 'VENDOR' && req.user.storeId) {
-            return { orders, requestingStoreId: req.user.storeId };
+            return { ...result, requestingStoreId: req.user.storeId };
         }
-        return orders;
+        return result;
     }
 
     @Get('delivered')

@@ -21,6 +21,7 @@ const STATUS_LABELS: Record<ShipmentStatus, { ar: string; en: string }> = {
     DELIVERED_TO_CUSTOMER:     { ar: 'تم التسليم بنجاح! ✅ نأمل أن تكون تجربتك معنا رائعة، يومك سعيد.', en: 'Delivered successfully! ✅ We hope you had a great experience with us.' },
     RETURN_TO_SENDER_INITIATED:{ ar: 'بدء إجراءات الإرجاع 🔄 لضمان وصول الشحنة للمرسل بأمان.', en: 'Return to sender initiated 🔄 to ensure safe arrival.' },
     RETURNED_TO_SENDER:        { ar: 'تم إرجاع الطرد للمرسل بنجاح.', en: 'Returned to sender successfully.' },
+    CUSTOMS_DELAY:             { ar: 'نعتذر عن التأخير، الشحنة حالياً لدى الجمارك في دولتك .', en: 'We apologize for the delay, the shipment is currently at customs in your country.' },
 };
 
 @Injectable()
@@ -91,6 +92,7 @@ export class ShipmentsService {
                 trackingNumber: data.trackingNumber ?? shipment.trackingNumber,
                 carrierApiUrl: data.carrierApiUrl ?? shipment.carrierApiUrl,
                 carrierType: data.carrierType ?? shipment.carrierType,
+                trackingLink: data.trackingLink ?? shipment.trackingLink,
                 estimatedDelivery: data.estimatedDelivery ? new Date(data.estimatedDelivery) : shipment.estimatedDelivery,
                 updatedBy: userId,
                 actualDelivery: isDelivered ? new Date() : shipment.actualDelivery,
@@ -252,6 +254,7 @@ export class ShipmentsService {
                     select: {
                         id: true,
                         trackingNumber: true,
+                        trackingLink: true,
                         carrierName: true,
                         status: true,
                         estimatedDelivery: true,
@@ -278,6 +281,7 @@ export class ShipmentsService {
                 id: s?.id || order.id,
                 orderId: order.id,
                 trackingNumber: s?.trackingNumber || order.orderNumber,
+                trackingLink: s?.trackingLink || null,
                 carrier: s?.carrierName || null,
                 status: s?.status || (order.status === 'READY_FOR_SHIPPING' ? 'RECEIVED_AT_HUB' : order.status === 'DELIVERED' ? 'DELIVERED_TO_CUSTOMER' : 'IN_TRANSIT_TO_DESTINATION'),
                 estimatedDelivery: null, 
@@ -320,7 +324,7 @@ export class ShipmentsService {
         orderId: string,
         status: ShipmentStatus,
         note?: string,
-        customsNote?: string
+        customsDelayInput?: string
     ) {
         const order = await this.prisma.order.findUnique({ where: { id: orderId } });
         if (!order) return;
@@ -329,11 +333,11 @@ export class ShipmentsService {
         if (!labels) return;
 
         // Attach customs delay message if applicable
-        const customsSuffixAr = (status === ShipmentStatus.CUSTOMS_CLEARANCE && customsNote)
-            ? `\n⚠️ نعتذر عن التأخير، الشحنة حالياً لدى الجمارك. ${customsNote}`
+        const customsSuffixAr = (status === ShipmentStatus.CUSTOMS_DELAY)
+            ? `\n${labels.ar}${customsDelayInput ? '\n' + customsDelayInput : ''}`
             : '';
-        const customsSuffixEn = (status === ShipmentStatus.CUSTOMS_CLEARANCE && customsNote)
-            ? `\n⚠️ Apologies for the delay, shipment is currently at Customs. ${customsNote}`
+        const customsSuffixEn = (status === ShipmentStatus.CUSTOMS_DELAY)
+            ? `\n${labels.en}${customsDelayInput ? '\n' + customsDelayInput : ''}`
             : '';
 
         const notifyData = {
