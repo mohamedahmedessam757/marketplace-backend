@@ -1,6 +1,9 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { ShipmentsService } from '../shipments/shipments.service';
+import { ActorType, OrderStatus } from '@prisma/client';
 
 @Injectable()
 export class WaybillsService {
@@ -8,7 +11,9 @@ export class WaybillsService {
 
     constructor(
         private prisma: PrismaService,
-        private notifications: NotificationsService
+        private notifications: NotificationsService,
+        private auditLogs: AuditLogsService,
+        private shipments: ShipmentsService,
     ) {}
 
     /**
@@ -41,8 +46,9 @@ export class WaybillsService {
             throw new NotFoundException('Order not found');
         }
 
-        if (order.status !== 'VERIFICATION_SUCCESS') {
-            throw new BadRequestException('Order verification is not successful yet. Cannot issue waybills.');
+        const allowedStatuses = [OrderStatus.VERIFICATION_SUCCESS, OrderStatus.READY_FOR_SHIPPING];
+        if (!allowedStatuses.includes(order.status)) {
+            throw new BadRequestException(`Order status must be ${allowedStatuses.join(' or ')} to issue waybills.`);
         }
 
         const waybillsList = (order as any).shippingWaybills || [];
@@ -141,6 +147,45 @@ export class WaybillsService {
         } catch (e) {
             this.logger.error('Failed to notify customer waybill issuance', e);
         }
+
+        // Phase 2: Automatic Shipment Tracker Initialization (2026 Logic)
+        try {
+            // Check if a shipment already exists for this order
+            const existingShipment = await this.prisma.shipment.findFirst({
+                where: { orderId: order.id }
+            });
+
+            if (!existingShipment) {
+                // Initialize the shipment record to provide a source of truth for the Detailed Journey tracker
+                await this.shipments.create({
+                    orderId: order.id,
+                    waybillId: issuedWaybills[0]?.id, // Link to the first waybill
+                    carrierType: 'NO_TRACKING',
+                }, adminId);
+                
+                this.logger.log(`Initialized shipment tracker for order ${order.orderNumber}`);
+            }
+        } catch (shipmentErr) {
+            this.logger.error('Failed to auto-initialize shipment tracker', shipmentErr.message);
+        }
+
+        // Phase 2: Administrative Audit Logging
+        await this.auditLogs.logAction({
+            orderId,
+            action: 'WAYBILL_ISSUAL',
+            entity: 'Order',
+            actorType: ActorType.ADMIN,
+            actorId: adminId,
+            actorName: 'Admin',
+            previousState: order.status,
+            newState: order.status,
+            reason: 'Administrative issuance of shipping waybills for verified parts.',
+            metadata: {
+                waybillCount: issuedWaybills.length,
+                waybillNumbers: issuedWaybills.map(wb => wb.waybillNumber),
+                timestamp: new Date().toISOString()
+            }
+        });
 
         return { waybills: issuedWaybills, count: issuedWaybills.length };
     }

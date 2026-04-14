@@ -22,33 +22,33 @@ export class EscrowService {
     /**
      * 1. Hold Funds (after customer pays, but before shipment is delivered)
      */
-    async holdFunds(paymentId: string, orderId: string, storeId: string, amounts: EscrowAmounts): Promise<void> {
-        return this.prisma.$transaction(async (tx) => {
-            // 1. Create Escrow transaction
-            const escrow = await tx.escrowTransaction.create({
-                data: {
-                    paymentId,
-                    orderId,
-                    merchantAmount: amounts.merchantAmount,
-                    commissionAmount: amounts.commissionAmount,
-                    shippingAmount: amounts.shippingAmount,
-                    gatewayFee: amounts.gatewayFee,
-                    status: 'HELD'
-                }
-            });
-
-            // 2. Increase Merchant's pending balance
-            await tx.store.update({
-                where: { id: storeId },
-                data: {
-                    pendingBalance: {
-                        increment: amounts.merchantAmount
-                    }
-                }
-            });
-
-            // Note: Platform wallet update for commission/fees is deferred until RELEASE.
+    async holdFunds(paymentId: string, orderId: string, storeId: string, amounts: EscrowAmounts, tx?: Prisma.TransactionClient): Promise<void> {
+        const prisma = tx || this.prisma;
+        
+        // 1. Create Escrow transaction
+        await prisma.escrowTransaction.create({
+            data: {
+                paymentId,
+                orderId,
+                merchantAmount: amounts.merchantAmount,
+                commissionAmount: amounts.commissionAmount,
+                shippingAmount: amounts.shippingAmount,
+                gatewayFee: amounts.gatewayFee,
+                status: 'HELD'
+            }
         });
+
+        // 2. Increase Merchant's pending balance
+        await prisma.store.update({
+            where: { id: storeId },
+            data: {
+                pendingBalance: {
+                    increment: amounts.merchantAmount
+                }
+            }
+        });
+
+        // Note: Platform wallet update for commission/fees is deferred until RELEASE.
     }
 
     /**

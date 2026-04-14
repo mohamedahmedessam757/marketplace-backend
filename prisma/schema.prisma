@@ -380,6 +380,11 @@ model VerificationDocument {
   adminRejectionImages Json?     @default("[]") @map("admin_rejection_images")
   adminRejectionVideo  String?   @map("admin_rejection_video")
 
+  adminSignatureName  String? @map("admin_signature_name")
+  adminSignatureImage String? @map("admin_signature_image")
+  adminSignatureType  String  @default("TYPED") @map("admin_signature_type") // DRAWN | TYPED
+  adminSignatureText  String? @map("admin_signature_text")
+
   isCorrection       Boolean @default(false) @map("is_correction")
   originalDocumentId String? @map("original_document_id") @db.Uuid
 

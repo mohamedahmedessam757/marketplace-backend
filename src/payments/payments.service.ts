@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StripeService } from '../stripe/stripe.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
+import { CreateIntentDto } from './dto/create-intent.dto';
 import { Prisma } from '@prisma/client';
 
 import { EscrowService } from './escrow.service';
@@ -15,6 +16,7 @@ export class PaymentsService {
         private readonly prisma: PrismaService,
         private readonly notifications: NotificationsService,
         private readonly escrowService: EscrowService,
+        @Inject(forwardRef(() => StripeService))
         private readonly stripeService: StripeService,
     ) { }
 
@@ -272,6 +274,270 @@ export class PaymentsService {
             orderTransitioned: result.orderTransitioned,
             remainingOffers: result.remainingOffers,
         };
+    }
+    
+    /**
+     * Phase 1: Create a Stripe PaymentIntent for the frontend to confirm.
+     * This registers a PENDING transaction and returns the clientSecret.
+     */
+    async createPaymentIntent(customerId: string, dto: CreateIntentDto) {
+        const { orderId, offerId } = dto;
+
+        // 1. Fetch and validate order
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: {
+                offers: {
+                    where: { id: offerId, status: 'accepted' },
+                    include: { store: true },
+                },
+            },
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.customerId !== customerId) throw new ForbiddenException('Not owner of this order');
+        if (order.status !== 'AWAITING_PAYMENT') {
+            throw new BadRequestException('Order is not in AWAITING_PAYMENT status');
+        }
+
+        const offer = order.offers[0];
+        if (!offer) {
+            throw new NotFoundException(`Accepted offer ${offerId} not found on order ${orderId}`);
+        }
+
+        // 2. Check if already paid
+        const existingPayment = await this.prisma.paymentTransaction.findFirst({
+            where: { offerId, status: 'SUCCESS' },
+        });
+        if (existingPayment) {
+            throw new ConflictException('This offer has already been paid');
+        }
+
+        // 3. Calculate amounts (Simplified: Offer Price is ALL-INCLUSIVE)
+        const unitPrice = Number(offer.unitPrice);
+        const shippingCost = Number(offer.shippingCost);
+        const percentCommission = Math.round(unitPrice * 0.25);
+        const commission = unitPrice > 0 ? Math.max(percentCommission, 100) : 0;
+        
+        // Total amount charged to customer = unitPrice + shippingCost + commission (Full price from OfferCard)
+        const totalAmount = unitPrice + shippingCost + commission;
+
+        // 4. Create Stripe PaymentIntent
+        const intent = await this.stripeService.createPaymentIntent(
+            totalAmount.toString(),
+            'AED',
+            { 
+                orderId, 
+                offerId, 
+                customerId, 
+                orderNumber: order.orderNumber,
+                offerNumber: offer.offerNumber 
+            }
+        );
+
+        // 5. Record PENDING transaction (Atomic idempotent upsert via Prisma interactive transaction)
+        // This prevents the unique constraint error on transaction_number by serializing the record creation.
+        await this.prisma.$transaction(async (tx) => {
+            const existingTx = await tx.paymentTransaction.findUnique({
+                where: { offerId },
+                select: { transactionNumber: true }
+            });
+
+            if (existingTx) {
+                // Update existing record — reuse the same transactionNumber to maintain document integrity
+                await tx.paymentTransaction.update({
+                    where: { offerId },
+                    data: {
+                        stripePaymentId: intent.id,
+                        status: 'PENDING',
+                        totalAmount,
+                        unitPrice,
+                        shippingCost,
+                        commission,
+                    },
+                });
+            } else {
+                // Generate a new transaction number ONLY when creating a new record
+                const txnResult = await tx.$queryRaw<{ generate_transaction_number: string }[]>`SELECT generate_transaction_number()`;
+                const transactionNumber = txnResult[0].generate_transaction_number;
+
+                await tx.paymentTransaction.create({
+                    data: {
+                        transactionNumber,
+                        orderId,
+                        offerId,
+                        customerId,
+                        unitPrice,
+                        shippingCost,
+                        commission,
+                        totalAmount,
+                        currency: 'AED',
+                        stripePaymentId: intent.id,
+                        status: 'PENDING',
+                    },
+                });
+            }
+        });
+
+        return {
+            clientSecret: intent.client_secret,
+            paymentIntentId: intent.id,
+            totalAmount,
+            currency: 'AED'
+        };
+    }
+
+    /**
+     * Phase 2: Webhook Fulfillment
+     * Finalizes the payment, credits wallets, generates invoices, and holds funds in escrow.
+     * Triggered by Stripe Webhook (payment_intent.succeeded)
+     */
+    async fulfillStripePayment(paymentIntentId: string) {
+        // 1. Find the pending transaction
+        const payment = await this.prisma.paymentTransaction.findFirst({
+            where: { stripePaymentId: paymentIntentId }, // Removed redundant 'status: PENDING' to allow idempotency checks inside the transaction
+            include: { 
+                order: true, 
+                offer: { 
+                    include: { store: true } 
+                } 
+            }
+        });
+
+        if (!payment) {
+            this.logger.warn(`Stripe payment fulfillment failed: Record not found for intent ${paymentIntentId}`);
+            return;
+        }
+
+        // 2. Atomic Database Transaction
+        return await this.prisma.$transaction(async (tx) => {
+            // Re-check status inside transaction to prevent race conditions
+            const txPayment = await tx.paymentTransaction.findUnique({
+                where: { id: payment.id }
+            });
+            
+            // Idempotency: skip if already successful
+            if (txPayment?.status === 'SUCCESS') {
+                this.logger.log(`Payment intent ${paymentIntentId} already fulfilled. Skipping.`);
+                return;
+            }
+
+            // a. Mark Payment SUCCESS
+            await tx.paymentTransaction.update({
+                where: { id: payment.id },
+                data: { 
+                    status: 'SUCCESS', 
+                    paidAt: new Date(),
+                    // Update gateway fee if available in intent data (placeholder for now)
+                    gatewayFee: 0 
+                }
+            });
+
+            // b. Execute Financial Flow (Wallet & Escrow)
+            const unitPrice = Number(payment.unitPrice);
+            const shippingCost = Number(payment.shippingCost);
+            const commission = Number(payment.commission);
+            
+            // Merchant Net Share = unitPrice (the basePrice set by merchant)
+            // Commission and shipping are ADDED on top and belong to the platform
+            const merchantNetShare = unitPrice;
+
+            // Hold funds in Escrow (using the shared tx client for atomicity)
+            // Admin share consists of commission + shippingCost
+            await this.escrowService.holdFunds(
+                payment.id, 
+                payment.orderId, 
+                payment.offer.storeId, 
+                {
+                    merchantAmount: merchantNetShare,
+                    shippingAmount: shippingCost,
+                    commissionAmount: commission,
+                    gatewayFee: 0
+                },
+                tx
+            );
+
+            // Credit Merchant Wallet (Create transaction record for net amount)
+            await tx.walletTransaction.create({
+                data: {
+                    userId: payment.offer.store.ownerId,
+                    role: 'VENDOR',
+                    paymentId: payment.id,
+                    type: 'CREDIT',
+                    transactionType: 'payment',
+                    amount: merchantNetShare,
+                    currency: 'AED',
+                    description: `Net payout for offer #${payment.offer.offerNumber} (Excludes Admin Commission & Shipping) — Order #${payment.order.orderNumber}`,
+                    balanceAfter: Number(payment.offer.store.balance) + merchantNetShare
+                }
+            });
+
+            // c. Generate Invoice
+            const invResult = await tx.$queryRaw<{ generate_invoice_number: string }[]>`SELECT generate_invoice_number()`;
+            const invoiceNumber = invResult[0].generate_invoice_number;
+
+            await tx.invoice.create({
+                data: {
+                    invoiceNumber,
+                    orderId: payment.orderId,
+                    paymentId: payment.id,
+                    customerId: payment.customerId,
+                    subtotal: unitPrice,
+                    shipping: shippingCost,
+                    commission,
+                    total: Number(payment.totalAmount),
+                    currency: 'AED',
+                    status: 'PAID',
+                },
+            });
+
+            // d. Check if ALL accepted offers are now paid
+            const allAcceptedOffers = await tx.offer.findMany({
+                where: { orderId: payment.orderId, status: 'accepted' }
+            });
+            
+            const paidCount = await tx.paymentTransaction.count({
+                where: { 
+                    orderId: payment.orderId, 
+                    status: 'SUCCESS' 
+                }
+            });
+
+            if (paidCount >= allAcceptedOffers.length) {
+                // Transition order to PREPARATION
+                await tx.order.update({
+                    where: { id: payment.orderId },
+                    data: { status: 'PREPARATION' }
+                });
+
+                // Audit log
+                await tx.auditLog.create({
+                    data: {
+                        orderId: payment.orderId,
+                        action: 'STATUS_CHANGE',
+                        entity: 'Order',
+                        actorType: 'SYSTEM',
+                        actorId: 'STRIPE_WEBHOOK',
+                        previousState: 'AWAITING_PAYMENT',
+                        newState: 'PREPARATION',
+                        reason: 'All offers paid successfully via Stripe',
+                    },
+                });
+            }
+
+            // e. Final Notification to customer
+            await this.notifications.create({
+                recipientId: payment.customerId,
+                recipientRole: 'CUSTOMER',
+                type: 'payment',
+                titleAr: 'تم الدفع بنجاح! 🎉',
+                titleEn: 'Payment Successful! 🎉',
+                messageAr: `تم دفع ${payment.totalAmount} درهم بنجاح للعرض #${payment.offer.offerNumber}. نحن الآن نجهز طلبك.`,
+                messageEn: `Payment of AED ${payment.totalAmount} successful for offer #${payment.offer.offerNumber}. Preparation started.`,
+                link: 'checkout',
+                metadata: { orderId: payment.orderId, offerId: payment.offerId, amount: payment.totalAmount },
+            });
+        });
     }
 
     /**

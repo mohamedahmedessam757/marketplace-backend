@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, UseGuards, Request, Query, Param, Put } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
+import { CreateIntentDto } from './dto/create-intent.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('payments')
@@ -11,6 +12,11 @@ export class PaymentsController {
     @Post('process')
     processPayment(@Request() req, @Body() dto: ProcessPaymentDto) {
         return this.paymentsService.processPayment(req.user.id, dto);
+    }
+
+    @Post('create-intent')
+    createPaymentIntent(@Request() req, @Body() dto: CreateIntentDto) {
+        return this.paymentsService.createPaymentIntent(req.user.id, dto);
     }
 
     @Get('pending')

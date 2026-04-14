@@ -227,6 +227,7 @@ export class OrdersService {
                 include: {
                     parts: true,
                     customer: { select: { id: true, name: true, email: true, avatar: true } },
+                    review: true,
                     offers: {
                         include: {
                             store: { select: { id: true, name: true, storeCode: true, logo: true } }
@@ -264,6 +265,7 @@ export class OrdersService {
                 parts: true,
                 customer: { select: { id: true, name: true, email: true, phone: true } },
                 acceptedOffer: { include: { store: true } },
+                review: true,
                 shipments: { orderBy: { createdAt: 'desc' } },
                 offers: {
                     include: {
@@ -1368,7 +1370,12 @@ export class OrdersService {
                     adminRejectionReason: data.rejectionReason,
                     adminRejectionImages: data.rejectionImages || [],
                     adminRejectionVideo: data.rejectionVideo,
-                    correctionDeadlineAt: correctionDeadline
+                    correctionDeadlineAt: correctionDeadline,
+                    // New Signature Persistence
+                    adminSignatureName: data.adminSignatureName,
+                    adminSignatureType: data.adminSignatureType,
+                    adminSignatureText: data.adminSignatureText,
+                    adminSignatureImage: data.adminSignatureImage,
                 }
             }),
             this.prisma.order.update({
@@ -1380,7 +1387,13 @@ export class OrdersService {
         await this.auditLogs.logAction({
             orderId, action: `VERIFICATION_${decision}`, entity: 'Order',
             actorType: ActorType.ADMIN, actorId: adminId, actorName: 'Admin',
-            previousState: order.status, newState: newOrderStatus
+            previousState: order.status, newState: newOrderStatus,
+            metadata: { 
+                signedBy: data.adminSignatureName,
+                signatureType: data.adminSignatureType,
+                reason: data.rejectionReason,
+                timestamp: new Date().toISOString()
+            }
         });
 
         // Fetch store to get the ownerId for the notification recipient
@@ -1479,5 +1492,60 @@ export class OrdersService {
             });
         }
         return { success: true, doc };
+    }
+
+    async confirmDelivery(orderId: string, customerUserId: string, note?: string) {
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: { 
+                customer: { select: { id: true, email: true } }, 
+                store: { select: { id: true, ownerId: true } } 
+            }
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.customerId !== customerUserId) throw new ForbiddenException('Not your order');
+        if (order.status !== OrderStatus.SHIPPED) {
+            throw new BadRequestException('Order must be in Shipped state to confirm receipt.');
+        }
+
+        // Transition to DELIVERED
+        const updatedOrder = await this.transitionStatus(
+            orderId,
+            OrderStatus.DELIVERED,
+            { id: customerUserId, type: ActorType.CUSTOMER, name: order.customer.email },
+            note || 'Customer confirmed receipt'
+        );
+
+        // Notify Merchant
+        if (order.storeId && order.store) {
+            await this.notifications.create({
+                recipientId: order.store.ownerId,
+                recipientRole: 'MERCHANT',
+                type: 'system_alert',
+                titleAr: 'تم استلام الطلب بنجاح ✅',
+                titleEn: 'Order Received Successfully ✅',
+                messageAr: `أكد العميل استلام الطلب رقم #${order.orderNumber}. الملاحظة: ${note || '-'}`,
+                messageEn: `Customer confirmed receipt for order #${order.orderNumber}. Note: ${note || '-'}`,
+                link: `/merchant/orders/${order.id}`
+            });
+        }
+
+        // Notify Admin
+        const admins = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } });
+        for (const admin of admins) {
+            await this.notifications.create({
+                recipientId: admin.id,
+                recipientRole: 'ADMIN',
+                type: 'system_alert',
+                titleAr: 'تأكيد استلام طلب',
+                titleEn: 'Delivery Confirmation',
+                messageAr: `قام العميل بتأكيد استلام الطلب رقم #${order.orderNumber}.`,
+                messageEn: `Customer confirmed delivery for order #${order.orderNumber}.`,
+                link: `/admin/orders/${order.id}`
+            });
+        }
+
+        return updatedOrder;
     }
 }

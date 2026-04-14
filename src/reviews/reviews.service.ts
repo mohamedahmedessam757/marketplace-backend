@@ -68,14 +68,19 @@ export class ReviewsService {
   }
 
   async findAllForAdmin() {
-    return this.prisma.review.findMany({
+    const reviews = await this.prisma.review.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
-        customer: { select: { id: true, name: true, email: true } },
+        customer: { select: { id: true, name: true, email: true, avatar: true } },
         store: { select: { id: true, name: true, ownerId: true } },
         order: { select: { id: true, orderNumber: true } },
       },
     });
+
+    return reviews.map(review => ({
+      ...review,
+      customerCode: `CUST-${review.customer.id.substring(0, 8).toUpperCase()}`
+    }));
   }
 
   async updateStatus(id: string, updateDto: UpdateReviewStatusDto) {
@@ -115,13 +120,100 @@ export class ReviewsService {
   }
 
   async findByStore(storeId: string) {
-    return this.prisma.review.findMany({
+    const reviews = await this.prisma.review.findMany({
       where: { storeId, adminStatus: 'PUBLISHED' },
       orderBy: { createdAt: 'desc' },
       include: {
-        customer: { select: { name: true, avatar: true } },
+        customer: { select: { id: true, name: true, avatar: true } },
       },
     });
+
+    return reviews.map(review => ({
+      ...review,
+      customerCode: `CUST-${review.customer.id.substring(0, 8).toUpperCase()}`
+    }));
+  }
+
+  async findAll() {
+    const reviews = await this.prisma.review.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        customer: { select: { id: true, name: true, avatar: true } },
+      },
+    });
+
+    return reviews.map(review => ({
+      ...review,
+      customerCode: `CUST-${review.customer.id.substring(0, 8).toUpperCase()}`
+    }));
+  }
+
+  async findAllForMerchant(ownerId: string) {
+    const store = await this.prisma.store.findUnique({ where: { ownerId } });
+    if (!store) throw new NotFoundException('Store not found');
+
+    const reviews = await this.prisma.review.findMany({
+      where: { storeId: store.id, adminStatus: 'PUBLISHED' }, // Strictly show only moderated reviews
+      orderBy: { createdAt: 'desc' },
+      include: {
+        customer: { select: { id: true, name: true, avatar: true } },
+        order: { select: { orderNumber: true } }
+      },
+    });
+
+    return reviews.map(review => ({
+      ...review,
+      customerCode: `CUST-${review.customer.id.substring(0, 8).toUpperCase()}`
+    }));
+  }
+
+  async getMerchantStats(ownerId: string) {
+    const store = await this.prisma.store.findUnique({ 
+        where: { ownerId },
+        include: { _count: { select: { reviews: { where: { adminStatus: 'PUBLISHED' } } } } }
+    });
+    if (!store) throw new NotFoundException('Store not found');
+
+    const reviews = await this.prisma.review.findMany({
+      where: { storeId: store.id, adminStatus: 'PUBLISHED' }
+    });
+
+    const totalReviews = reviews.length;
+    
+    // 1. Customer Satisfaction (% of 4+ stars among published)
+    const positiveReviews = reviews.filter(r => r.rating >= 4).length;
+    const satisfaction = totalReviews > 0 ? (positiveReviews / totalReviews) * 100 : 0;
+
+    // 2. Reputation Growth (Abstract score based on activity)
+    const reputationGrowth = totalReviews > 0 ? (totalReviews * 0.5) + (Number(store.rating) * 2) : 0;
+
+    // 3. Store Ranking (Competitive Logic)
+    // We calculate a score and compare it with other stores
+    const allStores = await this.prisma.store.findMany({
+        select: { id: true, rating: true, lifetimeEarnings: true, _count: { select: { orders: true } } }
+    });
+
+    const calculateScore = (s: any) => 
+        (Number(s.rating) * 7) + 
+        (Number(s._count?.orders || 0) * 2) + 
+        (Number(s.lifetimeEarnings || 0) * 0.001);
+
+    const myScore = calculateScore(store);
+    const higherRankedStores = allStores.filter(s => calculateScore(s) > myScore).length;
+    
+    const totalStores = allStores.length || 1;
+    const percentile = 100 - ((higherRankedStores / totalStores) * 100);
+    // Convert to "TOP X%"
+    const topPercentage = Math.max(1, Math.round(100 - percentile));
+
+    return {
+      averageRating: Number(store.rating),
+      totalReviews,
+      publishedCount: totalReviews,
+      satisfaction: Math.round(satisfaction),
+      reputationGrowth: Number(reputationGrowth.toFixed(1)),
+      storeRank: topPercentage,
+    };
   }
 
   private async updateStoreRating(storeId: string) {

@@ -1,7 +1,8 @@
-import { Controller, Post, Req, Res, RawBodyRequest, Logger } from '@nestjs/common';
+import { Controller, Post, Req, Res, RawBodyRequest, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { StripeService } from './stripe.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentsService } from '../payments/payments.service';
 
 @Controller('stripe/webhook')
 export class StripeWebhookController {
@@ -10,6 +11,8 @@ export class StripeWebhookController {
     constructor(
         private readonly stripeService: StripeService,
         private readonly prisma: PrismaService,
+        @Inject(forwardRef(() => PaymentsService))
+        private readonly paymentsService: PaymentsService,
     ) {}
 
     @Post()
@@ -37,8 +40,7 @@ export class StripeWebhookController {
                 case 'payment_intent.succeeded':
                     const paymentIntent = event.data.object;
                     this.logger.log(`PaymentIntent for ${paymentIntent.amount} was successful!`);
-                    // Note: Handle fulfilling the order in EscrowService to avoid circular dependency here.
-                    // Or call EscrowService here if injected.
+                    await this.paymentsService.fulfillStripePayment(paymentIntent.id);
                     break;
                 case 'account.updated':
                     const account = event.data.object;

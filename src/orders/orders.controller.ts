@@ -3,6 +3,7 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { TransitionOrderDto } from './dto/transition-order.dto';
 import { FindAllOrdersDto } from './dto/find-all-orders.dto';
+import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActorType, UserRole } from '@prisma/client';
 
@@ -153,14 +154,12 @@ export class OrdersController {
         if (!storeId) throw new ForbiddenException('Only verified merchants can submit verification docs.');
         return this.ordersService.submitVerification(orderId, storeId, data);
     }
-
     @Patch(':id/verification/review')
     adminReviewVerification(
         @Request() req,
         @Param('id') orderId: string,
-        @Body() data: any
+        @Body() data: ReviewVerificationDto
     ) {
-        // Assume ONLY admins can trigger this endpoint
         if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ADMIN') {
             throw new ForbiddenException('Only admins can review verification docs.');
         }
@@ -176,5 +175,14 @@ export class OrdersController {
         const storeId = req.user.storeId;
         if (!storeId) throw new ForbiddenException('Only verified merchants can submit corrections.');
         return this.ordersService.submitCorrectionVerification(orderId, storeId, data);
+    }
+
+    @Post(':id/deliver')
+    confirmDelivery(
+        @Request() req,
+        @Param('id') id: string,
+        @Body('customerNote') customerNote?: string
+    ) {
+        return this.ordersService.confirmDelivery(id, req.user.id, customerNote);
     }
 }

@@ -13,7 +13,7 @@ export class ChatController {
         @Body() body: { orderId: string; vendorId: string },
         @Request() req
     ) {
-        if (req.user.role !== 'customer') {
+        if (req.user.role !== 'CUSTOMER') {
             throw new ForbiddenException('Only customers can initiate order chats.');
         }
 
