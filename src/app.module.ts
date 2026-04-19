@@ -24,6 +24,7 @@ import { ShipmentsModule } from './shipments/shipments.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
 import { StripeModule } from './stripe/stripe.module';
+import { ViolationsModule } from './violations/violations.module';
 
 @Module({
     imports: [
@@ -53,9 +54,9 @@ import { StripeModule } from './stripe/stripe.module';
         ReviewsModule,
         LoyaltyModule,
         StripeModule,
+        ViolationsModule,
     ],
     controllers: [AppController],
     providers: [],
 })
 export class AppModule { }
-

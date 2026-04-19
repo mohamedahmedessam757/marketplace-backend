@@ -167,8 +167,17 @@ model User {
   updatedShipments        Shipment[]
   changedShipmentStatuses ShipmentStatusLog[]
 
-  // Phase 4: Case Messaging
-  caseMessages CaseMessage[]
+  // Violations & Penalties
+  violationScore     Int                @default(0) @map("violation_score")
+  violations         Violation[]        @relation("TargetUser")
+  issuedViolations   Violation[]        @relation("Issuer")
+  violationAppeals   ViolationAppeal[]
+  reviewedAppeals    ViolationAppeal[]  @relation("AppealReviewer")
+  penaltyActions     PenaltyAction[]    @relation("TargetUser")
+  approvedPenalties  PenaltyAction[]    @relation("PenaltyApprover")
+  scoreLogs          ViolationScoreLog[]
+  createdViolationTypes ViolationType[]
+  caseMessages       CaseMessage[]
 
   @@map("users")
 }
@@ -262,6 +271,10 @@ model Store {
   reviews               Review[]
   withdrawalRequests    WithdrawalRequest[]
 
+  // Violations & Penalties
+  violations        Violation[]
+  penaltyActions    PenaltyAction[]
+
   @@index([status])
   @@index([suspendedUntil])
   @@map("stores")
@@ -350,6 +363,9 @@ model Order {
   verificationDocuments VerificationDocument[]
   shippingWaybills      ShippingWaybill[]
   shipments             Shipment[]
+
+  // Violations & Penalties
+  violations            Violation[]
 
   @@index([customerId])
   @@index([storeId])
@@ -1166,4 +1182,184 @@ model PlatformSettings {
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("platform_settings")
+}
+
+// -----------------------------------------------------
+// Violations & Penalties System (2026 Standard)
+// -----------------------------------------------------
+
+enum ViolationTargetType {
+  CUSTOMER
+  MERCHANT
+
+  @@map("violation_target_type")
+}
+
+enum ViolationStatus {
+  ACTIVE
+  DECAYED
+  APPEALED
+  DROPPED
+
+  @@map("violation_status")
+}
+
+enum AppealStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("appeal_status")
+}
+
+enum PenaltyActionType {
+  WARNING
+  TEMPORARY_SUSPENSION
+  PERMANENT_BAN
+
+  @@map("penalty_action_type")
+}
+
+enum PenaltyActionStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  DELAYED
+  EXECUTED
+
+  @@map("penalty_action_status")
+}
+
+model ViolationType {
+    id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    nameAr         String              @map("name_ar")
+    nameEn         String              @map("name_en")
+    descriptionAr  String?             @map("description_ar")
+    descriptionEn  String?             @map("description_en")
+    targetType     ViolationTargetType @map("target_type")
+    points         Int                 @default(0)
+    fineAmount     Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
+    decayDays      Int                 @default(30) @map("decay_days")
+    isActive       Boolean             @default(true) @map("is_active")
+    createdBy      String?             @map("created_by") @db.Uuid
+    createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz
+    updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+    creator        User?               @relation(fields: [createdBy], references: [id])
+    violations     Violation[]
+
+    @@map("violation_types")
+}
+
+model Violation {
+    id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    typeId          String              @map("type_id") @db.Uuid
+    targetUserId    String              @map("target_user_id") @db.Uuid
+    targetStoreId   String?             @map("target_store_id") @db.Uuid
+    targetType      ViolationTargetType @map("target_type")
+    points          Int
+    fineAmount      Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
+    status          ViolationStatus     @default(ACTIVE)
+    adminNotes      String?             @map("admin_notes")
+    orderId         String?             @map("order_id") @db.Uuid
+    issuedBy        String?             @map("issued_by") @db.Uuid
+    decayAt         DateTime?           @map("decay_at") @db.Timestamptz
+    createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+    updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+    type            ViolationType       @relation(fields: [typeId], references: [id])
+    targetUser      User                @relation("TargetUser", fields: [targetUserId], references: [id])
+    targetStore     Store?              @relation(fields: [targetStoreId], references: [id])
+    order           Order?              @relation(fields: [orderId], references: [id])
+    issuer          User?               @relation("Issuer", fields: [issuedBy], references: [id])
+    appeals         ViolationAppeal[]
+    scoreLogs       ViolationScoreLog[]
+
+    @@index([targetUserId])
+    @@index([targetStoreId])
+    @@index([status])
+    @@index([decayAt])
+    @@map("violations")
+}
+
+model ViolationAppeal {
+    id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    violationId      String       @map("violation_id") @db.Uuid
+    userId           String       @map("user_id") @db.Uuid
+    reason           String
+    description      String?
+    evidenceUrls     Json?        @default("[]") @map("evidence_urls")
+    status           AppealStatus @default(PENDING)
+    adminResponse    String?      @map("admin_response")
+    reviewedBy       String?      @map("reviewed_by") @db.Uuid
+    reviewedAt       DateTime?    @map("reviewed_at") @db.Timestamptz
+    createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+    updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+    violation        Violation    @relation(fields: [violationId], references: [id])
+    user             User         @relation(fields: [userId], references: [id])
+    reviewer         User?        @relation("AppealReviewer", fields: [reviewedBy], references: [id])
+
+    @@index([status])
+    @@map("violation_appeals")
+}
+
+model PenaltyThreshold {
+    id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    nameAr              String            @map("name_ar")
+    nameEn              String            @map("name_en")
+    targetType          ViolationTargetType @map("target_type")
+    thresholdPoints     Int               @map("threshold_points")
+    action              PenaltyActionType
+    suspendDurationDays Int?              @map("suspend_duration_days")
+    isActive            Boolean           @default(true) @map("is_active")
+    createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
+    updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+    actions             PenaltyAction[]
+
+    @@map("penalty_thresholds")
+}
+
+model PenaltyAction {
+    id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    targetUserId    String              @map("target_user_id") @db.Uuid
+    targetStoreId   String?             @map("target_store_id") @db.Uuid
+    targetType      ViolationTargetType @map("target_type")
+    thresholdId     String?             @map("threshold_id") @db.Uuid
+    action          PenaltyActionType
+    status          PenaltyActionStatus @default(PENDING_APPROVAL)
+    adminNotes      String?             @map("admin_notes")
+    approvedBy      String?             @map("approved_by") @db.Uuid
+    approvedAt      DateTime?           @map("approved_at") @db.Timestamptz
+    executedAt      DateTime?           @map("executed_at") @db.Timestamptz
+    expiresAt       DateTime?           @map("expires_at") @db.Timestamptz
+    createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+    updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+    targetUser      User                @relation("TargetUser", fields: [targetUserId], references: [id])
+    targetStore     Store?              @relation(fields: [targetStoreId], references: [id])
+    threshold       PenaltyThreshold?   @relation(fields: [thresholdId], references: [id])
+    approver        User?               @relation("PenaltyApprover", fields: [approvedBy], references: [id])
+
+    @@index([status])
+    @@map("penalty_actions")
+}
+
+model ViolationScoreLog {
+    id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    targetUserId    String              @map("target_user_id") @db.Uuid
+    targetType      ViolationTargetType @map("target_type")
+    previousScore   Int                 @map("previous_score")
+    newScore        Int                 @map("new_score")
+    changeAmount    Int                 @map("change_amount")
+    reason          String?
+    violationId     String?             @map("violation_id") @db.Uuid
+    createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+    targetUser      User                @relation(fields: [targetUserId], references: [id])
+    violation       Violation?          @relation(fields: [violationId], references: [id])
+
+    @@index([targetUserId])
+    @@map("violation_score_logs")
 }

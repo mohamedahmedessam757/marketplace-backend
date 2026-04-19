@@ -50,4 +50,18 @@ export class UploadsController {
         const url = await this.uploadsService.uploadFile(file, `${subFolder}/${orderId}`, 'verification-docs');
         return { url };
     }
+
+    @Post('appeals')
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadAppealEvidence(
+        @UploadedFile() file: Express.Multer.File,
+        @Body('violationId') violationId: string
+    ) {
+        if (!violationId) throw new BadRequestException('Violation ID is required');
+
+        // Path: appeals/{violationId}/filename
+        const url = await this.uploadsService.uploadFile(file, `appeals/${violationId}`, 'appeals');
+        return { url };
+    }
 }

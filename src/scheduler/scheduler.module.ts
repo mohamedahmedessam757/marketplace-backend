@@ -7,6 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { EscrowCronService } from './escrow-cron.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { StoreSuspensionService } from './store-suspension.service';
+import { ViolationDecayService } from './violation-decay.service';
 
 @Module({
     imports: [
@@ -16,6 +17,6 @@ import { StoreSuspensionService } from './store-suspension.service';
         NotificationsModule,
         PaymentsModule
     ],
-    providers: [OrderCleanupService, EscrowCronService, StoreSuspensionService],
+    providers: [OrderCleanupService, EscrowCronService, StoreSuspensionService, ViolationDecayService],
 })
 export class SchedulerModule { }
