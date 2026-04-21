@@ -174,13 +174,22 @@ export class ReturnsService {
                 }
             }
 
+            // Resolve relevant Offer & Store
+            const acceptedOffer = await tx.offer.findFirst({
+                where: {
+                    orderId: orderId,
+                    ...(orderPartId ? { orderPartId: orderPartId } : {}),
+                    status: 'accepted'
+                }
+            });
+
             // Create Return
             const returnRecord = await tx.returnRequest.create({
                 data: {
                     orderId: orderId,
                     orderPartId: orderPartId || null,
-                    offerId: order.acceptedOffer?.id || null,
-                    storeId: order.acceptedOffer?.storeId || null,
+                    offerId: acceptedOffer?.id || order.acceptedOffer?.id || null,
+                    storeId: acceptedOffer?.storeId || order.acceptedOffer?.storeId || null,
                     invoiceId: invoice?.id || null,
                     shipmentId: shipment?.id || null,
                     customerId: userId,
@@ -264,13 +273,22 @@ export class ReturnsService {
             const invoice = await tx.invoice.findFirst({ where: { orderId: orderId } });
             const shipment = await tx.shipment.findFirst({ where: { orderId: orderId } });
 
+            // Resolve relevant Offer & Store
+            const acceptedOffer = await tx.offer.findFirst({
+                where: {
+                    orderId: orderId,
+                    ...(orderPartId ? { orderPartId: orderPartId } : {}),
+                    status: 'accepted'
+                }
+            });
+
             // Create Dispute
             const disputeRecord = await tx.dispute.create({
                 data: {
                     orderId: orderId,
                     orderPartId: orderPartId || null,
-                    offerId: order.acceptedOffer?.id || null,
-                    storeId: order.acceptedOffer?.storeId || null,
+                    offerId: acceptedOffer?.id || order.acceptedOffer?.id || null,
+                    storeId: acceptedOffer?.storeId || order.acceptedOffer?.storeId || null,
                     invoiceId: invoice?.id || null,
                     shipmentId: shipment?.id || null,
                     customerId: userId,
@@ -301,12 +319,11 @@ export class ReturnsService {
         return result;
     }
 
+
     private async checkMerchantRiskAlert(storeId: string) {
         const stats = await this.getMerchantRiskStats(storeId);
         if (stats.disputeRate >= 5) {
-            await this.notificationsService.create({
-                recipientId: 'admin',
-                recipientRole: 'ADMIN',
+            await this.notificationsService.notifyAdmins({
                 titleAr: 'تنبيه: معدل نزاعات مرتفع للمتجر',
                 titleEn: 'Alert: High Merchant Dispute Rate',
                 messageAr: `المتجر تجاوز عتبة الـ 5% (المعدل الحالي: ${stats.disputeRate}%)`,
@@ -336,9 +353,7 @@ export class ReturnsService {
             : `Customer requested a return for Order #${orderNumber}`;
 
         // Notify global admin
-        await this.notificationsService.create({
-            recipientId: 'admin',
-            recipientRole: 'ADMIN',
+        await this.notificationsService.notifyAdmins({
             titleAr, titleEn, messageAr, messageEn,
             type: type === 'DISPUTE' ? 'DISPUTE' : 'RETURN',
             link: `/admin/orders/${orderId}`
@@ -362,7 +377,19 @@ export class ReturnsService {
                 where: { customerId: userId },
                 include: {
                     order: {
-                        include: { parts: true }
+                        include: { 
+                            parts: true,
+                            store: true, // Direct store relation as fallback
+                            acceptedOffer: {
+                                include: { store: true }
+                            },
+                            offers: {
+                                include: { store: true }
+                            },
+                            orderChats: {
+                                select: { id: true, vendorId: true }
+                            }
+                        }
                     }
                 },
                 orderBy: { createdAt: 'desc' }
@@ -371,14 +398,86 @@ export class ReturnsService {
                 where: { customerId: userId },
                 include: {
                     order: {
-                        include: { parts: true }
+                        include: { 
+                            parts: true,
+                            store: true, // Direct store relation as fallback
+                            acceptedOffer: {
+                                include: { store: true }
+                            },
+                            offers: {
+                                include: { store: true }
+                            },
+                            orderChats: {
+                                select: { id: true, vendorId: true }
+                            }
+                        }
                     }
                 },
                 orderBy: { createdAt: 'desc' }
             })
         ]);
 
-        return { returns, disputes };
+        // Collect missing store IDs to fetch them manually
+        const missingStoreIds = [...returns, ...disputes]
+            .filter(item => {
+                const hasStoreData = item.order?.acceptedOffer?.store || item.order?.store;
+                return !hasStoreData && item.storeId;
+            })
+            .map(item => item.storeId as string);
+
+        const missingOfferIds = [...returns, ...disputes]
+            .filter(item => {
+                const hasStoreData = item.order?.acceptedOffer?.store || item.order?.store || item.storeId;
+                return !hasStoreData && item.offerId;
+            })
+            .map(item => item.offerId as string);
+
+        const uniqueMissingStoreIds = [...new Set(missingStoreIds)];
+        const uniqueMissingOfferIds = [...new Set(missingOfferIds)];
+        const missingStoresMap = new Map();
+
+        if (uniqueMissingStoreIds.length > 0) {
+            const stores = await this.prisma.store.findMany({
+                where: { id: { in: uniqueMissingStoreIds } }
+            });
+            stores.forEach(s => missingStoresMap.set(s.id, s));
+        }
+
+        if (uniqueMissingOfferIds.length > 0) {
+            const offers = await this.prisma.offer.findMany({
+                where: { id: { in: uniqueMissingOfferIds } },
+                include: { store: true }
+            });
+            // Map the store data using the offer ID so we can retrieve it
+            offers.forEach(o => {
+                if (o.store) missingStoresMap.set(`offer_${o.id}`, o.store);
+            });
+        }
+
+        // Map Chat ID and Store data specifically for the accepted merchant or order-linked store
+        const mapWithChatId = (items: any[]) => items.map(item => {
+            const fallbackFromOffer = item.offerId ? missingStoresMap.get(`offer_${item.offerId}`) : null;
+            const fallbackFromStoreId = item.storeId ? missingStoresMap.get(item.storeId) : null;
+            const fallbackFromFirstOffer = item.order?.offers?.[0]?.store;
+            
+            const resolvedFallbackStore = item.order?.acceptedOffer?.store || item.order?.store || fallbackFromFirstOffer || fallbackFromStoreId || fallbackFromOffer;
+            
+            const acceptedStoreId = resolvedFallbackStore?.id || item.order?.acceptedOffer?.storeId || item.order?.storeId || item.storeId;
+            const chat = item.order?.orderChats?.find((c: any) => c.vendorId === acceptedStoreId) || item.order?.orderChats?.[0];
+            
+            // Enrich the item with fallback store data if acceptedOffer is missing
+            return {
+                ...item,
+                chatId: chat?.id,
+                // Ensure store data is bubbled up for the frontend if needed
+                fallbackStore: resolvedFallbackStore
+            };
+        });
+
+        return { 
+            returns: mapWithChatId(returns), 
+            disputes: mapWithChatId(disputes) 
+        };
     }
 
     async getUserRequests(userId: string) {
@@ -421,11 +520,16 @@ export class ReturnsService {
         const [returns, disputes] = await Promise.all([
             this.prisma.returnRequest.findMany({
                 where: {
-                    order: {
-                        acceptedOffer: {
-                            storeId: { in: storeIds }
+                    OR: [
+                        { storeId: { in: storeIds } },
+                        {
+                            order: {
+                                acceptedOffer: {
+                                    storeId: { in: storeIds }
+                                }
+                            }
                         }
-                    }
+                    ]
                 },
                 include: {
                     order: { include: { parts: true } },
@@ -435,11 +539,16 @@ export class ReturnsService {
             }),
             this.prisma.dispute.findMany({
                 where: {
-                    order: {
-                        acceptedOffer: {
-                            storeId: { in: storeIds }
+                    OR: [
+                        { storeId: { in: storeIds } },
+                        {
+                            order: {
+                                acceptedOffer: {
+                                    storeId: { in: storeIds }
+                                }
+                            }
                         }
-                    }
+                    ]
                 },
                 include: {
                     order: { include: { parts: true } },
@@ -452,7 +561,7 @@ export class ReturnsService {
         return { returns, disputes };
     }
 
-    async respondToReturn(userId: string, returnId: string, action: 'APPROVE' | 'REJECT', responseText: string, files: Express.Multer.File[]) {
+    async respondToReturn(userId: string, returnId: string, action: 'APPROVE' | 'REJECT', responseText: string, files: Express.Multer.File[], evidenceUrls?: string[]) {
         const returnRequest = await this.prisma.returnRequest.findUnique({
             where: { id: returnId },
             include: { 
@@ -463,9 +572,17 @@ export class ReturnsService {
         });
 
         if (!returnRequest) throw new NotFoundException('Return request not found');
+
+        // Robust Ownership Check (Aligns with getMerchantCases scopes)
+        const merchantStores = await this.prisma.store.findMany({
+            where: { ownerId: userId },
+            select: { id: true }
+        });
+        const storeIds = merchantStores.map(s => s.id);
         
-        // Ownership Check: User must own the store associated with the order
-        if (returnRequest.order.acceptedOffer?.store.ownerId !== userId) {
+        const isOwner = storeIds.includes(returnRequest.storeId) || storeIds.includes(returnRequest.order?.acceptedOffer?.storeId);
+
+        if (!isOwner) {
             throw new ForbiddenException('Access denied - This case does not belong to your store');
         }
 
@@ -473,11 +590,12 @@ export class ReturnsService {
             throw new BadRequestException('Response already submitted or case closed');
         }
 
-        // Upload Evidence
+        // Handle both Multipart Files and Frontend Supabase URLs
         const uploadPromises = (files || []).map(file =>
             this.uploadsService.uploadFile(file, `returns/responses/${returnId}`)
         );
-        const evidenceUrls = await Promise.all(uploadPromises);
+        const serverEvidenceUrls = await Promise.all(uploadPromises);
+        const finalEvidenceUrls = [...(evidenceUrls || []), ...serverEvidenceUrls];
 
         const nextStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
 
@@ -487,9 +605,7 @@ export class ReturnsService {
                 data: {
                     status: nextStatus,
                     updatedAt: new Date(),
-                    // We can store merchant response in a new field if we add it to schema, 
-                    // for now let's use the description or metadata if available.
-                    // Since schema doesn't have merchant_response field yet, I'll log it in Audit and use a metadata JSON if I can.
+                    merchantEvidence: finalEvidenceUrls
                 }
             });
 
@@ -512,7 +628,7 @@ export class ReturnsService {
                     previousState: 'PENDING',
                     newState: nextStatus,
                     reason: responseText,
-                    metadata: { evidence: evidenceUrls }
+                    metadata: { evidence: finalEvidenceUrls }
                 }
             });
 
@@ -534,7 +650,7 @@ export class ReturnsService {
         return result;
     }
 
-    async respondToDispute(userId: string, disputeId: string, responseText: string, files: Express.Multer.File[]) {
+    async respondToDispute(userId: string, disputeId: string, responseText: string, files: Express.Multer.File[], evidenceUrls?: string[]) {
         const dispute = await this.prisma.dispute.findUnique({
             where: { id: disputeId },
             include: { 
@@ -545,9 +661,18 @@ export class ReturnsService {
         });
 
         if (!dispute) throw new NotFoundException('Dispute not found');
+
+        // Robust Ownership Check
+        const merchantStores = await this.prisma.store.findMany({
+            where: { ownerId: userId },
+            select: { id: true }
+        });
+        const storeIds = merchantStores.map(s => s.id);
         
-        if (dispute.order.acceptedOffer?.store.ownerId !== userId) {
-            throw new ForbiddenException('Access denied');
+        const isOwner = storeIds.includes(dispute.storeId) || storeIds.includes(dispute.order?.acceptedOffer?.storeId);
+
+        if (!isOwner) {
+            throw new ForbiddenException('Access denied - This case does not belong to your store');
         }
 
         if (dispute.status !== 'OPEN') {
@@ -557,14 +682,16 @@ export class ReturnsService {
         const uploadPromises = (files || []).map(file =>
             this.uploadsService.uploadFile(file, `disputes/responses/${disputeId}`)
         );
-        const evidenceUrls = await Promise.all(uploadPromises);
+        const serverEvidenceUrls = await Promise.all(uploadPromises);
+        const finalEvidenceUrls = [...(evidenceUrls || []), ...serverEvidenceUrls];
 
         const result = await this.prisma.$transaction(async (tx) => {
             const updated = await tx.dispute.update({
                 where: { id: disputeId },
                 data: {
                     status: 'UNDER_REVIEW',
-                    updatedAt: new Date()
+                    updatedAt: new Date(),
+                    merchantEvidence: finalEvidenceUrls
                 }
             });
 
@@ -578,23 +705,32 @@ export class ReturnsService {
                     previousState: 'OPEN',
                     newState: 'UNDER_REVIEW',
                     reason: responseText,
-                    metadata: { evidence: evidenceUrls }
+                    metadata: { evidence: finalEvidenceUrls }
                 }
             });
 
             return updated;
         });
 
-        // Notify Admin that merchant has responded and it's ready for review
-        await this.notificationsService.create({
-            recipientId: 'admin',
-            recipientRole: 'ADMIN',
+        await this.notificationsService.notifyAdmins({
             titleAr: 'رد التاجر على نزاع',
             titleEn: 'Merchant Responded to Dispute',
             messageAr: `قام التاجر بتقديم رد وأدلة للنزاع الخاص بالطلب #${dispute.order.orderNumber}`,
             messageEn: `The merchant provided a response and evidence for the dispute on Order #${dispute.order.orderNumber}`,
             type: 'DISPUTE',
             link: `/admin/disputes/${disputeId}`
+        });
+
+        // Notify Customer (2026 Real-time Transparency)
+        await this.notificationsService.create({
+            recipientId: dispute.customerId,
+            recipientRole: 'CUSTOMER',
+            titleAr: 'تحديث في النزاع القائم',
+            titleEn: 'Dispute Case Update',
+            messageAr: `قام المتجر بالرد على النزاع #${dispute.order.orderNumber}. القضية الآن تحت المراجعة من قبل الإدارة.`,
+            messageEn: `The store has responded to Dispute #${dispute.order.orderNumber}. The case is now under administrative review.`,
+            type: 'DISPUTE',
+            link: `/orders/${dispute.orderId}`
         });
 
         return result;
@@ -763,6 +899,82 @@ export class ReturnsService {
         return this.issueVerdict(adminId, caseId, type, verdict, notes, extra);
     }
 
+    async manualEscalation(userId: string, caseId: string) {
+        // Find in both models
+        const [dispute, ret] = await Promise.all([
+            this.prisma.dispute.findUnique({
+                where: { id: caseId },
+                include: { order: { include: { acceptedOffer: { include: { store: true } } } } }
+            }),
+            this.prisma.returnRequest.findUnique({
+                where: { id: caseId },
+                include: { order: { include: { acceptedOffer: { include: { store: true } } } } }
+            })
+        ]);
+
+        const record = dispute || ret;
+        const type = dispute ? 'dispute' : 'return';
+
+        if (!record) throw new NotFoundException('Case not found');
+
+        // Authorization check
+        const isCustomer = record.customerId === userId;
+        const isMerchant = record.order.acceptedOffer?.store.ownerId === userId;
+        
+        let actorType: 'CUSTOMER' | 'VENDOR' | 'ADMIN' = isCustomer ? 'CUSTOMER' : 'VENDOR';
+        let isAuthorized = isCustomer || isMerchant;
+
+        if (!isAuthorized) {
+            const user = await this.prisma.user.findUnique({ where: { id: userId } });
+            if (user && ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(user.role)) {
+                isAuthorized = true;
+                actorType = 'ADMIN';
+            }
+        }
+
+        if (!isAuthorized) {
+            throw new ForbiddenException('Access denied');
+        }
+
+        if (record.status === 'RESOLVED' || record.status === 'CLOSED' || record.status === 'ESCALATED') {
+            throw new BadRequestException('Case cannot be escalated in its current status');
+        }
+
+        const updated = await (this.prisma as any)[type === 'dispute' ? 'dispute' : 'returnRequest'].update({
+            where: { id: caseId },
+            data: { 
+                status: 'ESCALATED',
+                updatedAt: new Date()
+            }
+        });
+
+        // Audit Trail
+        await this.prisma.auditLog.create({
+            data: {
+                orderId: record.orderId,
+                action: 'MANUAL_ESCALATION',
+                entity: type.toUpperCase(),
+                actorType: actorType,
+                actorId: userId,
+                previousState: record.status,
+                newState: 'ESCALATED',
+                reason: 'User requested manual escalation to administration'
+            }
+        });
+
+        // Notify Admins
+        await this.notificationsService.notifyAdmins({
+            titleAr: `تصعيد يدوي: ${type === 'dispute' ? 'نزاع' : 'مرتجع'}`,
+            titleEn: `Manual Escalation: ${type.toUpperCase()}`,
+            messageAr: `قام ${isCustomer ? 'العميل' : 'التاجر'} بتصعيد النزاع للطلب #${record.order.orderNumber} يدوياً للإدارة.`,
+            messageEn: `${isCustomer ? 'Customer' : 'Merchant'} manually escalated the ${type} for Order #${record.order.orderNumber} to administration.`,
+            type: type === 'dispute' ? 'DISPUTE_ESCALATION' : 'RETURN_ESCALATION',
+            link: `/dashboard/resolution`
+        });
+
+        return updated;
+    }
+
     // --- Customer Risk Scoring (Spec "تنبيهات مهمة") ---
 
     async getCustomerRiskStats(customerId: string) {
@@ -790,15 +1002,43 @@ export class ReturnsService {
     // --- Background Tasks (Cron Callable) ---
 
     /**
-     * GAP 1: Auto-escalate disputes after 3 days of merchant inaction (Spec §17)
+     * AUTO-ESCALATION (48H Protection Window)
+     * Enforces the mandatory 48-hour response window for merchants.
+     * If no response is provided, the case is automatically moved to human administration.
      */
     async checkAutoEscalation() {
-        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        const timeframe = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
+        // 1. Process Pending Return Requests
+        const pendingReturns = await this.prisma.returnRequest.findMany({
+            where: {
+                status: 'PENDING',
+                createdAt: { lt: timeframe }
+            },
+            include: { order: true }
+        });
+
+        for (const ret of pendingReturns) {
+            await this.prisma.returnRequest.update({
+                where: { id: ret.id },
+                data: { status: 'ESCALATED', updatedAt: new Date() }
+            });
+
+            await this.notificationsService.notifyAdmins({
+                titleAr: 'تصعيد تلقائي: طلب إرجاع',
+                titleEn: 'Auto-Escalation: Return Request',
+                messageAr: `تم تصعيد طلب الإرجاع #${ret.order.orderNumber} لعدم رد التاجر خلال مهلة الـ 48 ساعة.`,
+                messageEn: `Return Request #${ret.order.orderNumber} has been auto-escalated; merchant failed to respond within 48h.`,
+                type: 'RETURN_ESCALATION',
+                link: `/dashboard/resolution`
+            });
+        }
+
+        // 2. Process Open Disputes
         const openDisputes = await this.prisma.dispute.findMany({
             where: {
                 status: 'OPEN',
-                createdAt: { lt: threeDaysAgo }
+                createdAt: { lt: timeframe }
             },
             include: { order: true }
         });
@@ -809,16 +1049,13 @@ export class ReturnsService {
                 data: { status: 'ESCALATED', updatedAt: new Date() }
             });
 
-            // Notify Admin
-            await this.notificationsService.create({
-                recipientId: 'admin',
-                recipientRole: 'ADMIN',
-                titleAr: 'تصعيد تلقائي لنزاع',
+            await this.notificationsService.notifyAdmins({
+                titleAr: 'تصعيد تلقائي: نزاع قائم',
                 titleEn: 'Auto-Escalation: Dispute',
-                messageAr: `تم تصعيد النزاع للطلب #${dispute.order.orderNumber} تلقائياً لعدم رد التاجر خلال 3 أيام.`,
-                messageEn: `Dispute for Order #${dispute.order.orderNumber} auto-escalated to admin after 3 days of merchant inaction.`,
-                type: 'DISPUTE',
-                link: `/admin/disputes/${dispute.id}`
+                messageAr: `تم تصعيد النزاع للطلب #${dispute.order.orderNumber} لعدم رد التاجر خلال مهلة الـ 48 ساعة.`,
+                messageEn: `Dispute for Order #${dispute.order.orderNumber} has been auto-escalated; merchant failed to respond within 48h.`,
+                type: 'DISPUTE_ESCALATION',
+                link: `/dashboard/resolution`
             });
         }
     }

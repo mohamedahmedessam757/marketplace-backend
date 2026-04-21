@@ -61,6 +61,35 @@ export class ReturnsController {
         return this.returnsService.getUserReturns(req.user.id);
     }
 
+    @Get('debug-all-disputes')
+    async getDebugAllDisputes() {
+        const disputes = await this.returnsService['prisma'].dispute.findMany({
+            include: {
+                order: {
+                    include: { 
+                        parts: true,
+                        store: true, 
+                        acceptedOffer: {
+                            include: { store: true }
+                        },
+                        orderChats: {
+                            select: { id: true, vendorId: true }
+                        }
+                    }
+                }
+            },
+            take: 5,
+            orderBy: { createdAt: 'desc' }
+        });
+        return disputes;
+    }
+
+    @Patch(':id/escalate')
+    @UseGuards(JwtAuthGuard)
+    async escalateCase(@Request() req, @Param('id') id: string) {
+        return this.returnsService.manualEscalation(req.user.id, id);
+    }
+
     // --- Case Messaging (Phase 4) ---
 
     @Get(':id/messages')
@@ -102,18 +131,19 @@ export class ReturnsController {
     async respondToReturn(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
-        @Body() body: { action: 'APPROVE' | 'REJECT'; responseText: string }
+        @Body() body: { action: 'APPROVE' | 'REJECT'; responseText: string; evidenceUrls?: string[] }
     ) {
-        if (!body.action || !body.responseText) {
-            throw new BadRequestException('Action and Response Text are required');
+        if (body.action === 'REJECT' && (!body.responseText || body.responseText.trim() === '')) {
+            throw new BadRequestException('Response text is required when rejecting a case');
         }
 
         return this.returnsService.respondToReturn(
             req.user.id,
             req.params.id,
             body.action,
-            body.responseText,
-            files
+            body.responseText || '',
+            files,
+            body.evidenceUrls
         );
     }
 
@@ -123,7 +153,7 @@ export class ReturnsController {
     async respondToDispute(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
-        @Body() body: { responseText: string }
+        @Body() body: { responseText: string; evidenceUrls?: string[] }
     ) {
         if (!body.responseText) {
             throw new BadRequestException('Response Text is required');
@@ -133,7 +163,8 @@ export class ReturnsController {
             req.user.id,
             req.params.id,
             body.responseText,
-            files
+            files,
+            body.evidenceUrls
         );
     }
 

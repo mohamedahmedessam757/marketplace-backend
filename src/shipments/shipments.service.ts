@@ -123,7 +123,10 @@ export class ShipmentsService {
         if (isDelivered && shipment.order) {
             await this.prisma.order.update({
                 where: { id: shipment.orderId },
-                data: { status: 'DELIVERED' }
+                data: { 
+                    status: 'DELIVERED',
+                    updatedAt: new Date()
+                }
             });
         }
 

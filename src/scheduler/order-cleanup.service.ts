@@ -47,6 +47,17 @@ export class OrderCleanupService {
 
         for (const order of deliveredOrders) {
             try {
+                // Re-verify status to avoid race conditions or duplicates
+                const currentOrder = await this.prisma.order.findUnique({
+                    where: { id: order.id },
+                    select: { status: true }
+                });
+
+                if (!currentOrder || currentOrder.status !== OrderStatus.DELIVERED) {
+                    this.logger.debug(`Skipping order ${order.orderNumber} as it is no longer in DELIVERED status.`);
+                    continue;
+                }
+
                 this.logger.log(`Auto-completing delivered order ${order.orderNumber} (ID: ${order.id}) after 3-day return window`);
 
                 await this.ordersService.transitionStatus(

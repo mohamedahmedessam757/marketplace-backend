@@ -115,9 +115,7 @@ export class OrdersService {
             });
 
             // Notify Admin
-            await this.notifications.create({
-                recipientId: 'admin',
-                recipientRole: 'ADMIN',
+            await this.notifications.notifyAdmins({
                 titleAr: 'طلب جديد في السوق!',
                 titleEn: 'New Order in Marketplace!',
                 messageAr: `تم إنشاء طلب جديد رقم ${orderNumber} بانتظار عروض التجار.`,
@@ -305,6 +303,7 @@ export class OrdersService {
                 where: { id: orderId },
                 data: {
                     status: newStatus,
+                    updatedAt: new Date(),
                 },
             });
 
@@ -1254,19 +1253,14 @@ export class OrdersService {
         await this.shipmentsService.create({ orderId }, userId);
 
         // Notify Admin that a new shipment is awaiting pickup
-        const admins = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } });
-        for (const admin of admins) {
-            await this.notifications.create({
-                recipientId: admin.id,
-                recipientRole: 'ADMIN',
-                titleAr: 'طلب شحنة جديد ينتظر الاستلام',
-                titleEn: 'New Shipment Request Awaiting Pickup',
-                messageAr: `الطلب #${order.orderNumber} جاهز للتسليم لشركة الشحن. يرجى استلامه من التاجر.`,
-                messageEn: `Order #${order.orderNumber} is ready for carrier pickup. Please collect from merchant.`,
-                type: 'ORDER_UPDATE',
-                link: `/admin/dashboard/shipping`,
-            });
-        }
+        await this.notifications.notifyAdmins({
+            titleAr: 'طلب شحنة جديد ينتظر الاستلام',
+            titleEn: 'New Shipment Request Awaiting Pickup',
+            messageAr: `الطلب #${order.orderNumber} جاهز للتسليم لشركة الشحن. يرجى استلامه من التاجر.`,
+            messageEn: `Order #${order.orderNumber} is ready for carrier pickup. Please collect from merchant.`,
+            type: 'ORDER_UPDATE',
+            link: `/admin/dashboard/shipping`,
+        });
 
         return updatedOrder;
     }
