@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
+import { CreateRatingImpactRuleDto, UpdateRatingImpactRuleDto } from './dto/rating-impact-rule.dto';
 
 @Injectable()
 export class ReviewsService {
@@ -102,6 +103,9 @@ export class ReviewsService {
     if (updateDto.status === 'PUBLISHED') {
       await this.updateStoreRating(updatedReview.storeId);
       
+      // 6. Evaluate Rating Impact (2026 Standard: Automatic Rule Processing)
+      await this.evaluateRatingImpact(updatedReview.storeId);
+
       await this.prisma.notification.create({
         data: {
           recipientId: review.store.ownerId,
@@ -232,4 +236,118 @@ export class ReviewsService {
       data: { rating: averageRating },
     });
   }
+
+  // --- RATING IMPACT RULES CRUD ---
+
+  async getRatingImpactRules() {
+    return this.prisma.ratingImpactRule.findMany({
+      orderBy: { minRating: 'asc' },
+    });
+  }
+
+  async createRatingImpactRule(dto: CreateRatingImpactRuleDto) {
+    return this.prisma.ratingImpactRule.create({ data: dto });
+  }
+
+  async updateRatingImpactRule(id: string, dto: UpdateRatingImpactRuleDto) {
+    return this.prisma.ratingImpactRule.update({
+      where: { id },
+      data: dto
+    });
+  }
+
+  async deleteRatingImpactRule(id: string) {
+    return this.prisma.ratingImpactRule.delete({ where: { id } });
+  }
+
+  /**
+   * Evaluates the current average rating of a store against defined impact rules
+   * and triggers the appropriate administrative actions.
+   */
+  async evaluateRatingImpact(storeId: string) {
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      include: { owner: true }
+    });
+
+    if (!store) return;
+
+    const rating = Number(store.rating);
+    
+    // Find matching active rule
+    const rule = await this.prisma.ratingImpactRule.findFirst({
+      where: {
+        isActive: true,
+        minRating: { lte: rating },
+        maxRating: { gte: rating }
+      }
+    });
+
+    if (!rule || rule.actionType === 'NONE') return;
+
+    if (rule.actionType === 'SUSPEND') {
+      // 2026 Manual Governance: Create a PENDING penalty action for admin approval
+      // We check if a pending suspension already exists to avoid duplicates
+      const existingPenalty = await this.prisma.penaltyAction.findFirst({
+        where: {
+          targetStoreId: storeId,
+          action: 'TEMPORARY_SUSPENSION',
+          status: 'PENDING_APPROVAL'
+        }
+      });
+
+      if (!existingPenalty) {
+        await this.prisma.penaltyAction.create({
+          data: {
+            targetUserId: store.ownerId,
+            targetStoreId: storeId,
+            targetType: 'MERCHANT',
+            action: 'TEMPORARY_SUSPENSION',
+            status: 'PENDING_APPROVAL',
+            adminNotes: `Automated Impact Trigger: Average Rating (${rating.toFixed(2)}) fell into suspension range (${rule.minRating}-${rule.maxRating}).`
+          }
+        });
+
+        // Notify Admins
+        await this.prisma.notification.create({
+          data: {
+              recipientRole: 'ADMIN',
+              recipientId: (await this.prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' } }))?.id || '',
+              titleAr: 'مراجعة إيقاف متجر مطلوبة ⚠️',
+              titleEn: 'Store Suspension Review Required ⚠️',
+              messageAr: `متوسط تقييم المتجر "${store.name}" انخفض إلى ${rating.toFixed(2)}. تم إنشاء طلب إيقاف للمراجعة.`,
+              messageEn: `Store "${store.name}" average rating fell to ${rating.toFixed(2)}. A suspension request has been created for review.`,
+              type: 'alert'
+          }
+        });
+      }
+    } else if (rule.actionType === 'WARNING') {
+      // Send warning notification to merchant
+      await this.prisma.notification.create({
+        data: {
+          recipientId: store.ownerId,
+          recipientRole: 'MERCHANT',
+          titleAr: 'تحذير بخصوص مستوى التقييم ⚠️',
+          titleEn: 'Performance Warning: Rating Levels ⚠️',
+          messageAr: `نود تنبيهك بأن متوسط تقييم متجرك حالياً هو ${rating.toFixed(2)}. يرجى العمل على تحسين جودة الخدمة لتجنب الإجراءات الإدارية.`,
+          messageEn: `Please be advised that your store's average rating is currently ${rating.toFixed(2)}. Please improve service quality to avoid administrative actions.`,
+          type: 'alert'
+        }
+      });
+    } else if (rule.actionType === 'FEATURED') {
+      // Notify merchant of featured status
+      await this.prisma.notification.create({
+        data: {
+          recipientId: store.ownerId,
+          recipientRole: 'MERCHANT',
+          titleAr: 'تهانينا! متجرك الآن مميز 🌟',
+          titleEn: 'Congratulations! Your store is now Featured 🌟',
+          messageAr: `بناءً على تقييمك الرائع (${rating.toFixed(2)})، حصل متجرك على وسم التاجر المميز في المنصة.`,
+          messageEn: `Based on your excellent rating (${rating.toFixed(2)}), your store has earned the Featured Merchant badge.`,
+          type: 'alert'
+        }
+      });
+    }
+  }
 }
+

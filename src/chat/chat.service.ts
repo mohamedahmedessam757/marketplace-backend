@@ -112,7 +112,7 @@ export class ChatService {
         const chat = await this.prisma.orderChat.findUnique({
             where: { id },
             include: {
-                vendor: { select: { name: true, logo: true, id: true, storeCode: true } },
+                vendor: { select: { name: true, logo: true, id: true, storeCode: true, ownerId: true } },
                 customer: { select: { name: true, avatar: true, id: true } },
                 order: { select: { orderNumber: true, partName: true, id: true } },
                 messages: { orderBy: { createdAt: 'asc' } }
@@ -128,9 +128,9 @@ export class ChatService {
         let effectiveSenderId = userId;
 
         const baseInclude = {
-            customer: { select: { name: true, avatar: true } },
-            vendor: { select: { name: true, logo: true, storeCode: true } },
-            order: { select: { orderNumber: true, partName: true } },
+            customer: { select: { id: true, name: true, avatar: true } },
+            vendor: { select: { id: true, name: true, logo: true, storeCode: true, ownerId: true } },
+            order: { select: { orderNumber: true, partName: true, id: true } },
             messages: { 
                 where: { isDeletedByAdmin: false },
                 orderBy: { createdAt: 'desc' as const }, 
@@ -193,12 +193,16 @@ export class ChatService {
             ...chat,
             vendorName: chat.vendor?.name,
             vendorLogo: chat.vendor?.logo,
-            vendorCode: chat.vendor?.storeCode, // ADDED
             customerName: chat.customer?.name,
             customerAvatar: chat.customer?.avatar,
-            customerCode: chat.customerId ? `CUS-${chat.customerId.substring(0, 6).toUpperCase()}` : undefined, // ADDED
+            customerOwnerId: chat.customer?.id, // Added for attribution
+            vendorOwnerId: chat.vendor?.ownerId, // Added for attribution
+            customerCode: chat.customerId ? `CUS-${chat.customerId.substring(0, 6).toUpperCase()}` : undefined,
+            vendorCode: chat.vendor?.storeCode,
             orderNumber: chat.order?.orderNumber,
             partName: chat.order?.partName,
+            adminInitReason: chat.adminInitReason, // Explicitly included for 2026 support oversight
+            category: chat.category || this.extractCategory(chat.messages?.[0]?.subject || chat.adminInitReason || ''),
             // Only keep the messages if they exist (we don't want to map over undefined if not selected)
             messages: chat.messages ? chat.messages : []
         };
@@ -384,6 +388,7 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                 mediaName,
                 priority: priority as any,
                 subject: subject as any,
+                senderRole: senderRole || undefined,
                 createdAt: messageCreatedAt
             } as any
         });
@@ -391,6 +396,8 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
         // Broadcast to WebSocket clients immediately (0ms latency visual sync)
         try {
             this.chatGateway.broadcastNewMessage(chatId, message);
+            // Notify admins to refresh their oversight lists (Phase 4)
+            this.chatGateway.broadcastChatUpdate(chatId, chat.type as any);
         } catch (e) {
             console.error('WebSocket dispatch failed', e);
         }
@@ -449,11 +456,22 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                 titleAr = 'رسالة دعم جديدة';
                 titleEn = 'New Support Message';
             } else {
-                // Admin -> User (Wait, who is the user? Check role)
-                const user = await this.prisma.user.findUnique({ where: { id: chat.customerId }, select: { role: true } });
+                // Admin -> User (Target can be Customer OR Vendor)
+                if (chat.customerId) {
+                    recipientId = chat.customerId;
+                    const user = await this.prisma.user.findUnique({ where: { id: chat.customerId }, select: { role: true } });
+                    recipientRole = user?.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER';
+                } else if (chat.vendorId) {
+                    // It's a support chat with a vendor. Get the owner of the store.
+                    const store = await this.prisma.store.findUnique({ where: { id: chat.vendorId }, select: { ownerId: true } });
+                    if (store) {
+                        recipientId = store.ownerId;
+                        recipientRole = 'MERCHANT';
+                    }
+                }
                 
-                recipientId = chat.customerId;
-                recipientRole = user?.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER'; 
+                if (!recipientId) return; // safety check
+                
                 titleAr = 'رد جديد من الدعم الفني';
                 titleEn = 'New Reply from Support';
             }
@@ -507,7 +525,7 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
 
         if (role === 'CUSTOMER') data.customerTranslationEnabledAt = timestamp;
         else if (role === 'VENDOR') data.vendorTranslationEnabledAt = timestamp;
-        else if (role === 'ADMIN') data.adminTranslationEnabledAt = timestamp;
+        else if (['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(role)) data.adminTranslationEnabledAt = timestamp;
 
         return this.prisma.orderChat.update({
             where: { id: chatId },
@@ -526,10 +544,10 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
         // For distinctness, we simply create a new ticket (chat).
         const chat = await this.prisma.orderChat.create({
             data: {
-                orderId: orderId || null,
-                customerId,
-                vendorId: null, // No specific vendor for support (internal)
+                order: orderId ? { connect: { id: orderId } } : undefined,
+                customer: { connect: { id: customerId } },
                 type: 'support',
+                source: 'DASHBOARD',
                 status: 'OPEN',
                 expiryAt: null // No SLA expiry for support
             }
@@ -539,6 +557,97 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
         await this.sendMessage(chat.id, customerId, initialMessage, 'CUSTOMER', mediaUrl, mediaType, mediaName, priority, subject);
 
         return chat;
+    }
+
+    /**
+     * Creates a support ticket from the Landing Page (Public/Guest)
+     * 2026 Standard: Automatic user detection and linking
+     */
+    async createPublicSupportChat(dto: { 
+        name: string; 
+        email: string; 
+        phone: string; 
+        subject: string; 
+        message: string; 
+        userId?: string 
+    }) {
+        // 1. Intelligent Lookup: Find if user already exists by Email or Phone
+        const existingUser = await this.prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email: dto.email.toLowerCase().trim() },
+                    { phone: dto.phone.trim() }
+                ]
+            },
+            select: { id: true }
+        });
+
+        const effectiveUserId = dto.userId || existingUser?.id;
+
+        // 2. Create the Chat record
+        const chat = await this.prisma.orderChat.create({
+            data: {
+                customerId: effectiveUserId || undefined,
+                guestName: dto.name,
+                guestEmail: dto.email,
+                guestPhone: dto.phone,
+                type: 'support',
+                source: 'LANDING',
+                status: 'OPEN',
+                category: this.extractCategory(dto.subject + ' ' + dto.message),
+            }
+        });
+
+        // 3. Send the initial message
+        await this.sendMessage(
+            chat.id, 
+            effectiveUserId || null, 
+            dto.message, 
+            effectiveUserId ? 'CUSTOMER' : 'GUEST', 
+            undefined, undefined, undefined, undefined, 
+            dto.subject
+        );
+
+        // 4. Notify Admins in real-time & Create Persistent Notifications
+        try {
+            // 4a. Real-time Socket Update
+            this.chatGateway.broadcastChatUpdate(chat.id, 'support', {
+                isNew: true,
+                name: dto.name,
+                subject: dto.subject
+            });
+
+            // 4b. Create Database Notifications for all Admin users
+            const admins = await this.prisma.user.findMany({
+                where: {
+                    role: { in: ['ADMIN', 'SUPER_ADMIN'] }
+                },
+                select: { id: true }
+            });
+
+            if (admins.length > 0) {
+                await this.prisma.notification.createMany({
+                    data: admins.map(admin => ({
+                        recipientId: admin.id,
+                        recipientRole: 'ADMIN',
+                        titleAr: 'تذكرة دعم فني جديدة',
+                        titleEn: 'New Support Ticket',
+                        messageAr: `قام ${dto.name} بإرسال تذكرة دعم جديدة بخصوص: ${dto.subject}`,
+                        messageEn: `${dto.name} submitted a new support ticket regarding: ${dto.subject}`,
+                        type: 'system',
+                        metadata: { chatId: chat.id, source: 'LANDING' },
+                        isRead: false
+                    }))
+                });
+            }
+        } catch (e) {
+            console.error('WebSocket/Notification support broadcast failed', e);
+        }
+
+        return {
+            chat,
+            isRegistered: !!effectiveUserId
+        };
     }
 
     async closeOtherChats(orderId: string, acceptedVendorId: string) {
@@ -580,9 +689,24 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                 if (!payload?.userId) throw new BadRequestException('userId required');
                 
                 // 1. Account-level blocking
+                let newStatus = 'BLOCKED';
+                let suspendedUntil = null;
+                const suspendReason = payload?.reason || 'Administrative action';
+                
+                if (payload?.durationDays && payload.durationDays > 0) {
+                    newStatus = 'SUSPENDED';
+                    const date = new Date();
+                    date.setDate(date.getDate() + payload.durationDays);
+                    suspendedUntil = date;
+                }
+
                 await this.prisma.user.update({
                     where: { id: payload.userId },
-                    data: { status: 'BLOCKED' }
+                    data: { 
+                        status: newStatus as any,
+                        suspendedUntil,
+                        suspendReason
+                    }
                 });
 
                 // 2. Chat-level closing
@@ -591,17 +715,13 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                     data: { status: 'CLOSED' }
                 });
                 
-                await this.sendMessage(chatId, null, `User has been blocked from the platform by an administrator.`, 'SYSTEM');
+                await this.sendMessage(chatId, null, `User has been ${newStatus.toLowerCase()} by an administrator.`, 'SYSTEM');
                 this.chatGateway.server.to(chatId).emit('chatStatusChanged', { chatId, status: 'CLOSED', reason: 'Admin blocked a participant' });
-                return { success: true, action: 'block', userId: payload.userId };
+                return { success: true, action: 'block', userId: payload.userId, newStatus };
 
             case 'join':
-                await this.prisma.orderChat.update({
-                    where: { id: chatId },
-                    data: { adminJoinedAt: new Date() } as any
-                });
-                await this.sendMessage(chatId, null, 'An administrator has joined this conversation for monitoring.', 'SYSTEM');
-                return { success: true, action: 'join' };
+                // DISABLED for 2026 Silent Oversight policy
+                throw new BadRequestException('Direct joining is disabled for Silent Oversight mode.');
 
             case 'deleteChat':
                 await this.prisma.orderChat.update({
@@ -619,7 +739,6 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                 });
                 this.chatGateway.server.to(chatId).emit('messageDeleted', { chatId, messageId: payload.messageId });
                 return { success: true, action: 'deleteMessage' };
-
             case 'evidence':
                 const allMessages = await this.prisma.orderChatMessage.findMany({
                     where: { chatId },
@@ -631,7 +750,12 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                         orderId: chat.orderId,
                         orderNumber: (chat.order as any)?.orderNumber,
                         customer: chat.customer,
-                        vendor: chat.vendor,
+                        vendor: {
+                            id: chat.vendor?.id,
+                            name: chat.vendor?.name,
+                            logo: chat.vendor?.logo,
+                        },
+                        vendorOwnerId: (chat.vendor as any)?.ownerId ?? null,
                         createdAt: chat.createdAt,
                         status: chat.status
                     },
@@ -642,5 +766,122 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
             default:
                 throw new BadRequestException('Invalid admin action');
         }
+    }
+
+    async initAdminSupportChat(adminId: string, adminName: string, targetUserId: string, targetRole: 'CUSTOMER' | 'VENDOR', reason: string, orderId?: string) {
+        // 1. Create the support chat
+        const isCustomer = targetRole === 'CUSTOMER';
+        
+        const chat = await this.prisma.orderChat.create({
+            data: {
+                order: orderId ? { connect: { id: orderId } } : undefined,
+                customer: isCustomer ? { connect: { id: targetUserId } } : undefined,
+                vendor: !isCustomer ? { connect: { id: targetUserId } } : undefined,
+                type: 'support',
+                status: 'OPEN',
+                expiryAt: null,
+                adminInitReason: reason,
+                category: this.extractCategory(reason)
+            }
+        });
+
+        // 2. Send FIRST REAL MESSAGE from Admin (Not a SYSTEM message)
+        // This ensures the user gets a notification and sees who is talking.
+        const openingMessage = `
+مرحباً بك
+---
+Welcome
+        `.trim();
+
+        await this.sendMessage(
+            chat.id, 
+            adminId, 
+            openingMessage, 
+            'ADMIN'
+        );
+
+        // 3. Log to AuditLog (2026 Audit Standard)
+        await this.auditLogsService.logAction({
+            action: 'ADMIN_INITIATED_SUPPORT',
+            entity: 'OrderChat',
+            actorType: 'ADMIN',
+            actorId: adminId,
+            actorName: adminName,
+            reason: reason,
+            orderId: orderId,
+            metadata: {
+                targetUserId,
+                targetRole,
+                chatId: chat.id
+            }
+        });
+
+        return chat;
+    }
+
+    private extractCategory(input: string): string {
+        if (!input) return 'OTHER';
+        const text = input.toUpperCase();
+        
+        if (text.includes('ORDER') || text.includes('طلب')) return 'ORDERS';
+        if (text.includes('PAYMENT') || text.includes('MALI') || text.includes('مالية') || text.includes('دفع')) return 'PAYMENT';
+        if (text.includes('RETURN') || text.includes('استرجاع') || text.includes('إرجاع')) return 'RETURNS';
+        if (text.includes('TECH') || text.includes('تقني') || text.includes('مشكلة')) return 'TECHNICAL';
+        if (text.includes('ACCOUNT') || text.includes('حساب')) return 'ACCOUNT';
+        
+        // Check for bracket format [CATEGORY]
+        const bracketMatch = input.match(/\[(.*?)\]/);
+        if (bracketMatch) {
+            const cat = bracketMatch[1].toUpperCase();
+            if (['ORDERS', 'RETURNS', 'PAYMENT', 'TECHNICAL', 'ACCOUNT', 'OTHER'].includes(cat)) {
+                return cat;
+            }
+        }
+
+        return 'OTHER';
+    }
+
+    async getUserRiskProfile(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: { store: true }
+        });
+
+        if (!user) throw new NotFoundException('User not found');
+
+        const isVendor = user.role === 'VENDOR';
+        const activeOrderStatuses = ['PENDING', 'ACCEPTED', 'READY_FOR_SHIPPING', 'OUT_FOR_DELIVERY', 'RETURN_REQUESTED'];
+        
+        let activeOrdersCount = 0;
+        let pendingBalance = 0;
+        let walletBalance = 0;
+        
+        if (isVendor && user.store) {
+            activeOrdersCount = await this.prisma.order.count({
+                where: {
+                    storeId: user.store.id,
+                    status: { in: activeOrderStatuses as any }
+                }
+            });
+            pendingBalance = parseFloat(user.store.pendingBalance.toString() || '0');
+            walletBalance = parseFloat(user.store.balance.toString() || '0');
+        } else {
+            activeOrdersCount = await this.prisma.order.count({
+                where: {
+                    customerId: userId,
+                    status: { in: activeOrderStatuses as any }
+                }
+            });
+        }
+
+        return {
+            userId: user.id,
+            role: user.role,
+            isVendor,
+            status: user.status,
+            activeOrdersCount,
+            pendingBalance,
+            walletBalance
+        };
     }
 }

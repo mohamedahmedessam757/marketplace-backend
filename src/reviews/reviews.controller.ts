@@ -5,12 +5,14 @@ import {
   Body,
   Patch,
   Param,
+  Delete,
   UseGuards,
   Req,
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
+import { CreateRatingImpactRuleDto, UpdateRatingImpactRuleDto } from './dto/rating-impact-rule.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -75,5 +77,38 @@ export class ReviewsController {
   @Roles(UserRole.VENDOR)
   getMerchantStats(@Req() req) {
     return this.reviewsService.getMerchantStats(req.user.id);
+  }
+
+  // --- RATING IMPACT RULES (ADMIN) ---
+
+  @Get('admin/impact-rules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  getRatingImpactRules() {
+    return this.reviewsService.getRatingImpactRules();
+  }
+
+  @Post('admin/impact-rules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  createRatingImpactRule(@Body() dto: CreateRatingImpactRuleDto) {
+    return this.reviewsService.createRatingImpactRule(dto);
+  }
+
+  @Patch('admin/impact-rules/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  updateRatingImpactRule(
+    @Param('id') id: string,
+    @Body() dto: UpdateRatingImpactRuleDto,
+  ) {
+    return this.reviewsService.updateRatingImpactRule(id, dto);
+  }
+
+  @Delete('admin/impact-rules/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  deleteRatingImpactRule(@Param('id') id: string) {
+    return this.reviewsService.deleteRatingImpactRule(id);
   }
 }

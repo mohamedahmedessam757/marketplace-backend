@@ -145,6 +145,10 @@ export class StoresService {
         const store = await this.prisma.store.findUnique({
             where: { id },
             include: {
+                withdrawalRequests: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 50
+                },
                 owner: { 
                     select: { 
                         id: true, 
@@ -152,6 +156,34 @@ export class StoresService {
                         name: true, 
                         phone: true, 
                         avatar: true,
+                        walletTransactions: {
+                            orderBy: { createdAt: 'desc' },
+                            take: 50,
+                            include: {
+                                payment: {
+                                    include: {
+                                        order: {
+                                            select: {
+                                                id: true,
+                                                orderNumber: true,
+                                                status: true
+                                            }
+                                        }
+                                    }
+                                },
+                                escrow: {
+                                    include: {
+                                        order: {
+                                            select: {
+                                                id: true,
+                                                orderNumber: true,
+                                                status: true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                         Session: {
                             orderBy: { lastActive: 'desc' },
                             take: 10
@@ -223,45 +255,36 @@ export class StoresService {
         });
 
         // 3. Real-time Metric Calculation (Strict Financial Accuracy)
-        // Lifetime Earnings: Sum of ALL successful payments
-        const lifetimeSum = await this.prisma.paymentTransaction.aggregate({
+        // Lifetime Earnings: Sum of (unitPrice + shippingCost - commission) for ALL successful payments
+        const allSuccessfulPayments = await this.prisma.paymentTransaction.findMany({
             where: {
                 status: 'SUCCESS',
                 offer: { storeId: id }
             },
-            _sum: { totalAmount: true }
+            select: {
+                unitPrice: true,
+                shippingCost: true,
+                commission: true,
+                order: { select: { status: true } }
+            }
         });
 
-        // Available Balance: ONLY COMPLETED orders (released funds)
-        const availableSum = await this.prisma.paymentTransaction.aggregate({
-            where: {
-                status: 'SUCCESS',
-                offer: { storeId: id },
-                order: { status: 'COMPLETED' }
-            },
-            _sum: { totalAmount: true }
-        });
+        let lifetimeEarnings = 0;
+        let availableBalance = 0;
+        let pendingBalance = 0;
 
-        // Pending Balance: PAID but NOT COMPLETED (escrowed funds)
-        const pendingSum = await this.prisma.paymentTransaction.aggregate({
-            where: {
-                status: 'SUCCESS',
-                offer: { storeId: id },
-                order: {
-                    status: {
-                        in: [
-                            'PREPARATION', 
-                            'SHIPPED', 
-                            'DELIVERED', 
-                            'VERIFICATION',
-                            'PREPARED',
-                            'READY_FOR_SHIPPING',
-                            'DISPUTED'
-                        ]
-                    }
-                }
-            },
-            _sum: { totalAmount: true }
+        allSuccessfulPayments.forEach(p => {
+            const netAmount = Number(p.unitPrice) + Number(p.shippingCost) - Number(p.commission);
+            lifetimeEarnings += netAmount;
+
+            if (p.order?.status === 'COMPLETED') {
+                availableBalance += netAmount;
+            } else if ([
+                'PREPARATION', 'SHIPPED', 'DELIVERED', 'VERIFICATION', 
+                'PREPARED', 'READY_FOR_SHIPPING', 'DISPUTED'
+            ].includes(p.order?.status as string)) {
+                pendingBalance += netAmount;
+            }
         });
 
         // Calculate Performance Score (Success Rate: Delivered/Completed/Fullfilled vs Total)
@@ -272,19 +295,22 @@ export class StoresService {
         const calculatedScore = totalCount > 0 ? (successCount / totalCount) * 100 : 0;
 
         // 4. Inject Dynamic Data into Store Object
+        const s = store as any;
         const enrichedStore = {
             ...store,
-            owner: store.owner ? {
-                ...store.owner,
-                sessions: (store.owner as any).Session || []
+            owner: s.owner ? {
+                ...s.owner,
+                sessions: s.owner.Session || []
             } : null,
             orders: inclusiveOrders,
-            lifetimeEarnings: Number(lifetimeSum._sum.totalAmount || 0),
-            balance: Number(availableSum._sum.totalAmount || 0), // available = balance for UI
-            pendingBalance: Number(pendingSum._sum.totalAmount || 0),
+            walletTransactions: s.owner ? s.owner.walletTransactions || [] : [],
+            withdrawalRequests: s.withdrawalRequests || [],
+            lifetimeEarnings: Math.max(0, lifetimeEarnings),
+            balance: Math.max(0, availableBalance), 
+            pendingBalance: Math.max(0, pendingBalance),
             performanceScore: calculatedScore,
             _count: {
-                ...store._count,
+                ...(s._count || {}),
                 orders: totalCount // Corrected metadata count
             }
         };

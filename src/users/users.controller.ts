@@ -34,8 +34,18 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Patch('admin/customers/:id/status')
-  async toggleCustomerStatus(@Param('id') id: string) {
-    return this.usersService.adminToggleStatus(id);
+  async updateCustomerStatus(
+    @Param('id') id: string, 
+    @Body() body: { status: 'ACTIVE' | 'SUSPENDED'; reason?: string }
+  ) {
+    return this.usersService.adminUpdateStatus(id, body.status, body.reason);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Patch('admin/customers/:id/update')
+  async updateCustomerData(@Param('id') id: string, @Body() body: any) {
+    return this.usersService.adminUpdateCustomer(id, body);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

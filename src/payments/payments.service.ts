@@ -819,12 +819,18 @@ export class PaymentsService {
             },
             include: {
                 payment: {
-                    select: {
-                        orderId: true,
-                        status: true,
-                        totalAmount: true,
-                        unitPrice: true,
-                        commission: true,
+                    include: {
+                        order: {
+                            select: {
+                                id: true,
+                                orderNumber: true,
+                                status: true
+                            }
+                        }
+                    }
+                },
+                escrow: {
+                    include: {
                         order: {
                             select: {
                                 id: true,
@@ -920,16 +926,23 @@ export class PaymentsService {
                 stats.available -= amount;
             } 
             // C) Sales & Platform Income Flows
-            else if (['payment', 'SALE', 'commission'].includes(action.transactionType) && action.type === 'CREDIT') {
-                const orderStatus = action.payment?.order?.status || 'COMPLETED'; // fallback to completed if standalone
+            // Enhanced robustness: Include transactions that have a paymentId or escrowId (Credit only)
+            else if (
+                (['payment', 'SALE', 'commission'].includes(action.transactionType) || action.paymentId || action.escrowId) && 
+                action.type === 'CREDIT'
+            ) {
+                // Determine order status from either direct payment or escrow relation safely
+                const act = action as any;
+                const orderStatus = act.payment?.order?.status || act.escrow?.order?.status || 'COMPLETED';
+                const orderId = act.payment?.order?.id || act.escrow?.order?.id;
 
                 if (COMPLETED_STATUSES.includes(orderStatus)) {
                     stats.available += amount;
                     stats.netEarnings += amount;
                     
-                    if (action.payment?.order?.id && !processedOrderIds.has(action.payment.order.id)) {
+                    if (orderId && !processedOrderIds.has(orderId)) {
                         stats.completedOrders += 1;
-                        processedOrderIds.add(action.payment.order.id);
+                        processedOrderIds.add(orderId);
                     }
                 }
                 else if (ACTIVE_STATUSES.includes(orderStatus)) {

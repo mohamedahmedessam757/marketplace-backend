@@ -134,8 +134,13 @@ model User {
   Session                 Session[]
   createdContracts        PlatformContract[]
   verificationReviews     VerificationDocument[]
+  invoices                Invoice[]
+
 
   adminNotes       String?           @map("admin_notes") @db.Text
+  suspendedUntil   DateTime?         @map("suspended_until") @db.Timestamptz
+  suspendReason    String?           @map("suspend_reason") @db.Text
+
   shippingWaybills ShippingWaybill[]
 
   // Payout & Stripe Details
@@ -159,6 +164,7 @@ model User {
   referredUsers   User[]      @relation("ReferralHistory")
 
   withdrawalRequests WithdrawalRequest[]
+  walletTransactions WalletTransaction[]
 
   // Reviews
   submittedReviews Review[]
@@ -363,6 +369,7 @@ model Order {
   verificationDocuments VerificationDocument[]
   shippingWaybills      ShippingWaybill[]
   shipments             Shipment[]
+  escrowTransactions    EscrowTransaction[]
 
   // Violations & Penalties
   violations            Violation[]
@@ -642,7 +649,7 @@ model OrderChat {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orderId    String?   @map("order_id") @db.Uuid
   vendorId   String?   @map("vendor_id") @db.Uuid // Optional for support chats
-  customerId String    @map("customer_id") @db.Uuid
+  customerId String?   @map("customer_id") @db.Uuid
   status     String    @default("OPEN") // OPEN, CLOSED, EXPIRED, RESOLVED (for support)
   type       String    @default("order") // order, support
   expiryAt   DateTime? @map("expiry_at") @db.Timestamptz // Optional for support
@@ -654,6 +661,14 @@ model OrderChat {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  adminInitReason String? @map("admin_init_reason") @db.Text
+  category        String? @default("OTHER")
+  
+  guestName       String? @map("guest_name")
+  guestEmail      String? @map("guest_email")
+  guestPhone      String? @map("guest_phone")
+  source          String  @default("DASHBOARD")
 
   // Administrative Control (2026 Enhancement)
   isDeletedByAdmin Boolean   @default(false) @map("is_deleted_by_admin")
@@ -664,7 +679,7 @@ model OrderChat {
   // Relations
   order    Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
   vendor   Store? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  customer User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer User?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   // Modified uniqueness constraints to allow multiple support chats per order
   @@unique([orderId, vendorId, type])
@@ -693,6 +708,7 @@ model OrderChatMessage {
 
   priority String? @map("priority")
   subject  String? @map("subject")
+  senderRole String? @map("sender_role")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
@@ -836,6 +852,7 @@ model PaymentTransaction {
   offer    Offer @relation(fields: [offerId], references: [id])
   customer User  @relation(fields: [customerId], references: [id])
   walletTransactions WalletTransaction[]
+  escrow           EscrowTransaction?
 
   @@unique([offerId]) // Prevent duplicate payments at DB level — race-condition safe
   @@index([orderId])
@@ -861,6 +878,7 @@ model WalletTransaction {
 
   payment PaymentTransaction? @relation(fields: [paymentId], references: [id])
   escrow  EscrowTransaction?  @relation(fields: [escrowId], references: [id])
+  user    User               @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
@@ -871,8 +889,8 @@ model WalletTransaction {
 
 model EscrowTransaction {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  paymentId        String    @map("payment_id") @db.Uuid
-  orderId          String    @map("order_id") @db.Uuid
+  paymentId        String    @unique @map("payment_id") @db.Uuid
+  orderId          String    @unique @map("order_id") @db.Uuid
   merchantAmount   Decimal   @map("merchant_amount") @db.Decimal(14, 2)
   commissionAmount Decimal   @map("commission_amount") @db.Decimal(14, 2)
   shippingAmount   Decimal   @map("shipping_amount") @db.Decimal(14, 2)
@@ -883,6 +901,9 @@ model EscrowTransaction {
   frozenReason     String?   @map("frozen_reason")
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+
+  payment PaymentTransaction @relation(fields: [paymentId], references: [id])
+  order   Order              @relation(fields: [orderId], references: [id])
 
   walletTransactions WalletTransaction[]
 
@@ -917,7 +938,8 @@ model Invoice {
 
   issuedAt DateTime @default(now()) @map("issued_at") @db.Timestamptz
 
-  order Order @relation(fields: [orderId], references: [id])
+  order    Order @relation(fields: [orderId], references: [id])
+  customer User  @relation(fields: [customerId], references: [id])
 
   @@index([orderId])
   @@index([customerId])
@@ -1151,6 +1173,21 @@ model Review {
 // -----------------------------------------------------
 // Withdrawal & Platform Settings
 // -----------------------------------------------------
+
+model RatingImpactRule {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  minRating           Decimal  @map("min_rating") @db.Decimal(3, 2)
+  maxRating           Decimal  @map("max_rating") @db.Decimal(3, 2)
+  actionType          String   @map("action_type") // SUSPEND, WARNING, FEATURED, NONE
+  actionLabelAr       String   @map("action_label_ar")
+  actionLabelEn       String   @map("action_label_en")
+  suspendDurationDays Int?     @map("suspend_duration_days")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("rating_impact_rules")
+}
 
 model WithdrawalRequest {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

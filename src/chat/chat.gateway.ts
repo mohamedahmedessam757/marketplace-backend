@@ -41,16 +41,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
 
     /**
-     * Join a specific chat room.
-     * Both Merchant and Customer will join the room corresponding to the chat ID.
+     * Join a specific chat room or the global admin oversight room.
      */
     @SubscribeMessage('joinChat')
     handleJoinChat(
         @ConnectedSocket() client: Socket,
         @MessageBody() payload: { chatId: string; role?: string },
     ) {
-        client.join(payload.chatId);
-        console.log(`Client ${client.id} (${payload.role || 'user'}) joined chat: ${payload.chatId}`);
+        // If it's a specific chat, join that room
+        if (payload.chatId !== 'admin_global') {
+            client.join(payload.chatId);
+            console.log(`Client ${client.id} joined chat: ${payload.chatId}`);
+        } else if (payload.role === 'admin' || payload.role === 'SUPER_ADMIN') {
+            // Join the global room for list updates
+            client.join('admin_global');
+            console.log(`Administrator ${client.id} joined GLOBAL OVERSIGHT`);
+        }
+        
         return { event: 'joined', data: payload.chatId };
     }
 
@@ -65,6 +72,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         client.leave(payload.chatId);
         console.log(`Client ${client.id} left chat: ${payload.chatId}`);
         return { event: 'left', data: payload.chatId };
+    }
+
+    /**
+     * Broadcast an update to the admin list for any chat activity.
+     */
+    broadcastChatUpdate(chatId: string, type: 'order' | 'support', metadata?: any) {
+        this.server.to('admin_global').emit('chatListUpdate', { chatId, type, ...metadata });
+        
+        // Special event for new support tickets to trigger UI notifications
+        if (type === 'support' && metadata?.isNew) {
+            this.server.to('admin_global').emit('newSupportNotification', { 
+                chatId, 
+                name: metadata.name, 
+                subject: metadata.subject 
+            });
+        }
     }
 
     /**

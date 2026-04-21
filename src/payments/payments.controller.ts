@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Query, Param, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Request, Query, Param, Put, ForbiddenException } from '@nestjs/common';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaymentsService } from './payments.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { CreateIntentDto } from './dto/create-intent.dto';
@@ -70,6 +72,17 @@ export class PaymentsController {
         @Query('endDate') endDate?: string
     ) {
         return this.paymentsService.getMerchantWalletDashboard(req.user.id, { startDate, endDate });
+    }
+
+    @Get('admin/merchant/:targetUserId/dashboard')
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    getAdminMerchantDashboard(
+        @Param('targetUserId') targetUserId: string,
+        @Query('startDate') startDate?: string, 
+        @Query('endDate') endDate?: string
+    ) {
+        return this.paymentsService.getMerchantWalletDashboard(targetUserId, { startDate, endDate });
     }
 
     @Get('merchant/wallet')

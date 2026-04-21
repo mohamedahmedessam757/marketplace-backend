@@ -342,12 +342,57 @@ export class UsersService {
           include: {
             acceptedOffer: {
               include: { store: true }
+            },
+            parts: {
+              include: {
+                offers: {
+                  where: { status: 'accepted' }
+                }
+              }
+            },
+            payments: true,
+            offers: {
+              where: { status: 'accepted' }
             }
           },
           orderBy: { createdAt: 'desc' }
         },
-        disputes: {
+        returns: {
+          include: {
+            order: true
+          },
           orderBy: { createdAt: 'desc' }
+        },
+        disputes: {
+          include: {
+            order: true
+          },
+          orderBy: { createdAt: 'desc' }
+        },
+        payments: {
+          include: {
+            order: {
+              select: { id: true, orderNumber: true, status: true }
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        },
+        walletTransactions: {
+          include: { payment: true },
+          orderBy: { createdAt: 'desc' }
+        },
+        withdrawalRequests: {
+          orderBy: { createdAt: 'desc' }
+        },
+        _count: {
+          select: {
+            violations: true,
+            disputes: true,
+            orders: true,
+            referredUsers: true,
+            invoices: true,
+            returns: true
+          }
         }
       }
     });
@@ -358,16 +403,24 @@ export class UsersService {
     const completedOrders = user.orders.filter(o => ['COMPLETED', 'DELIVERED'].includes(o.status));
     const successRate = totalOrders > 0 ? Math.round((completedOrders.length / totalOrders) * 100) : 0;
     
-    // Calculate LTV objectively from successful payments
+    // Calculate LTV/TotalSpent objectively from successful payments
     const successfulPayments = await this.prisma.paymentTransaction.findMany({
       where: { customerId: id, status: 'SUCCESS' }
     });
     const ltv = successfulPayments.reduce((sum, payment) => sum + Number(payment.totalAmount || 0), 0);
 
+    // Calculate real-time Violation Score from active records (2026 integrity standard)
+    const activeViolations = await this.prisma.violation.findMany({
+      where: { targetUserId: id, status: 'ACTIVE' }
+    });
+    const violationScore = activeViolations.reduce((sum, v) => sum + v.points, 0);
+
     return {
       ...user,
       ltv,
+      totalSpent: ltv, // Consistency for 2026 platform standards
       successRate,
+      violationScore,
       status: user.status || 'ACTIVE',
       adminNotes: user.adminNotes || ''
     };
@@ -380,16 +433,44 @@ export class UsersService {
     });
   }
 
-  async adminToggleStatus(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) return null;
+  async adminUpdateStatus(id: string, status: 'ACTIVE' | 'SUSPENDED', reason?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Update User Record
+      const user = await tx.user.update({
+        where: { id },
+        data: { 
+          status,
+          suspendReason: status === 'SUSPENDED' ? reason : null
+        }
+      });
 
-    const currentStatus = user.status || 'ACTIVE';
-    const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+      // 2. Precise Administrative Audit Log (2026 Security Standard)
+      await tx.auditLog.create({
+        data: {
+          action: status === 'SUSPENDED' ? 'USER_BAN' : 'USER_ACTIVATE',
+          entity: 'USER',
+          actorType: 'ADMIN',
+          actorId: id,
+          reason: reason || 'Administrative status toggle',
+          newState: status,
+          metadata: {
+            adminAction: true,
+            timestamp: new Date().toISOString()
+          }
+        }
+      });
 
+      return user;
+    });
+  }
+
+  async adminUpdateCustomer(id: string, data: { name?: string; email?: string; country?: string; phone?: string }) {
     return this.prisma.user.update({
       where: { id },
-      data: { status: newStatus }
+      data: {
+        ...data,
+        updatedAt: new Date()
+      }
     });
   }
 }

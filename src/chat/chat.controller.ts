@@ -8,6 +8,23 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class ChatController {
     constructor(private readonly chatService: ChatService) { }
 
+    // -------------------------------------------------------
+    // LIST ROUTE
+    // -------------------------------------------------------
+
+    @Get()
+    async getUserChats(
+        @Request() req,
+        @Query('type') type?: string
+    ) {
+        return this.chatService.getUserChats(req.user.id, req.user.role, type);
+    }
+
+    // -------------------------------------------------------
+    // FIXED-PATH ROUTES — Must come BEFORE any dynamic :id routes
+    // to prevent NestJS from matching them as route parameters.
+    // -------------------------------------------------------
+
     @Post('init')
     async initiateChat(
         @Body() body: { orderId: string; vendorId: string },
@@ -16,23 +33,7 @@ export class ChatController {
         if (req.user.role !== 'CUSTOMER') {
             throw new ForbiddenException('Only customers can initiate order chats.');
         }
-
-        // Customer initiates chat
         return this.chatService.createOrGetChat(body.orderId, body.vendorId, req.user.id);
-    }
-
-    @Get()
-    async getUserChats(
-        @Request() req,
-        @Query('type') type?: string
-    ) {
-        // req.user comes from JwtAuthGuard
-        return this.chatService.getUserChats(req.user.id, req.user.role, type);
-    }
-
-    @Get(':id')
-    async getChatById(@Param('id') id: string) {
-        return this.chatService.getChatById(id);
     }
 
     @Post('support')
@@ -40,8 +41,45 @@ export class ChatController {
         @Body() body: { subject: string; message: string; orderId?: string; mediaUrl?: string; mediaType?: string; mediaName?: string; priority?: string },
         @Request() req
     ) {
-        // Customer creates a Support ticket (type: support). orderId is optional for generic inquiries.
         return this.chatService.createSupportChat(req.user.id, body.subject, body.message, body.orderId, body.mediaUrl, body.mediaType, body.mediaName, body.priority);
+    }
+
+    @Post('admin-init-support')
+    async adminInitSupportChat(
+        @Body() body: { targetUserId: string; targetRole: 'CUSTOMER' | 'VENDOR'; reason: string; orderId?: string },
+        @Request() req
+    ) {
+        if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
+            throw new ForbiddenException('Forbidden: Admin only');
+        }
+        return this.chatService.initAdminSupportChat(
+            req.user.id,
+            req.user.name || 'Administrator',
+            body.targetUserId,
+            body.targetRole,
+            body.reason,
+            body.orderId
+        );
+    }
+
+    @Get('admin/user-risk/:userId')
+    async getUserRiskProfile(
+        @Param('userId') userId: string,
+        @Request() req
+    ) {
+        if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
+            throw new ForbiddenException('Forbidden: Admin only');
+        }
+        return this.chatService.getUserRiskProfile(userId);
+    }
+
+    // -------------------------------------------------------
+    // DYNAMIC :id ROUTES — Must come AFTER all fixed-path routes
+    // -------------------------------------------------------
+
+    @Get(':id')
+    async getChatById(@Param('id') id: string) {
+        return this.chatService.getChatById(id);
     }
 
     @Post(':id/messages')
@@ -69,7 +107,6 @@ export class ChatController {
         @Body() body: { enabled: boolean },
         @Request() req
     ) {
-        // Use req.user.role to set the translation timestamp selectively for the invoker
         return this.chatService.toggleTranslation(chatId, req.user.role, body.enabled);
     }
 
@@ -88,7 +125,7 @@ export class ChatController {
         @Request() req
     ) {
         if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
-            throw new Error('Forbidden: Admin only');
+            throw new ForbiddenException('Forbidden: Admin only');
         }
         return this.chatService.adminAction(chatId, body.action, body.payload);
     }
