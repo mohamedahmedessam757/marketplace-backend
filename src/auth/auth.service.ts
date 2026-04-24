@@ -89,6 +89,26 @@ export class AuthService {
             }
         });
 
+        // Log Admin Activity for 2026 Audit Standards
+        if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'SUPPORT') {
+            await this.prisma.adminActivityLog.create({
+                data: {
+                    adminId: user.id,
+                    email: user.email,
+                    action: 'LOGIN',
+                    ipAddress: cleanIp,
+                    userAgent: userAgent,
+                    deviceType: ua.device.type || 'desktop',
+                    browser: browserName,
+                    location: location,
+                    metadata: {
+                        os: osName,
+                        fingerprint: fingerprint || 'none'
+                    }
+                }
+            });
+        }
+
         return {
             access_token: token,
             user: user,

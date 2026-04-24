@@ -184,6 +184,7 @@ model User {
   scoreLogs          ViolationScoreLog[]
   createdViolationTypes ViolationType[]
   caseMessages       CaseMessage[]
+  adminActivityLogs  AdminActivityLog[]
 
   @@map("users")
 }
@@ -1399,4 +1400,24 @@ model ViolationScoreLog {
 
     @@index([targetUserId])
     @@map("violation_score_logs")
+}
+
+model AdminActivityLog {
+    id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    adminId    String?  @map("admin_id") @db.Uuid
+    email      String?
+    action     String
+    ipAddress  String?  @map("ip_address")
+    userAgent  String?  @map("user_agent")
+    deviceType String?  @map("device_type")
+    browser    String?  
+    location   String?
+    metadata   Json?    @default("{}")
+    createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+    admin      User?    @relation(fields: [adminId], references: [id])
+
+    @@index([adminId])
+    @@index([createdAt])
+    @@map("admin_activity_logs")
 }

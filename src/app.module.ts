@@ -25,6 +25,9 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
 import { StripeModule } from './stripe/stripe.module';
 import { ViolationsModule } from './violations/violations.module';
+import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { APP_GUARD } from '@nestjs/core';
+import { MaintenanceGuard } from './platform-settings/maintenance.guard';
 
 @Module({
     imports: [
@@ -55,8 +58,14 @@ import { ViolationsModule } from './violations/violations.module';
         LoyaltyModule,
         StripeModule,
         ViolationsModule,
+        PlatformSettingsModule,
     ],
     controllers: [AppController],
-    providers: [],
+    providers: [
+        {
+            provide: APP_GUARD,
+            useClass: MaintenanceGuard,
+        },
+    ],
 })
 export class AppModule { }
