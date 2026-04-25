@@ -39,7 +39,7 @@ export class ReturnsController {
     async escalateDispute(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
-        @Body() body: { orderId: string; orderPartId?: string; reason: string; description: string }
+        @Body() body: { orderId: string; orderPartId?: string; reason: string; description: string; usageCondition?: string }
     ) {
         if (!body.orderId || !body.reason) {
             throw new BadRequestException('Order ID and Reason are required');
@@ -51,6 +51,7 @@ export class ReturnsController {
             body.orderPartId,
             body.reason,
             body.description,
+            body.usageCondition,
             files
         );
     }

@@ -281,6 +281,8 @@ model Store {
   // Violations & Penalties
   violations        Violation[]
   penaltyActions    PenaltyAction[]
+  returns           ReturnRequest[]
+  disputes          Dispute[]
 
   @@index([status])
   @@index([suspendedUntil])
@@ -582,15 +584,23 @@ model ReturnRequest {
   returnWaybillId  String?   @map("return_waybill_id") @db.Uuid
   handoverDeadline DateTime? @map("handover_deadline") @db.Timestamptz
   merchantEvidence Json      @default("[]") @map("merchant_evidence")
+  merchantResponseText String? @map("merchant_response_text")
 
   // Phase 4 Governance
   verdictNotes String? @map("verdict_notes")
+  adminApproval       String?   @map("admin_approval")
+  adminApprovalReason String?   @map("admin_approval_reason") @db.Text
+  adminEvidence       Json      @default("[]") @map("admin_evidence")
+  adminName           String?   @map("admin_name")
+  adminEmail          String?   @map("admin_email")
+  adminSignature      String?   @map("admin_signature") @db.Text
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   customer User  @relation(fields: [customerId], references: [id])
   order    Order @relation(fields: [orderId], references: [id])
+  store    Store? @relation(fields: [storeId], references: [id])
 
   @@map("returns")
 }
@@ -608,10 +618,13 @@ model Dispute {
   evidenceFiles Json    @default("[]") @map("evidence_files")
 
   // 2026 Enhanced Fields
+  usageCondition   String? @map("usage_condition") // UNUSED | OPENED | INSTALLED
   storeId          String? @map("store_id") @db.Uuid
+
   invoiceId        String? @map("invoice_id") @db.Uuid
   shipmentId       String? @map("shipment_id") @db.Uuid
   merchantEvidence Json    @default("[]") @map("merchant_evidence")
+  merchantResponseText String? @map("merchant_response_text")
 
   // Phase 4 Governance
   faultParty      String?   @map("fault_party")
@@ -619,6 +632,12 @@ model Dispute {
   shippingRefund  Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
   stripeFee       Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
   verdictNotes    String?   @map("verdict_notes")
+  adminApproval       String?   @map("admin_approval")
+  adminApprovalReason String?   @map("admin_approval_reason") @db.Text
+  adminEvidence       Json      @default("[]") @map("admin_evidence")
+  adminName           String?   @map("admin_name")
+  adminEmail          String?   @map("admin_email")
+  adminSignature      String?   @map("admin_signature") @db.Text
   verdictIssuedAt DateTime? @map("verdict_issued_at") @db.Timestamptz
   verdictLocked   Boolean   @default(false) @map("verdict_locked")
 
@@ -627,6 +646,7 @@ model Dispute {
 
   customer User  @relation(fields: [customerId], references: [id])
   order    Order @relation(fields: [orderId], references: [id])
+  store    Store? @relation(fields: [storeId], references: [id])
 
   @@map("disputes")
 }
