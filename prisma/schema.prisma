@@ -466,6 +466,8 @@ model Offer {
 
   rejection OfferRejection?
   payments  PaymentTransaction[]
+  returns   ReturnRequest[]
+  disputes  Dispute[]
 
   @@index([orderId])
   @@index([orderPartId])
@@ -602,12 +604,19 @@ model ReturnRequest {
   verdictIssuedAt     DateTime? @map("verdict_issued_at") @db.Timestamptz
   verdictLocked       Boolean   @default(false) @map("verdict_locked")
 
+  // Phase 4 Governance Extensions (Spec §15)
+  faultParty      String?   @map("fault_party")
+  refundAmount    Decimal?  @map("refund_amount") @db.Decimal(14, 2)
+  shippingRefund  Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
+  stripeFee       Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   customer User  @relation(fields: [customerId], references: [id])
   order    Order @relation(fields: [orderId], references: [id])
   store    Store? @relation(fields: [storeId], references: [id])
+  offer    Offer? @relation(fields: [offerId], references: [id])
 
   @@map("returns")
 }
@@ -655,6 +664,7 @@ model Dispute {
   customer User  @relation(fields: [customerId], references: [id])
   order    Order @relation(fields: [orderId], references: [id])
   store    Store? @relation(fields: [storeId], references: [id])
+  offer    Offer? @relation(fields: [offerId], references: [id])
 
   @@map("disputes")
 }
@@ -1059,6 +1069,15 @@ model ShippingWaybill {
   partDescription  String?  @map("part_description")
   finalPrice       Decimal  @map("final_price") @db.Decimal(14, 2)
   currency         String   @default("AED")
+  
+  // 2026 Enhanced Logistics Metadata
+  senderName       String?  @map("sender_name")
+  senderPhone      String?  @map("sender_phone")
+  senderAddress    String?  @map("sender_address")
+  senderCity       String?  @map("sender_city")
+  senderCountry    String?  @map("sender_country")
+  shippingRefund   Decimal? @map("shipping_refund") @db.Decimal(14, 2) // Round-trip Cost
+
   issuedBy         String?  @map("issued_by") @db.Uuid
   issuedAt         DateTime @default(now()) @map("issued_at") @db.Timestamptz
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz

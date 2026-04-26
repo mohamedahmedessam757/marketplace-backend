@@ -900,11 +900,14 @@ export class ReturnsService {
             where: { id: caseId },
             include: { 
                 store: true,
+                offer: true, // 2026 Financial Sync: Fetch the specific offer for price accuracy
                 order: {
                     include: {
                         customer: true,
                         acceptedOffer: { include: { store: true } },
-                        parts: true
+                        parts: true,
+                        shippingAddresses: true,
+                        invoices: true // 2026 Finance: Fetch total paid amount from invoices
                     }
                 }
             }
@@ -968,7 +971,7 @@ export class ReturnsService {
 
                 await this.generateReturnWaybill(tx, {
                     order,
-                    caseRecord,
+                    caseRecord: { ...caseRecord, ...updateData },
                     store,
                     adminId,
                     handoverDeadline
@@ -1317,6 +1320,29 @@ export class ReturnsService {
         // Generate Platform-standard Unique Waybill Number (Spec v2026.4)
         const waybillNumber = `RTN-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Date.now().toString().slice(-4)}`;
 
+        // Sender/Recipient Logic (Swapped for Return Journey)
+        // From: Customer -> To: Store
+        const shippingAddr = (order as any).shippingAddresses?.[0] || null;
+        
+        const customerName = shippingAddr?.fullName || shippingAddr?.full_name || order.customer.name || 'Customer';
+        const customerPhone = shippingAddr?.phone || order.customer.phone || '';
+        const customerAddress = shippingAddr?.details || 'Order Address';
+        const customerCity = shippingAddr?.city || (order.customer as any)?.country || '';
+        const customerCountry = shippingAddr?.country || (order.customer as any)?.country || '';
+        
+        // 2026 Financial Hardening: Match original waybill logic (Invoice Total > Unit Price > Order Total)
+        const mainInvoice = (order as any).invoices?.[0];
+        const invoiceTotal = mainInvoice?.total ? Number(mainInvoice.total) : (mainInvoice?.totalAmount ? Number(mainInvoice.totalAmount) : 0);
+        const offerPrice = Number(caseRecord.offer?.unitPrice || 0);
+        const acceptedOfferPrice = Number(order.acceptedOffer?.unitPrice || 0);
+        const orderTotal = Number(order.totalAmount || 0);
+        
+        const finalPrice = invoiceTotal > 0 
+            ? invoiceTotal 
+            : (offerPrice > 0 
+                ? offerPrice 
+                : (acceptedOfferPrice > 0 ? acceptedOfferPrice : orderTotal));
+
         // Create a Validated Waybill record
         const waybill = await tx.shippingWaybill.create({
             data: {
@@ -1326,26 +1352,98 @@ export class ReturnsService {
                 storeId: store.id,
                 storeName: store.name,
                 storeCode: store.storeCode,
-                recipientName: order.customer?.name || 'Customer',
+                
+                // Detailed 2026 Logistics Mapping
+                senderName: customerName,
+                senderPhone: customerPhone,
+                senderAddress: customerAddress,
+                senderCity: customerCity,
+                senderCountry: customerCountry,
+
+                recipientName: store.name,
+                recipientPhone: (store as any).phone || '',
+                recipientEmail: (store as any).email || '',
+                recipientCity: 'Platform Hub / Store',
+                recipientCountry: 'UAE',
+                recipientAddress: (store as any).address || 'Verified Store Address',
+
+                customerCode: order.customer.id.substring(0, 8).toUpperCase(),
                 partName: part?.name || 'Returned Item',
                 partDescription: `RTN-CASE:${caseRecord.id} | Deadline:${handoverDeadline.toISOString()} | Invoice:${caseRecord.invoiceId || 'N/A'}`,
-                finalPrice: order.totalAmount ?? 0,
+                
+                finalPrice,
+                
+                shippingRefund: caseRecord.shippingRefund, // Round-trip cost transparency
                 currency: order.currency || 'AED',
                 issuedBy: adminId,
             }
         });
 
-        // Create a Shipment record for the Return Journey (Spec §12)
-        await tx.shipment.create({
-            data: {
+        // 2026 Unified Logistics: Update EXISTING shipment instead of creating a redundant new one
+        const existingShipment = await tx.shipment.findFirst({
+            where: { 
                 orderId: order.id,
-                waybillId: waybill.id,
-                status: 'RETURN_LABEL_ISSUED',
-                carrierName: 'Tashleh Express',
-                trackingNumber: waybillNumber,
-                statusNotes: `Automated Return Label Issued via Warranty Protocol. Handover Deadline: ${handoverDeadline.toLocaleDateString()}`
-            }
+                waybill: { partId: caseRecord.orderPartId }
+            },
+            orderBy: { createdAt: 'desc' }
         });
+
+        const shipmentData = {
+            waybillId: waybill.id,
+            status: 'RETURN_LABEL_ISSUED' as any,
+            carrierName: 'Tashleh Express',
+            trackingNumber: waybillNumber,
+            statusNotes: `[RETURN] Automated Label Issued. Handover Deadline: ${handoverDeadline.toLocaleDateString()}`
+        };
+
+        if (existingShipment) {
+            await tx.shipment.update({
+                where: { id: existingShipment.id },
+                data: shipmentData
+            });
+
+            // Create status log for audit trail
+            await tx.shipmentStatusLog.create({
+                data: {
+                    shipmentId: existingShipment.id,
+                    fromStatus: existingShipment.status,
+                    toStatus: 'RETURN_LABEL_ISSUED' as any,
+                    notes: '📄 يتم أصدار بوليصة أرجاع للمنتج',
+                    source: 'API'
+                }
+            });
+            console.log(`[SHIPPING] Updated Existing Shipment: ${existingShipment.id} with Return Waybill ${waybillNumber}`);
+        } else {
+            // Fallback: Check for any shipment for this order
+            const anyShipment = await tx.shipment.findFirst({
+                where: { orderId: order.id },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            if (anyShipment) {
+                await tx.shipment.update({
+                    where: { id: anyShipment.id },
+                    data: shipmentData
+                });
+                await tx.shipmentStatusLog.create({
+                    data: {
+                        shipmentId: anyShipment.id,
+                        fromStatus: anyShipment.status,
+                        toStatus: 'RETURN_LABEL_ISSUED' as any,
+                        notes: '📄 يتم أصدار بوليصة أرجاع للمنتج',
+                        source: 'API'
+                    }
+                });
+            } else {
+                // Last resort: Create only if no logistics record exists at all
+                await tx.shipment.create({
+                    data: {
+                        orderId: order.id,
+                        ...shipmentData
+                    }
+                });
+            }
+        }
 
         console.log(`[SHIPPING] Generated Return Waybill & Shipment: ${waybillNumber} for Case ${caseRecord.id}`);
     }

@@ -38,7 +38,11 @@ export class WaybillsService {
                 },
                 shippingAddresses: true,
                 invoices: true,
-                shippingWaybills: true
+                shippingWaybills: true,
+                returns: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1
+                }
             } as any
         } as any);
 
@@ -96,6 +100,8 @@ export class WaybillsService {
             const randomSuffix = Math.floor(10000 + Math.random() * 90000);
             const waybillNumber = isReturn ? `RTN-${year}-${randomSuffix}` : `WB-${year}-${randomSuffix}`;
 
+            const returnCase = isReturn ? (order as any).returns?.[0] : null;
+
             const waybillData = {
                 waybillNumber,
                 orderId: order.id,
@@ -103,16 +109,26 @@ export class WaybillsService {
                 storeId: acceptedOffer.store.id,
                 storeName: isReturn ? customerName : acceptedOffer.store.name,
                 storeCode: isReturn ? (order.customer.id.substring(0, 8).toUpperCase()) : (acceptedOffer.store.storeCode || ''),
+                
+                // Detailed 2026 Logistics Metadata
+                senderName: isReturn ? customerName : acceptedOffer.store.name,
+                senderPhone: isReturn ? customerPhone : (acceptedOffer.store as any).phone || '',
+                senderAddress: isReturn ? customerAddress : (acceptedOffer.store as any).address || '',
+                senderCity: isReturn ? customerCity : 'Platform Hub',
+                senderCountry: isReturn ? customerCountry : 'UAE',
+
                 recipientName: isReturn ? acceptedOffer.store.name : customerName,
                 recipientPhone: isReturn ? (acceptedOffer.store as any).phone : customerPhone,
                 recipientEmail: isReturn ? (acceptedOffer.store as any).email : (shippingAddr?.email || order.customer.email),
                 recipientCity: isReturn ? 'Platform Hub' : customerCity,
                 recipientCountry: isReturn ? 'UAE' : customerCountry,
                 recipientAddress: isReturn ? 'Return Center' : customerAddress,
+
                 customerCode: isReturn ? (acceptedOffer.store.storeCode || 'VNDR') : order.customer.id.substring(0, 8).toUpperCase(),
                 partName: part.name,
                 partDescription: isReturn ? `RETURN: ${part.description}` : part.description,
                 finalPrice,
+                shippingRefund: returnCase?.shippingRefund || null, // Round-trip cost transparency
                 currency: 'AED',
                 issuedBy: adminId
             };
