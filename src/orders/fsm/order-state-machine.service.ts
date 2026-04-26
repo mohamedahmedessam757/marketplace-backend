@@ -17,16 +17,18 @@ export class OrderStateMachine {
         [OrderStatus.CORRECTION_SUBMITTED]: [OrderStatus.VERIFICATION_SUCCESS, OrderStatus.NON_MATCHING, OrderStatus.CANCELLED],
         [OrderStatus.DELAYED_PREPARATION]: [OrderStatus.PREPARED, OrderStatus.CANCELLED],
         [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.RETURNED, OrderStatus.DISPUTED],
-        [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED, OrderStatus.CLOSED, OrderStatus.RETURNED, OrderStatus.DISPUTED],
-        [OrderStatus.COMPLETED]: [OrderStatus.CLOSED],
+        [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED, OrderStatus.WARRANTY_ACTIVE, OrderStatus.CLOSED, OrderStatus.RETURNED, OrderStatus.DISPUTED],
+        [OrderStatus.WARRANTY_ACTIVE]: [OrderStatus.WARRANTY_EXPIRED, OrderStatus.RETURNED, OrderStatus.DISPUTED, OrderStatus.CLOSED],
+        [OrderStatus.WARRANTY_EXPIRED]: [OrderStatus.COMPLETED, OrderStatus.CLOSED],
+        [OrderStatus.COMPLETED]: [OrderStatus.WARRANTY_ACTIVE, OrderStatus.CLOSED],
         [OrderStatus.CLOSED]: [],
         [OrderStatus.CANCELLED]: [],
-        [OrderStatus.RETURNED]: [OrderStatus.COMPLETED, OrderStatus.CLOSED],
-        [OrderStatus.DISPUTED]: [OrderStatus.COMPLETED, OrderStatus.CLOSED, OrderStatus.RETURNED, OrderStatus.REFUNDED],
+        [OrderStatus.RETURNED]: [OrderStatus.COMPLETED, OrderStatus.WARRANTY_ACTIVE, OrderStatus.CLOSED],
+        [OrderStatus.DISPUTED]: [OrderStatus.COMPLETED, OrderStatus.WARRANTY_ACTIVE, OrderStatus.CLOSED, OrderStatus.RETURNED, OrderStatus.REFUNDED],
         [OrderStatus.REFUNDED]: [],
         [OrderStatus.RETURN_REQUESTED]: [OrderStatus.RETURN_APPROVED, OrderStatus.DISPUTED],
         [OrderStatus.RETURN_APPROVED]: [OrderStatus.RETURNED],
-        [OrderStatus.RESOLVED]: [OrderStatus.COMPLETED, OrderStatus.CLOSED],
+        [OrderStatus.RESOLVED]: [OrderStatus.COMPLETED, OrderStatus.WARRANTY_ACTIVE, OrderStatus.CLOSED],
     };
 
     validateTransition(currentStatus: OrderStatus, newStatus: OrderStatus): void {

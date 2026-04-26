@@ -8,6 +8,8 @@ import { EscrowCronService } from './escrow-cron.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { StoreSuspensionService } from './store-suspension.service';
 import { ViolationDecayService } from './violation-decay.service';
+import { SecurityMaintenanceService } from './security-maintenance.service';
+import { WarrantyExpirationService } from './warranty-expiration.service';
 
 @Module({
     imports: [
@@ -17,6 +19,13 @@ import { ViolationDecayService } from './violation-decay.service';
         NotificationsModule,
         PaymentsModule
     ],
-    providers: [OrderCleanupService, EscrowCronService, StoreSuspensionService, ViolationDecayService],
+    providers: [
+        OrderCleanupService, 
+        EscrowCronService, 
+        StoreSuspensionService, 
+        ViolationDecayService,
+        SecurityMaintenanceService,
+        WarrantyExpirationService
+    ],
 })
 export class SchedulerModule { }

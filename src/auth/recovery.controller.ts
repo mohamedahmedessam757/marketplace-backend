@@ -35,10 +35,13 @@ export class RecoveryController {
     }
 
     @Post('admin/resolve')
-    async resolveRequest(@Body() body: { requestId: string, action: 'APPROVE' | 'REJECT' }, @Req() req: any) {
-        // In a prod app, we'd use @UseGuards(RolesGuard) to ensure the user is an ADMIN.
-        // For now, attaching the JWT to decode if present.
+    async resolveRequest(
+        @Body() body: { requestId: string, action: 'APPROVE' | 'REJECT' },
+        @Req() req: any,
+        @Ip() ip: string
+    ) {
         const adminId = req.user?.id;
-        return this.recoveryService.resolveRequest(body.requestId, body.action, adminId);
+        const userAgent = req.headers['user-agent'] || 'Unknown';
+        return this.recoveryService.resolveRequest(body.requestId, body.action, adminId, ip, userAgent);
     }
 }

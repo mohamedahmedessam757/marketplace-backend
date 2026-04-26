@@ -302,8 +302,16 @@ export class OrdersService {
             const updatedOrder = await tx.order.update({
                 where: { id: orderId },
                 data: {
-                    status: newStatus,
+                    status: newStatus === OrderStatus.COMPLETED && order.acceptedOffer?.warrantyDuration && order.acceptedOffer.warrantyDuration !== 'no' 
+                        ? OrderStatus.WARRANTY_ACTIVE 
+                        : newStatus,
                     updatedAt: new Date(),
+                    warranty_active_at: newStatus === OrderStatus.COMPLETED && order.acceptedOffer?.warrantyDuration && order.acceptedOffer.warrantyDuration !== 'no' 
+                        ? new Date() 
+                        : undefined,
+                    warranty_end_at: newStatus === OrderStatus.COMPLETED && order.acceptedOffer?.warrantyDuration && order.acceptedOffer.warrantyDuration !== 'no'
+                        ? this.calculateWarrantyEndDate(new Date(), order.acceptedOffer.warrantyDuration)
+                        : undefined,
                 },
             });
 
@@ -1541,5 +1549,26 @@ export class OrdersService {
         }
 
         return updatedOrder;
+    }
+
+    private calculateWarrantyEndDate(startDate: Date, duration: string): Date {
+        const date = new Date(startDate);
+        const d = duration.toLowerCase();
+        
+        if (d.includes('day')) {
+            const num = parseInt(d.match(/\d+/)?.[0] || '0');
+            date.setDate(date.getDate() + num);
+        } else if (d.includes('month')) {
+            const num = parseInt(d.match(/\d+/)?.[0] || '1');
+            date.setMonth(date.getMonth() + num);
+        } else if (d.includes('year')) {
+            const num = parseInt(d.match(/\d+/)?.[0] || '1');
+            date.setFullYear(date.getFullYear() + num);
+        } else {
+            // Default 15 days if format unknown but exists
+            date.setDate(date.getDate() + 15);
+        }
+        
+        return date;
     }
 }

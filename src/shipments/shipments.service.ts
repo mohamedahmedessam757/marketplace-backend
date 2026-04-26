@@ -6,11 +6,11 @@ import { UpdateShipmentStatusDto } from './dto/update-shipment-status.dto';
 import { ShipmentStatus } from '@prisma/client';
 
 // Premium Bilingual status labels for notifications (Enthusiastic & Clear)
-const STATUS_LABELS: Record<ShipmentStatus, { ar: string; en: string }> = {
-    RECEIVED_AT_HUB:           { ar: 'وصلت شحنتك إلى مستودعنا الرئيسي 🏢 نحن الآن بصدد فرزها وتجهيزها.', en: 'Your shipment arrived at our main hub 🏢 We are now sorting and preparing it.' },
-    QUALITY_CHECK_PASSED:      { ar: 'اجتازت الشحنة فحص الجودة بنجاح! ✅ نحن نحرص دائماً على تسليمك الأفضل.', en: 'Shipment passed quality check successfully! ✅ We always ensure you receive the best.' },
-    PACKAGED_FOR_SHIPPING:     { ar: 'تم تغليف طلبك بعناية 📦 وهو الآن في وضع الاستعداد للانطلاق.', en: 'Your order is carefully packaged 📦 and is ready to head out.' },
-    AWAITING_CARRIER_PICKUP:   { ar: 'في انتظار مندوب شركة الشحن 🚚 لاستلام طردك الثمين.', en: 'Awaiting shipping courier 🚚 to pick up your precious package.' },
+const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
+    RECEIVED_AT_HUB:           { ar: 'تم استلام الشحنة في المركز 📥 جاري البدء في إجراءات الفحص والتوثيق.', en: 'Shipment received at the hub 📥 Quality check and verification started.' },
+    QUALITY_CHECK_PASSED:      { ar: 'اجتازت الفحص بنجاح! ✅ القطعة مطابقة للمواصفات وجاهزة للتغليف.', en: 'Quality check passed! ✅ The part matches specifications and is ready for packaging.' },
+    PACKAGED_FOR_SHIPPING:     { ar: 'تم التغليف بأمان 📦 شحنتك الآن جاهزة للانطلاق نحو وجهتها.', en: 'Packaged securely 📦 Your shipment is now ready to head to its destination.' },
+    AWAITING_CARRIER_PICKUP:   { ar: 'بانتظار المندوب ⏳ تم تجهيز الشحنة وهي الآن تنتظر الاستلام من شركة الشحن.', en: 'Awaiting carrier pickup ⏳ Shipment is ready and waiting for the courier.' },
     PICKED_UP_BY_CARRIER:      { ar: 'انطلقت الشحنة! 🚀 استلمت شركة الشحن طردك وهي في طريقها إليك.', en: 'Shipment has launched! 🚀 The courier picked up your package and is on the way.' },
     IN_TRANSIT_TO_DESTINATION: { ar: 'شحنتك بين أيدٍ أمينة 🛣️ وهي الآن تتحرك نحو وجهتها النهائية.', en: 'Your shipment is in safe hands 🛣️ and is moving towards its destination.' },
     ARRIVED_AT_LOCAL_FACILITY: { ar: 'وصلت الشحنة إلى مركز التوزيع المحلي 📍 أصبحت قريبة جداً منك.', en: 'Shipment reached the local distribution hub 📍 It is very close now.' },
@@ -19,9 +19,24 @@ const STATUS_LABELS: Record<ShipmentStatus, { ar: string; en: string }> = {
     OUT_FOR_DELIVERY:          { ar: 'استعد للاستلام! 🛵 المندوب في الطريق إليك اليوم، يرجى التواجد.', en: 'Get ready! 🛵 The courier is on the way to you today, please be available.' },
     DELIVERY_ATTEMPTED:        { ar: 'حاولنا الوصول إليك 🔔 ولكن لم نتمكن من التسليم. سنعيد المحاولة قريباً.', en: 'We tried to reach you 🔔 but could not deliver. We will retry soon.' },
     DELIVERED_TO_CUSTOMER:     { ar: 'تم التسليم بنجاح! ✅ نأمل أن تكون تجربتك معنا رائعة، يومك سعيد.', en: 'Delivered successfully! ✅ We hope you had a great experience with us.' },
+    
+    // New Return & Warranty Journey 2026
+    RETURN_LABEL_ISSUED:       { ar: 'يتم أصدار بوليصة أرجاع للمنتج 📄', en: 'Return label has been successfully issued for the product 📄' },
+    RETURN_STARTED:            { ar: 'بدء الارجاع 🔄 ننتظر تسليم الشحنة للمندوب.', en: 'Return process started 🔄 awaiting shipment handover to courier.' },
+    RECEIVED_FROM_CUSTOMER:    { ar: 'تم أستلام الشحنه من العميل بنجاح 📥 وهي الآن في طريقها للفرز.', en: 'Shipment successfully received from customer 📥 and is now being sorted.' },
+    DELIVERED_TO_VENDOR:       { ar: 'تم تسليم الشحنه للتاجر 📦 للمراجعة أو الاستبدال.', en: 'Shipment delivered to vendor 📦 for review or exchange.' },
+    EXCHANGE_COMPLETED:        { ar: 'تم أستبدال الشحنه بنجاح ✨ جاري التجهيز لإرسالها إليك.', en: 'Shipment exchange completed successfully ✨ preparing to send it back to you.' },
+    IN_TRANSIT_TO_CUSTOMER:    { ar: 'الشحنه فى طريقها للعميل 🚚 انتظرنا قريباً.', en: 'Shipment is on its way back to the customer 🚚 see you soon.' },
+    RETURN_COMPLETED_TO_CUSTOMER: { ar: 'تم أرجاع الشحنه للعميل بنجاح ✅ تم إغلاق الطلب.', en: 'Shipment successfully returned to customer ✅ Order completed.' },
+    
+    // Legacy/Internal states
     RETURN_TO_SENDER_INITIATED:{ ar: 'بدء إجراءات الإرجاع 🔄 لضمان وصول الشحنة للمرسل بأمان.', en: 'Return to sender initiated 🔄 to ensure safe arrival.' },
     RETURNED_TO_SENDER:        { ar: 'تم إرجاع الطرد للمرسل بنجاح.', en: 'Returned to sender successfully.' },
     CUSTOMS_DELAY:             { ar: 'نعتذر عن التأخير، الشحنة حالياً لدى الجمارك في دولتك .', en: 'We apologize for the delay, the shipment is currently at customs in your country.' },
+    RETURN_WAYBILL_ISSUED:     { ar: 'تم إصدار بوليصة الإرجاع 📄 يرجى تسليم القطعة لشركة الشحن.', en: 'Return waybill issued 📄 Please hand over the part to the courier.' },
+    RETURN_RECEIVED:           { ar: 'تم استلام المرتجع في مركزنا 📥 جاري فحصه ومعالجة طلبك.', en: 'Return received at our hub 📥 Checking and processing your request.' },
+    EXCHANGE_SHIPPED:          { ar: 'تم شحن القطعة البديلة 📤 هي الآن في طريقها إليك.', en: 'Exchange part shipped 📤 It is now on its way to you.' },
+    RETURN_TO_CUSTOMER:        { ar: 'جاري إعادة القطعة إليك 🚚 بعد مراجعة طلب الإرجاع.', en: 'Part is being returned to you 🚚 after reviewing the return request.' },
 };
 
 @Injectable()
@@ -125,6 +140,17 @@ export class ShipmentsService {
                 where: { id: shipment.orderId },
                 data: { 
                     status: 'DELIVERED',
+                    updatedAt: new Date()
+                }
+            });
+        }
+
+        // 2026 Logic: When return to customer is completed -> mark order as COMPLETED
+        if ((newStatus as string) === 'RETURN_COMPLETED_TO_CUSTOMER' && shipment.order) {
+            await this.prisma.order.update({
+                where: { id: shipment.orderId },
+                data: { 
+                    status: 'COMPLETED',
                     updatedAt: new Date()
                 }
             });

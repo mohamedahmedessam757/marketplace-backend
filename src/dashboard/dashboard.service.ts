@@ -103,6 +103,7 @@ export class DashboardService {
 
             this.prisma.order.groupBy({
                 by: ['status'],
+                where: { createdAt: { gte: startDate, lte: endDate } },
                 _count: { id: true }
             }),
             this.prisma.order.count({ where: { status: OrderStatus.AWAITING_OFFERS, createdAt: { lt: oneDayAgo } } }),

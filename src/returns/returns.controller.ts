@@ -154,7 +154,7 @@ export class ReturnsController {
     async respondToDispute(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
-        @Body() body: { responseText: string; evidenceUrls?: string[] }
+        @Body() body: { responseText: string; evidenceUrls?: string[]; action?: 'APPROVE' | 'REJECT' }
     ) {
         if (!body.responseText) {
             throw new BadRequestException('Response Text is required');
@@ -165,7 +165,8 @@ export class ReturnsController {
             req.params.id,
             body.responseText,
             files,
-            body.evidenceUrls
+            body.evidenceUrls,
+            body.action || 'REJECT' // Default to REJECT for disputes unless specified
         );
     }
 

@@ -1,9 +1,13 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class RecoveryService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private notifications: NotificationsService
+    ) { }
 
     // In a real app, this would use Redis for rate limiting and OTP storage.
     // For this MVP, we will use a local Map or a clean DB structure if needed,
@@ -130,18 +134,27 @@ export class RecoveryService {
             })
         ]);
 
-        // Check store aggregates if user is a vendor
+        // Check aggregates in real-time
+        let balance = Number(user.customerBalance) || 0;
         let vendorOrdersCount = 0;
-        let balance = 0;
+        let merchantDisputesCount = 0;
+
         if (user.store) {
-            balance = Number(user.store.balance);
-            vendorOrdersCount = await this.prisma.order.count({
-                where: { storeId: user.store.id, status: { notIn: ['COMPLETED', 'CANCELLED'] } }
-            });
+            balance += Number(user.store.balance) || 0;
+            const [vOrders, mDisputes] = await Promise.all([
+                this.prisma.order.count({
+                    where: { storeId: user.store.id, status: { notIn: ['COMPLETED', 'CANCELLED'] } }
+                }),
+                this.prisma.dispute.count({
+                    where: { order: { storeId: user.store.id }, status: { notIn: ['RESOLVED'] } }
+                })
+            ]);
+            vendorOrdersCount = vOrders;
+            merchantDisputesCount = mDisputes;
         }
 
         const totalActiveOrders = ordersCount + vendorOrdersCount;
-        const totalDisputes = disputesCount + returnsCount;
+        const totalDisputes = disputesCount + returnsCount + merchantDisputesCount;
 
         const isHighRisk = balance > 0 || totalActiveOrders > 0 || totalDisputes > 0;
 
@@ -164,6 +177,16 @@ export class RecoveryService {
             await this.prisma.user.update({
                 where: { id: user.id },
                 data: { recoveryStatus: 'PENDING_REVIEW' }
+            });
+
+            // --- NOTIFICATION: ALERT ADMINS ---
+            await this.notifications.notifyAdmins({
+                titleAr: 'طلب استرداد حساب جديد',
+                titleEn: 'New Account Recovery Request',
+                messageAr: `المستخدم ${user.name} قدم طلب استرداد برقم جديد يحتاج مراجعة.`,
+                messageEn: `User ${user.name} submitted a recovery request that requires review.`,
+                type: 'alert',
+                link: '/admin/account-recovery'
             });
 
             // Clear sessions
@@ -208,15 +231,50 @@ export class RecoveryService {
     // --- ADMIN APIs ---
 
     async getPendingRequests() {
-        return this.prisma.accountRecoveryRequest.findMany({
+        const requests = await this.prisma.accountRecoveryRequest.findMany({
             orderBy: { createdAt: 'desc' },
             include: {
-                user: { select: { name: true, email: true, phone: true } }
+                user: {
+                    include: {
+                        store: { select: { balance: true, id: true } }
+                    }
+                }
             }
         });
+
+        // Enrich requests with LIVE data to ensure 100% accuracy in the admin dashboard
+        return Promise.all(requests.map(async (req) => {
+            const user = req.user;
+            const userId = req.userId;
+            const storeId = user.store?.id;
+            const isMerchant = user.role === 'VENDOR';
+
+            // Fetch TOTAL activity (all orders ever made/received by this user)
+            const [ordersAsCustomer, ordersAsMerchant, disputesAsCustomer, returnsAsCustomer, disputesAsMerchant] = await Promise.all([
+                this.prisma.order.count({ where: { customerId: userId } }),
+                storeId ? this.prisma.order.count({ where: { storeId } }) : 0,
+                this.prisma.dispute.count({ where: { order: { customerId: userId }, status: { notIn: ['RESOLVED'] } } }),
+                this.prisma.returnRequest.count({ where: { order: { customerId: userId }, status: { notIn: ['REJECTED'] } } }),
+                storeId ? this.prisma.dispute.count({ where: { order: { storeId }, status: { notIn: ['RESOLVED'] } } }) : 0
+            ]);
+
+            const liveOrders = ordersAsCustomer + ordersAsMerchant;
+            const liveDisputes = disputesAsCustomer + returnsAsCustomer + disputesAsMerchant;
+
+            // Calculate live balance based on role
+            let liveBalance = isMerchant && user.store ? Number(user.store.balance) : Number((user as any).customerBalance);
+
+            return {
+                ...req,
+                balanceSnapshot: liveBalance || 0,
+                openOrdersCount: liveOrders,
+                disputesCount: liveDisputes,
+                userRole: user.role // Explicitly pass the role for frontend navigation
+            };
+        }));
     }
 
-    async resolveRequest(requestId: string, action: 'APPROVE' | 'REJECT', adminId?: string) {
+    async resolveRequest(requestId: string, action: 'APPROVE' | 'REJECT', adminId?: string, ip?: string, userAgent?: string) {
         const request = await this.prisma.accountRecoveryRequest.findUnique({
             where: { id: requestId },
             include: { user: true }
@@ -237,8 +295,23 @@ export class RecoveryService {
                 }
             });
 
-            // TODO: SEND EMAIL NOTIFICATION HERE
-            console.log(`[EMAIL NOTIFICATION] To: ${request.user.email} -> Your phone number update request has been approved. Withdrawals are frozen for 12 hours.`);
+            // --- NOTIFICATION: NOTIFY USER OF APPROVAL ---
+            await this.notifications.notifyUser(request.userId, request.user.role, {
+                titleAr: 'تمت الموافقة على استرداد الحساب',
+                titleEn: 'Account Recovery Approved',
+                messageAr: 'تم تحديث رقم هاتفك. لأمانك، تم تجميد السحب لمدة 12 ساعة.',
+                messageEn: 'Your phone number was updated. For security, withdrawals are frozen for 12 hours.',
+                type: 'system'
+            });
+
+            // --- NOTIFICATION: SECURITY ALERT (NEW DEVICE/IDENTITY) ---
+            await this.notifications.notifyUser(request.userId, request.user.role, {
+                titleAr: 'تنبيه أمني: تحديث هوية الحساب',
+                titleEn: 'Security Alert: Account Identity Updated',
+                messageAr: 'تم التعرف على رقم هاتف جديد كجهاز موثوق. إذا لم تكن أنت من قام بهذا التغيير، يرجى التواصل معنا فوراً.',
+                messageEn: 'A new phone number has been recognized as a trusted device. If you did not authorize this, contact support immediately.',
+                type: 'alert'
+            });
 
             await this.logSecurityEvent(request.user.email, 'RECOVERY_MANUALLY_APPROVED', true);
         } else {
@@ -246,8 +319,38 @@ export class RecoveryService {
                 where: { id: request.userId },
                 data: { recoveryStatus: null }
             });
+
+            // --- NOTIFICATION: NOTIFY USER OF REJECTION ---
+            await this.notifications.notifyUser(request.userId, request.user.role, {
+                titleAr: 'تم رفض طلب استرداد الحساب',
+                titleEn: 'Account Recovery Rejected',
+                messageAr: 'نأسف، تم رفض طلب تحديث هاتفك. يرجى التواصل مع الدعم.',
+                messageEn: 'Sorry, your recovery request was rejected. Please contact support.',
+                type: 'alert'
+            });
+
             await this.logSecurityEvent(request.user.email, 'RECOVERY_MANUALLY_REJECTED', true);
         }
+
+        // --- NEW: RECORD ADMIN ACTIVITY LOG ---
+        await this.prisma.adminActivityLog.create({
+            data: {
+                adminId: adminId || null,
+                action: `ACCOUNT_RECOVERY_${action}`,
+                ipAddress: ip,
+                userAgent: userAgent,
+                email: request.user.email,
+                metadata: {
+                    requestId,
+                    targetUserId: request.userId,
+                    snapshot: {
+                        balance: request.balanceSnapshot,
+                        orders: request.openOrdersCount,
+                        disputes: request.disputesCount
+                    }
+                }
+            }
+        });
 
         // Update request status
         return this.prisma.accountRecoveryRequest.update({
@@ -255,7 +358,7 @@ export class RecoveryService {
             data: {
                 status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
                 resolvedAt: new Date(),
-                resolvedBy: adminId
+                resolvedBy: adminId || null
             }
         });
     }

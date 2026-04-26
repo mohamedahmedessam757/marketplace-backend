@@ -209,13 +209,18 @@ export class ReturnsService {
 
             // Determine if this is a Warranty Return (Exchange Only) Ref: Spec §5
             let returnType = 'REFUND';
-            if (order.acceptedOffer?.hasWarranty) {
-                // If it's outside the standard 48h but within warranty, it's exchange only
-                // However, the spec says "الإرجاع ضمن الضمان -> استبدال فقط"
-                // Let's check if the standard 48h has passed but warranty is still active
+            let shouldAutoApprove = false;
+
+            if (order.warranty_end_at && new Date(order.warranty_end_at) > new Date()) {
+                // If within warranty period, we prefer replacement
+                if (reason === 'warranty_claim' || reason === 'replacement') {
+                    returnType = 'EXCHANGE';
+                    shouldAutoApprove = true;
+                }
+            } else if (order.acceptedOffer?.hasWarranty) {
                 const standardWindowMs = 48 * 60 * 60 * 1000;
                 const isPastStandard = order.updatedAt < new Date(Date.now() - standardWindowMs);
-                if (isPastStandard || reason === 'warranty_claim') {
+                if (isPastStandard) {
                     returnType = 'EXCHANGE';
                 }
             }
@@ -228,6 +233,9 @@ export class ReturnsService {
                     status: 'accepted'
                 }
             });
+
+            const nextStatus = shouldAutoApprove ? 'APPROVED' : 'PENDING';
+            const handoverDeadline = shouldAutoApprove ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : null;
 
             // Create Return
             const returnRecord = await tx.returnRequest.create({
@@ -244,15 +252,33 @@ export class ReturnsService {
                     usageCondition: usageCondition,
                     returnType: returnType,
                     evidenceFiles: evidenceUrls,
-                    status: 'PENDING'
+                    status: nextStatus,
+                    handoverDeadline: handoverDeadline
                 }
             });
 
             // Update Order Status
             await tx.order.update({
                 where: { id: orderId },
-                data: { status: 'RETURN_REQUESTED' }
+                data: { status: shouldAutoApprove ? 'RETURN_APPROVED' : 'RETURN_REQUESTED' }
             });
+
+            // If auto-approved, generate waybill immediately
+            if (shouldAutoApprove) {
+                const store = acceptedOffer?.storeId 
+                    ? await tx.store.findUnique({ where: { id: acceptedOffer.storeId } })
+                    : await tx.store.findUnique({ where: { id: order.acceptedOffer?.storeId } });
+
+                if (store) {
+                    await this.generateReturnWaybill(tx, {
+                        order,
+                        caseRecord: returnRecord,
+                        store,
+                        adminId: null, // System auto-approved
+                        handoverDeadline: handoverDeadline!
+                    });
+                }
+            }
 
             return returnRecord;
         });
@@ -661,7 +687,8 @@ export class ReturnsService {
                     status: nextStatus,
                     updatedAt: new Date(),
                     merchantEvidence: finalEvidenceUrls,
-                    merchantResponseText: responseText
+                    merchantResponseText: responseText,
+                    merchantDecision: action // Save APPROVE or REJECT
                 }
             });
 
@@ -710,7 +737,7 @@ export class ReturnsService {
         return result;
     }
 
-    async respondToDispute(userId: string, disputeId: string, responseText: string, files: Express.Multer.File[], evidenceUrls?: string[]) {
+    async respondToDispute(userId: string, disputeId: string, responseText: string, files: Express.Multer.File[], evidenceUrls?: string[], action: 'APPROVE' | 'REJECT' = 'REJECT') {
         const dispute = await this.prisma.dispute.findUnique({
             where: { id: disputeId },
             include: { 
@@ -752,7 +779,8 @@ export class ReturnsService {
                     status: 'AWAITING_ADMIN',
                     updatedAt: new Date(),
                     merchantEvidence: finalEvidenceUrls,
-                    merchantResponseText: responseText
+                    merchantResponseText: responseText,
+                    merchantDecision: action
                 }
             });
 
@@ -891,32 +919,30 @@ export class ReturnsService {
             const updateData: any = {
                 status: nextStatus,
                 updatedAt: new Date(),
-                verdictNotes: notes
+                verdictNotes: notes,
+                verdictIssuedAt: new Date(), // 2026 Governance: Always record when verdict is issued
+                verdictLocked: true // Lock the verdict by default to prevent unauthorized tampering
             };
 
-                // 2026 Admin Audit Tracking
-                console.log(`[ADJUDICATION] Executing verdict for ${type} ${caseId}. Verdict: ${verdict}`);
+            // 2026 Admin Audit Tracking
+            console.log(`[ADJUDICATION] Executing verdict for ${type} ${caseId}. Verdict: ${verdict}`);
 
-                // Phase 4 Governance Extensions
-                if (extra) {
-                    // Shared fields (exist on BOTH ReturnRequest and Dispute)
-                    updateData.adminApproval = extra.adminApproval;
-                    updateData.adminApprovalReason = extra.adminApprovalReason;
-                    updateData.adminEvidence = extra.adminEvidence || [];
-                    updateData.adminName = extra.adminName;
-                    updateData.adminEmail = extra.adminEmail;
-                    updateData.adminSignature = extra.adminSignature;
-
-                    // Dispute-only fields (NOT on ReturnRequest schema)
-                    if (type === 'dispute') {
-                        updateData.faultParty = extra.faultParty;
-                        updateData.refundAmount = extra.refundAmount;
-                        updateData.shippingRefund = extra.shippingRefund;
-                        updateData.stripeFee = extra.stripeFee;
-                        updateData.verdictIssuedAt = new Date();
-                        updateData.verdictLocked = false;
-                    }
-                }
+            // Phase 4 Governance Extensions
+            if (extra) {
+                // Shared governance fields (exist on BOTH ReturnRequest and Dispute in schema)
+                updateData.adminApproval = extra.adminApproval;
+                updateData.adminApprovalReason = extra.adminApprovalReason;
+                updateData.adminEvidence = extra.adminEvidence || [];
+                updateData.adminName = extra.adminName;
+                updateData.adminEmail = extra.adminEmail;
+                updateData.adminSignature = extra.adminSignature;
+                
+                // Extended fields for financial breakdown
+                updateData.faultParty = extra.faultParty;
+                updateData.refundAmount = extra.refundAmount;
+                updateData.shippingRefund = extra.shippingRefund;
+                updateData.stripeFee = extra.stripeFee;
+            }
 
             // Handle Return Approval Special Case (Spec §8, §9)
             if (type === 'return' && verdict === 'REFUND') {
@@ -940,29 +966,13 @@ export class ReturnsService {
                     throw new Error(`[ADJUDICATION] Cannot resolve store for case ${caseId}. storeId: ${caseRecord.storeId}`);
                 }
 
-                const part = (order as any).parts?.find(p => p.id === caseRecord.orderPartId) || (order as any).parts?.[0];
-
-                // Generate Platform-standard Unique Waybill Number (Spec v2026.4)
-                const waybillNumber = `RTN-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Date.now().toString().slice(-4)}`;
-
-                // Create a Validated Waybill record (fields match schema.prisma exactly)
-                await (tx as any).shippingWaybill.create({
-                    data: {
-                        waybillNumber,
-                        orderId: order.id,
-                        partId: caseRecord.orderPartId || null,
-                        storeId: store.id,
-                        storeName: store.name,
-                        storeCode: store.storeCode,
-                        recipientName: order.customer?.name || 'Customer',
-                        partName: part?.name || 'Returned Item',
-                        partDescription: `RTN-CASE:${caseId} | Deadline:${handoverDeadline.toISOString()} | Invoice:${caseRecord.invoiceId || 'N/A'}`,
-                        finalPrice: order.totalAmount ?? 0,
-                        currency: order.currency || 'AED',
-                        issuedBy: adminId,
-                    }
+                await this.generateReturnWaybill(tx, {
+                    order,
+                    caseRecord,
+                    store,
+                    adminId,
+                    handoverDeadline
                 });
-                console.log(`[SHIPPING] Generated Return Waybill: ${waybillNumber} for Case ${caseId}`);
             }
 
             const updated = await (tx as any)[type === 'return' ? 'returnRequest' : 'dispute'].update({
@@ -1052,15 +1062,13 @@ export class ReturnsService {
 
         if (!caseRecord) throw new NotFoundException('Case not found');
         
-        if (type === 'dispute') {
-            if (caseRecord.verdictLocked) throw new BadRequestException('Verdict is permanently locked');
+        if (caseRecord.verdictLocked) throw new BadRequestException('Verdict is permanently locked and cannot be edited');
             
-            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-            if (caseRecord.verdictIssuedAt && caseRecord.verdictIssuedAt < oneDayAgo) {
-                // Auto-lock if more than 24h passed
-                await this.prisma.dispute.update({ where: { id: caseId }, data: { verdictLocked: true } });
-                throw new BadRequestException('Verdict edit window (24h) has expired');
-            }
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        if (caseRecord.verdictIssuedAt && caseRecord.verdictIssuedAt < oneDayAgo) {
+            // Auto-lock if more than 24h passed
+            await (model as any).update({ where: { id: caseId }, data: { verdictLocked: true } });
+            throw new BadRequestException('Verdict edit window (24h) has expired');
         }
 
         return this.issueVerdict(adminId, caseId, type, verdict, notes, extra);
@@ -1263,7 +1271,12 @@ export class ReturnsService {
             await this.prisma.$transaction(async (tx) => {
                 await tx.returnRequest.update({
                     where: { id: record.id },
-                    data: { status: 'CLOSED', updatedAt: new Date() }
+                    data: { 
+                        status: 'CLOSED', 
+                        updatedAt: new Date(),
+                        verdictIssuedAt: new Date(),
+                        verdictLocked: true
+                    }
                 });
 
                 // Update Order back to COMPLETED or original state? 
@@ -1292,5 +1305,48 @@ export class ReturnsService {
                 link: `/dashboard/orders`
             });
         }
+    }
+
+    /**
+     * Shared Helper: Generate a Return Waybill
+     */
+    private async generateReturnWaybill(tx: any, params: { order: any, caseRecord: any, store: any, adminId: string | null, handoverDeadline: Date }) {
+        const { order, caseRecord, store, adminId, handoverDeadline } = params;
+        const part = (order as any).parts?.find(p => p.id === caseRecord.orderPartId) || (order as any).parts?.[0];
+
+        // Generate Platform-standard Unique Waybill Number (Spec v2026.4)
+        const waybillNumber = `RTN-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+
+        // Create a Validated Waybill record
+        const waybill = await tx.shippingWaybill.create({
+            data: {
+                waybillNumber,
+                orderId: order.id,
+                partId: caseRecord.orderPartId || null,
+                storeId: store.id,
+                storeName: store.name,
+                storeCode: store.storeCode,
+                recipientName: order.customer?.name || 'Customer',
+                partName: part?.name || 'Returned Item',
+                partDescription: `RTN-CASE:${caseRecord.id} | Deadline:${handoverDeadline.toISOString()} | Invoice:${caseRecord.invoiceId || 'N/A'}`,
+                finalPrice: order.totalAmount ?? 0,
+                currency: order.currency || 'AED',
+                issuedBy: adminId,
+            }
+        });
+
+        // Create a Shipment record for the Return Journey (Spec §12)
+        await tx.shipment.create({
+            data: {
+                orderId: order.id,
+                waybillId: waybill.id,
+                status: 'RETURN_LABEL_ISSUED',
+                carrierName: 'Tashleh Express',
+                trackingNumber: waybillNumber,
+                statusNotes: `Automated Return Label Issued via Warranty Protocol. Handover Deadline: ${handoverDeadline.toLocaleDateString()}`
+            }
+        });
+
+        console.log(`[SHIPPING] Generated Return Waybill & Shipment: ${waybillNumber} for Case ${caseRecord.id}`);
     }
 }

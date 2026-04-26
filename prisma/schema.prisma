@@ -61,6 +61,8 @@ enum OrderStatus {
   REFUNDED
   RESOLVED
   CLOSED
+  WARRANTY_ACTIVE
+  WARRANTY_EXPIRED
 
   @@map("order_status")
 }
@@ -341,6 +343,8 @@ model Order {
   delayedPreparationDeadlineAt DateTime? @map("delayed_prep_deadline_at") @db.Timestamptz
   correctionDeadlineAt         DateTime? @map("correction_deadline_at") @db.Timestamptz
   verificationSubmittedAt      DateTime? @map("verification_submitted_at") @db.Timestamptz
+  warranty_active_at           DateTime? @map("warranty_active_at") @db.Timestamptz
+  warranty_end_at              DateTime? @map("warranty_end_at") @db.Timestamptz
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -585,6 +589,7 @@ model ReturnRequest {
   handoverDeadline DateTime? @map("handover_deadline") @db.Timestamptz
   merchantEvidence Json      @default("[]") @map("merchant_evidence")
   merchantResponseText String? @map("merchant_response_text")
+  merchantDecision String? @map("merchant_decision") // APPROVE | REJECT
 
   // Phase 4 Governance
   verdictNotes String? @map("verdict_notes")
@@ -594,6 +599,8 @@ model ReturnRequest {
   adminName           String?   @map("admin_name")
   adminEmail          String?   @map("admin_email")
   adminSignature      String?   @map("admin_signature") @db.Text
+  verdictIssuedAt     DateTime? @map("verdict_issued_at") @db.Timestamptz
+  verdictLocked       Boolean   @default(false) @map("verdict_locked")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -625,6 +632,7 @@ model Dispute {
   shipmentId       String? @map("shipment_id") @db.Uuid
   merchantEvidence Json    @default("[]") @map("merchant_evidence")
   merchantResponseText String? @map("merchant_response_text")
+  merchantDecision String? @map("merchant_decision") // APPROVE | REJECT
 
   // Phase 4 Governance
   faultParty      String?   @map("fault_party")
@@ -1096,10 +1104,22 @@ enum ShipmentStatus {
   DELIVERY_ATTEMPTED
   // Step 12: Delivered to customer
   DELIVERED_TO_CUSTOMER
-  // Return states
+  // Return & Warranty Journey 2026
+  RETURN_LABEL_ISSUED
+  RETURN_STARTED
+  RECEIVED_FROM_CUSTOMER
+  DELIVERED_TO_VENDOR
+  EXCHANGE_COMPLETED
+  IN_TRANSIT_TO_CUSTOMER
+  RETURN_COMPLETED_TO_CUSTOMER
+  
+  // Legacy/Internal states
   RETURN_TO_SENDER_INITIATED
   RETURNED_TO_SENDER
-  // Customs delay state
+  RETURN_WAYBILL_ISSUED
+  RETURN_RECEIVED
+  EXCHANGE_SHIPPED
+  RETURN_TO_CUSTOMER
   CUSTOMS_DELAY
 
   @@map("shipment_status")

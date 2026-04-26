@@ -46,13 +46,16 @@ export class WaybillsService {
             throw new NotFoundException('Order not found');
         }
 
-        const allowedStatuses = [OrderStatus.VERIFICATION_SUCCESS, OrderStatus.READY_FOR_SHIPPING];
+        const isReturn = order.status === OrderStatus.RETURN_APPROVED;
+        const allowedStatuses = [OrderStatus.VERIFICATION_SUCCESS, OrderStatus.READY_FOR_SHIPPING, OrderStatus.RETURN_APPROVED];
+        
         if (!allowedStatuses.includes(order.status)) {
             throw new BadRequestException(`Order status must be ${allowedStatuses.join(' or ')} to issue waybills.`);
         }
 
         const waybillsList = (order as any).shippingWaybills || [];
-        if (waybillsList.length > 0) {
+        // Only block if NOT a return and waybills already exist
+        if (!isReturn && waybillsList.length > 0) {
             throw new BadRequestException('Waybills have already been issued for this order.');
         }
 
@@ -65,9 +68,16 @@ export class WaybillsService {
         }
 
         const shippingAddr = (order as any).shippingAddresses?.[0] || null;
-        const recipientCity = shippingAddr?.city || (order.customer as any)?.country || '';
-        const recipientCountry = shippingAddr?.country || (order.customer as any)?.country || '';
-        const recipientAddress = shippingAddr?.details || 'Order Address';
+        
+        // Sender/Recipient logic (Swapped for Returns)
+        // Original: Store -> Customer
+        // Return: Customer -> Store
+        
+        const customerName = shippingAddr?.fullName || shippingAddr?.full_name || order.customer.name || 'Customer';
+        const customerPhone = shippingAddr?.phone || order.customer.phone || '';
+        const customerAddress = shippingAddr?.details || 'Order Address';
+        const customerCity = shippingAddr?.city || (order.customer as any)?.country || '';
+        const customerCountry = shippingAddr?.country || (order.customer as any)?.country || '';
 
         // Calculate final total including shipping and commission from invoice if available
         const mainInvoice = (order as any).invoices?.[0];
@@ -84,24 +94,24 @@ export class WaybillsService {
             const finalPrice = invoiceTotal > 0 ? invoiceTotal : fallbackPrice;
 
             const randomSuffix = Math.floor(10000 + Math.random() * 90000);
-            const waybillNumber = `WB-${year}-${randomSuffix}`;
+            const waybillNumber = isReturn ? `RTN-${year}-${randomSuffix}` : `WB-${year}-${randomSuffix}`;
 
             const waybillData = {
                 waybillNumber,
                 orderId: order.id,
                 partId: part.id,
                 storeId: acceptedOffer.store.id,
-                storeName: acceptedOffer.store.name,
-                storeCode: acceptedOffer.store.storeCode || '',
-                recipientName: shippingAddr?.fullName || shippingAddr?.full_name || order.customer.name || 'Customer',
-                recipientPhone: shippingAddr?.phone || order.customer.phone || '',
-                recipientEmail: shippingAddr?.email || order.customer.email,
-                recipientCity,
-                recipientCountry,
-                recipientAddress,
-                customerCode: order.customer.id.substring(0, 8).toUpperCase(),
+                storeName: isReturn ? customerName : acceptedOffer.store.name,
+                storeCode: isReturn ? (order.customer.id.substring(0, 8).toUpperCase()) : (acceptedOffer.store.storeCode || ''),
+                recipientName: isReturn ? acceptedOffer.store.name : customerName,
+                recipientPhone: isReturn ? (acceptedOffer.store as any).phone : customerPhone,
+                recipientEmail: isReturn ? (acceptedOffer.store as any).email : (shippingAddr?.email || order.customer.email),
+                recipientCity: isReturn ? 'Platform Hub' : customerCity,
+                recipientCountry: isReturn ? 'UAE' : customerCountry,
+                recipientAddress: isReturn ? 'Return Center' : customerAddress,
+                customerCode: isReturn ? (acceptedOffer.store.storeCode || 'VNDR') : order.customer.id.substring(0, 8).toUpperCase(),
                 partName: part.name,
-                partDescription: part.description,
+                partDescription: isReturn ? `RETURN: ${part.description}` : part.description,
                 finalPrice,
                 currency: 'AED',
                 issuedBy: adminId
@@ -120,10 +130,14 @@ export class WaybillsService {
                         recipientId: acceptedOffer.store.ownerId,
                         recipientRole: 'MERCHANT',
                         type: 'order_update',
-                        titleAr: 'تم إصدار بوليصة الشحن',
-                        titleEn: 'Shipping Waybill Issued',
-                        messageAr: `قامت الإدارة بإصدار بوليصة لطلبك الموثق #${order.orderNumber}. بانتظار استلام المندوب.`,
-                        messageEn: `Admin issued waybill for your verified order #${order.orderNumber}. Pending courier pickup.`,
+                        titleAr: isReturn ? 'إصدار بوليصة إرجاع 🔄' : 'تم إصدار بوليصة الشحن',
+                        titleEn: isReturn ? 'Return Label Issued 🔄' : 'Shipping Waybill Issued',
+                        messageAr: isReturn 
+                            ? `تم إصدار بوليصة إرجاع للطلب #${order.orderNumber}. يرجى ترقب وصول المرتجع للمستودع.`
+                            : `قامت الإدارة بإصدار بوليصة لطلبك الموثق #${order.orderNumber}. بانتظار استلام المندوب.`,
+                        messageEn: isReturn
+                            ? `Return label issued for order #${order.orderNumber}. Please await the return shipment.`
+                            : `Admin issued waybill for your verified order #${order.orderNumber}. Pending courier pickup.`,
                         link: `/merchant/orders/${order.id}`
                     } as any);
                 }
@@ -138,10 +152,14 @@ export class WaybillsService {
                 recipientId: order.customerId,
                 recipientRole: 'CUSTOMER',
                 type: 'order_update',
-                titleAr: 'تم إصدار بوليصه الشحن بنجاح! 📑',
-                titleEn: 'Shipping Waybill Ready! 📑',
-                messageAr: `خبر سار! تم إصدار بوليصة الشحن لطلبك #${order.orderNumber}. طلبك الآن في مرحلة التجهيز النهائي للتسليم.`,
-                messageEn: `Great news! Your shipping waybill for #${order.orderNumber} is ready. Your order is now in final preparation for delivery.`,
+                titleAr: isReturn ? 'بوليصة الإرجاع جاهزة! 📑' : 'تم إصدار بوليصة الشحن بنجاح! 📑',
+                titleEn: isReturn ? 'Return Label Ready! 📑' : 'Shipping Waybill Ready! 📑',
+                messageAr: isReturn
+                    ? `تم إصدار بوليصة الإرجاع للطلب #${order.orderNumber}. يرجى تسليم القطعة للمندوب عند وصوله.`
+                    : `خبر سار! تم إصدار بوليصة الشحن لطلبك #${order.orderNumber}. طلبك الآن في مرحلة التجهيز النهائي للتسليم.`,
+                messageEn: isReturn
+                    ? `Return label for order #${order.orderNumber} is ready. Please hand over the part to the courier when they arrive.`
+                    : `Great news! Your shipping waybill for #${order.orderNumber} is ready. Your order is now in final preparation for delivery.`,
                 link: `/customer/orders/${order.id}`
             } as any);
         } catch (e) {
