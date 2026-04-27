@@ -1795,7 +1795,10 @@ export class PaymentsService {
             frozenFundsAgg,
             transactions,
             userLiquidityAgg,
-            storeLiquidityAgg
+            storeLiquidityAgg,
+            totalRefundsAgg,
+            gatewayFeesAgg,
+            pendingLiabilitiesAgg
         ] = await Promise.all([
             // 1. Total Sales (from PaymentTransaction where status=SUCCESS)
             this.prisma.paymentTransaction.aggregate({
@@ -1842,20 +1845,39 @@ export class PaymentsService {
             }),
             // 9. Overall Liquidity (User + Store Balances)
             this.prisma.user.aggregate({ _sum: { customerBalance: true } }),
-            this.prisma.store.aggregate({ _sum: { balance: true } })
+            this.prisma.store.aggregate({ _sum: { balance: true } }),
+            // 10. Total Refunds
+            this.prisma.paymentTransaction.aggregate({
+                where: { status: 'REFUNDED', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { refundedAmount: true }
+            }),
+            // 11. Gateway Fees
+            this.prisma.paymentTransaction.aggregate({
+                where: { ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { gatewayFee: true }
+            }),
+            // 12. Pending Liabilities (Loyalty Points)
+            this.prisma.user.aggregate({ _sum: { loyaltyPoints: true } })
         ]);
+
+        const totalCommission = Number(commissionAgg._sum.commission || 0);
+        const totalReferral = Number(referralAgg._sum.amount || 0);
+        const totalGatewayFees = Number(gatewayFeesAgg?._sum?.gatewayFee || 0);
 
         return {
             kpis: {
                 totalSales: Number(totalSalesAgg._sum.totalAmount || 0),
-                netCommission: Number(commissionAgg._sum.commission || 0),
+                netCommission: totalCommission - (totalReferral + totalGatewayFees),
                 shippingProfit: Number(shippingAgg._sum.shippingCost || 0),
-                referralEarnings: Number(referralAgg._sum.amount || 0),
+                referralEarnings: totalReferral,
                 referralCount: referralCount,
                 pendingWithdrawals: Number(pendingWithdrawalsAgg._sum.amount || 0),
                 pendingWithdrawalsCount: pendingWithdrawalsAgg._count.id,
                 frozenFunds: Number(frozenFundsAgg._sum.merchantAmount || 0),
                 overallLiquidity: Number(userLiquidityAgg?._sum?.customerBalance || 0) + Number(storeLiquidityAgg?._sum?.balance || 0),
+                totalRefunds: Number(totalRefundsAgg?._sum?.refundedAmount || 0),
+                gatewayFees: totalGatewayFees,
+                pendingLiabilities: Number(pendingLiabilitiesAgg?._sum?.loyaltyPoints || 0),
                 todayTransactionsCount: transactions.filter(t => new Date(t.createdAt).toDateString() === new Date().toDateString()).length
             },
             transactions: (transactions as any[]).map(t => ({

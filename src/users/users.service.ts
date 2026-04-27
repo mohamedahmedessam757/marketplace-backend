@@ -326,6 +326,43 @@ export class UsersService {
     });
   }
 
+  async adminSearchEntities(query: string) {
+    if (!query || query.length < 2) return [];
+    
+    const users = await this.prisma.user.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+          { id: { equals: query } }
+        ]
+      },
+      take: 5,
+      select: { id: true, name: true, role: true }
+    });
+
+    const stores = await this.prisma.store.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { storeCode: { contains: query, mode: 'insensitive' } },
+          { id: { equals: query } },
+          { ownerId: { equals: query } }
+        ]
+      },
+      take: 5,
+      select: { id: true, name: true, owner: { select: { id: true } } }
+    });
+
+    const results = [
+      ...users.map(u => ({ id: u.id, name: u.name, type: u.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER' })),
+      ...stores.map(s => ({ id: s.owner?.id || s.id, name: s.name, type: 'STORE' }))
+    ];
+
+    // Remove duplicates by ID
+    return results.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+  }
+
   async adminFindCustomerById(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },

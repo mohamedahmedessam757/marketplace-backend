@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards, Request, Post, Body, Patch, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Request, Post, Body, Patch, ForbiddenException, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -22,6 +22,13 @@ export class UsersController {
   @Get('admin/customers')
   async getAllCustomers() {
     return this.usersService.adminFindAllCustomers();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('admin/search')
+  async searchEntities(@Query('q') query: string) {
+    return this.usersService.adminSearchEntities(query);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
