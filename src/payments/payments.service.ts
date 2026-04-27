@@ -1785,6 +1785,27 @@ export class PaymentsService {
         }
         const hasDateFilter = Object.keys(dateFilter).length > 0;
 
+        const transactionsWhere: Prisma.WalletTransactionWhereInput = {
+            ...(hasDateFilter ? { createdAt: dateFilter } : {})
+        };
+
+        if (filters?.type && filters.type !== 'ALL') {
+            transactionsWhere.type = filters.type;
+        }
+
+        if (filters?.role && filters.role !== 'ALL') {
+            transactionsWhere.role = filters.role;
+        }
+
+        if (filters?.search) {
+            const search = filters.search;
+            transactionsWhere.OR = [
+                { description: { contains: search, mode: 'insensitive' } },
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { transactionType: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+
         const [
             totalSalesAgg,
             commissionAgg,
@@ -1837,7 +1858,7 @@ export class PaymentsService {
             }),
             // 8. Transactions Feed
             this.prisma.walletTransaction.findMany({
-                where: { ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                where: transactionsWhere,
                 include: { user: { select: { name: true, role: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: filters?.limit ? Number(filters.limit) : 100,
@@ -1870,13 +1891,13 @@ export class PaymentsService {
             LIMIT 5
         `;
 
-        // 14. Top Earners (Stores/Merchants by commissions earned)
+        // 14. Top Earners (Stores/Merchants by revenue earned)
         const topEarnersRaw = await this.prisma.$queryRaw`
-            SELECT o."store_id" as "storeId", SUM(pt."total_amount") as "totalAmount"
+            SELECT off."store_id" as "storeId", SUM(pt."unit_price") as "totalAmount"
             FROM "payment_transactions" pt
-            JOIN "orders" o ON pt."order_id" = o."id"
-            WHERE pt."status" = 'SUCCESS' AND o."store_id" IS NOT NULL
-            GROUP BY o."store_id"
+            JOIN "offers" off ON pt."offer_id" = off."id"
+            WHERE pt."status" = 'SUCCESS' AND off."store_id" IS NOT NULL
+            GROUP BY off."store_id"
             ORDER BY "totalAmount" DESC
             LIMIT 5
         `;
@@ -1885,26 +1906,50 @@ export class PaymentsService {
         const totalReferral = Number(referralAgg._sum.amount || 0);
         const totalGatewayFees = Number(gatewayFeesAgg?._sum?.gatewayFee || 0);
 
-        // Resolve top spender names
+        // Resolve top spender names & stats
         const spenderIds = (topSpendersRaw as any[]).map((s: any) => s.customerId).filter(Boolean);
         const spenderUsers = await this.prisma.user.findMany({
             where: { id: { in: spenderIds } },
-            select: { id: true, name: true, avatar: true }
+            select: { 
+                id: true, 
+                name: true, 
+                avatar: true,
+                _count: { select: { orders: true } }
+            }
         });
         const topSpenders = (topSpendersRaw as any[]).map((s: any) => {
             const user = spenderUsers.find(u => u.id === s.customerId);
-            return { id: s.customerId, name: user?.name || 'Unknown', avatar: user?.avatar || null, totalSpent: Number(s.totalAmount || 0) };
+            return { 
+                id: s.customerId, 
+                name: user?.name || 'Unknown', 
+                avatar: user?.avatar || null, 
+                totalSpent: Number(s.totalAmount || 0),
+                ordersCount: user?._count?.orders || 0
+            };
         });
 
-        // Resolve top earner store names
+        // Resolve top earner store names & stats
         const storeIds = (topEarnersRaw as any[]).map((e: any) => e.storeId).filter(Boolean);
         const earnerStores = await this.prisma.store.findMany({
             where: { id: { in: storeIds } },
-            select: { id: true, name: true }
+            select: { 
+                id: true, 
+                name: true, 
+                logo: true, 
+                rating: true,
+                _count: { select: { orders: true } }
+            }
         });
         const topEarners = (topEarnersRaw as any[]).map((e: any) => {
             const store = earnerStores.find(s => s.id === e.storeId);
-            return { id: e.storeId, name: store?.name || 'Unknown Store', totalEarned: Number(e.totalAmount || 0) };
+            return { 
+                id: e.storeId, 
+                name: store?.name || 'Unknown Store', 
+                logo: store?.logo || null,
+                rating: store?.rating || 0,
+                totalEarned: Number(e.totalAmount || 0),
+                ordersCount: store?._count?.orders || 0
+            };
         });
 
         return {

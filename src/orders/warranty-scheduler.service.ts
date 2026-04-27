@@ -24,17 +24,18 @@ export class WarrantySchedulerService {
         const now = new Date();
 
         // 1. Find orders in WARRANTY_ACTIVE that have passed their end date
-        const expiredOrders = await (this.prisma.order.findMany({
+        const expiredOrders = await this.prisma.order.findMany({
             where: {
                 status: OrderStatus.WARRANTY_ACTIVE,
                 warranty_end_at: {
                     lt: now,
                 },
-            } as any,
+            },
             include: {
                 customer: { select: { id: true, name: true } },
+                store: { select: { id: true, ownerId: true } },
             },
-        }) as any);
+        });
 
         if (expiredOrders.length === 0) {
             this.logger.log('No expired warranties found.');
@@ -65,6 +66,20 @@ export class WarrantySchedulerService {
                     type: 'ORDER_UPDATE',
                     link: `/dashboard/orders/${order.id}`,
                 });
+
+                // 4. Notify Merchant
+                if (order.store?.ownerId) {
+                    await this.notifications.create({
+                        recipientId: order.store.ownerId,
+                        recipientRole: 'MERCHANT',
+                        titleAr: `انقضاء ضمان الطلب #${order.orderNumber}`,
+                        titleEn: `Warranty Expired for #${order.orderNumber}`,
+                        messageAr: 'انتهت فترة ضمان القطعة بنجاح دون أي مطالبات.',
+                        messageEn: 'The warranty period has successfully ended without any claims.',
+                        type: 'ORDER_UPDATE',
+                        link: `/merchant/orders/${order.id}`,
+                    });
+                }
 
                 this.logger.log(`Order #${order.orderNumber} transitioned to WARRANTY_EXPIRED.`);
             } catch (error) {

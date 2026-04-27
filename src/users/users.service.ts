@@ -329,37 +329,78 @@ export class UsersService {
   async adminSearchEntities(query: string) {
     if (!query || query.length < 2) return [];
     
+    // Precise UUID check for conditional ID fetching
+    const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(query);
+
+    // 1. Fetch users by text fields
     const users = await this.prisma.user.findMany({
       where: {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { email: { contains: query, mode: 'insensitive' } },
-          { id: { equals: query } }
         ]
       },
       take: 5,
-      select: { id: true, name: true, role: true }
+      select: { 
+        id: true, 
+        name: true, 
+        email: true, 
+        phone: true, 
+        role: true 
+      }
     });
 
+    // 2. If it's a UUID, fetch direct user match separately to avoid Prisma type conflicts
+    if (isUuid) {
+      const directUser = await this.prisma.user.findUnique({
+        where: { id: query },
+        select: { id: true, name: true, email: true, phone: true, role: true }
+      });
+      if (directUser) users.push(directUser);
+    }
+
+    // 3. Fetch stores by text fields
     const stores = await this.prisma.store.findMany({
       where: {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { storeCode: { contains: query, mode: 'insensitive' } },
-          { id: { equals: query } },
-          { ownerId: { equals: query } }
         ]
       },
       take: 5,
-      select: { id: true, name: true, owner: { select: { id: true } } }
+      select: { 
+        id: true, 
+        name: true, 
+        storeCode: true,
+        owner: { 
+          select: { 
+            id: true,
+            email: true,
+            phone: true
+          } 
+        } 
+      }
     });
 
     const results = [
-      ...users.map(u => ({ id: u.id, name: u.name, type: u.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER' })),
-      ...stores.map(s => ({ id: s.owner?.id || s.id, name: s.name, type: 'STORE' }))
+      ...users.map(u => ({ 
+        id: u.id, 
+        name: u.name || u.email.split('@')[0], 
+        email: u.email,
+        phone: u.phone,
+        type: u.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER' 
+      })),
+      ...stores.map(s => ({ 
+        id: s.owner?.id || s.id, 
+        name: s.name, 
+        email: s.owner?.email,
+        phone: s.owner?.phone,
+        type: 'MERCHANT',
+        storeCode: s.storeCode
+      }))
     ];
 
-    // Remove duplicates by ID
+    // Deduplicate by ID
     return results.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
   }
 

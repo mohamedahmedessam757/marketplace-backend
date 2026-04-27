@@ -299,19 +299,30 @@ export class OrdersService {
 
         // 2. Transaction: Update Status + Audit Log
         const result = await this.prisma.$transaction(async (tx) => {
+            // New 2026 Logic: Check all accepted offers for warranty (Multi-part support)
+            const acceptedOffers = order.offers?.filter(o => ['accepted', 'ACCEPTED'].includes(o.status)) || [];
+            const hasAnyWarranty = acceptedOffers.some(o => o.hasWarranty && o.warrantyDuration && o.warrantyDuration !== 'no');
+            
+            let finalWarrantyEnd: Date | undefined = undefined;
+            if (newStatus === OrderStatus.COMPLETED && hasAnyWarranty) {
+                const durations = acceptedOffers
+                    .filter(o => o.hasWarranty && o.warrantyDuration && o.warrantyDuration !== 'no')
+                    .map(o => this.calculateWarrantyEndDate(new Date(), o.warrantyDuration));
+                
+                if (durations.length > 0) {
+                    finalWarrantyEnd = new Date(Math.max(...durations.map(d => d.getTime())));
+                }
+            }
+
+            const isTransitioningToWarranty = newStatus === OrderStatus.COMPLETED && hasAnyWarranty;
+
             const updatedOrder = await tx.order.update({
                 where: { id: orderId },
                 data: {
-                    status: newStatus === OrderStatus.COMPLETED && order.acceptedOffer?.warrantyDuration && order.acceptedOffer.warrantyDuration !== 'no' 
-                        ? OrderStatus.WARRANTY_ACTIVE 
-                        : newStatus,
+                    status: isTransitioningToWarranty ? OrderStatus.WARRANTY_ACTIVE : newStatus,
                     updatedAt: new Date(),
-                    warranty_active_at: newStatus === OrderStatus.COMPLETED && order.acceptedOffer?.warrantyDuration && order.acceptedOffer.warrantyDuration !== 'no' 
-                        ? new Date() 
-                        : undefined,
-                    warranty_end_at: newStatus === OrderStatus.COMPLETED && order.acceptedOffer?.warrantyDuration && order.acceptedOffer.warrantyDuration !== 'no'
-                        ? this.calculateWarrantyEndDate(new Date(), order.acceptedOffer.warrantyDuration)
-                        : undefined,
+                    warranty_active_at: isTransitioningToWarranty ? new Date() : undefined,
+                    warranty_end_at: isTransitioningToWarranty ? finalWarrantyEnd : undefined,
                 },
             });
 
