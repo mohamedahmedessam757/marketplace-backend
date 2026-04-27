@@ -3,7 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { UpdateShipmentStatusDto } from './dto/update-shipment-status.dto';
-import { ShipmentStatus } from '@prisma/client';
+import { ShipmentStatus, ActorType } from '@prisma/client';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { UsersService } from '../users/users.service';
 
 // Premium Bilingual status labels for notifications (Enthusiastic & Clear)
 const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
@@ -43,7 +45,9 @@ const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
 export class ShipmentsService {
     constructor(
         private prisma: PrismaService,
-        private notifications: NotificationsService
+        private notifications: NotificationsService,
+        private auditLogs: AuditLogsService,
+        private users: UsersService
     ) {}
 
     async create(data: CreateShipmentDto, userId: string) {
@@ -78,6 +82,19 @@ export class ShipmentsService {
                 source: 'MANUAL',
                 notes: 'Shipment created by merchant request'
             }
+        });
+
+        // 2026 Audit Trail: Log to global audit system
+        const actor = await this.users.findById(userId);
+        await this.auditLogs.logAction({
+            action: 'CREATE',
+            entity: 'SHIPMENT',
+            actorType: (actor?.role as any) || 'SYSTEM',
+            actorId: userId,
+            actorName: actor?.name || 'System',
+            newState: JSON.stringify({ status: 'RECEIVED_AT_HUB', orderId: data.orderId }),
+            reason: 'Shipment initialization at hub',
+            metadata: { orderId: data.orderId, trackingNumber: data.trackingNumber }
         });
 
         return shipment;
@@ -123,6 +140,24 @@ export class ShipmentsService {
                 changedBy: userId,
                 notes: data.notes,
                 source: 'MANUAL'
+            }
+        });
+
+        // 2026 Audit Trail: Log status transition to global audit system
+        const actor = await this.users.findById(userId);
+        await this.auditLogs.logAction({
+            action: 'STATUS_CHANGE',
+            entity: 'SHIPMENT',
+            actorType: (actor?.role as any) || 'SYSTEM',
+            actorId: userId,
+            actorName: actor?.name || 'System',
+            previousState: oldStatus,
+            newState: newStatus,
+            reason: data.notes || `Shipment moved to ${newStatus}`,
+            metadata: { 
+                shipmentId: id, 
+                orderId: shipment.orderId,
+                trackingNumber: shipment.trackingNumber 
             }
         });
 

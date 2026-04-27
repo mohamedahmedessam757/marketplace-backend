@@ -242,4 +242,13 @@ export class ReturnsController {
     async getCustomerRiskStats(@Param('customerId') customerId: string) {
         return this.returnsService.getCustomerRiskStats(customerId);
     }
+
+    @Post('pay-shipping-wallet')
+    @UseGuards(JwtAuthGuard)
+    async payShippingWallet(@Request() req, @Body() body: { caseId: string; caseType: 'return' | 'dispute' }) {
+        if (!body.caseId || !body.caseType) {
+            throw new BadRequestException('Case ID and Case Type are required');
+        }
+        return this.returnsService.deductShippingFromBalance(req.user.id, body.caseId, body.caseType);
+    }
 }

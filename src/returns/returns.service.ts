@@ -940,11 +940,34 @@ export class ReturnsService {
                 updateData.adminEmail = extra.adminEmail;
                 updateData.adminSignature = extra.adminSignature;
                 
-                // Extended fields for financial breakdown
+                // Extended fields for financial breakdown (Refined 2026 Logic)
                 updateData.faultParty = extra.faultParty;
-                updateData.refundAmount = extra.refundAmount;
+                
+                // 2026 Financial Automation: If refundAmount is not provided, default to full product cost
+                let finalRefundAmount = Number(extra.refundAmount || 0);
+                if (verdict === 'REFUND' && finalRefundAmount <= 0) {
+                    finalRefundAmount = Number(caseRecord.offer?.unitPrice || caseRecord.order?.acceptedOffer?.unitPrice || 0);
+                }
+                updateData.refundAmount = finalRefundAmount;
+
                 updateData.shippingRefund = extra.shippingRefund;
-                updateData.stripeFee = extra.stripeFee;
+                updateData.stripeFee = extra.stripeFee || 0;
+
+                // Phase 1: Shipping Payment Tracking Obligation
+                if (extra.faultParty) {
+                    // Normalize fault party for systematic processing (2026 Resilient Mapper)
+                    const faultLower = String(extra.faultParty || '').toUpperCase();
+                    const isMerchantFault = ['STORE', 'MERCHANT', 'VENDOR'].includes(faultLower);
+                    const payee = isMerchantFault ? 'MERCHANT' : 'CUSTOMER';
+                    updateData.shippingPayee = payee;
+                    
+                    // If there is a shipping cost, set status to PENDING until paid by the faulty party
+                    if (Number(extra.shippingRefund || 0) > 0) {
+                        updateData.shippingPaymentStatus = 'PENDING';
+                    } else {
+                        updateData.shippingPaymentStatus = 'PAID';
+                    }
+                }
             }
 
             // Handle Return Approval Special Case (Spec §8, §9)
@@ -1037,17 +1060,45 @@ export class ReturnsService {
 
         // 2026 High-Performance Execution: Fire-and-forget notifications to avoid blocking admin UI
         // We do NOT await this loop so the HTTP response returns immediately after DB success
+        // 2026 High-Performance Execution: Fire-and-forget notifications to avoid blocking admin UI
         recipientList.forEach(recipient => {
+            const faultLower = String(extra.faultParty || '').toUpperCase();
+            const isMerchantFault = ['STORE', 'MERCHANT', 'VENDOR'].includes(faultLower);
+            
+            const isPayee = isMerchantFault ? recipient.role === 'MERCHANT' : recipient.role === 'CUSTOMER';
+            const shippingCost = Number(extra.shippingRefund || 0);
+            
+            let finalMessageAr = `تم إغلاق النزاع للطلب #${caseRecord.order?.orderNumber} بقرار: ${vTextAr}. الملاحظات: ${notes}`;
+            let finalMessageEn = `Case for Order #${caseRecord.order?.orderNumber} closed with verdict: ${vTextEn}. Notes: ${notes}`;
+
+            if (shippingCost > 0) {
+                const faultTextAr = isMerchantFault ? 'التاجر' : 'العميل';
+                const faultTextEn = isMerchantFault ? 'Merchant' : 'Customer';
+                
+                finalMessageAr += `\n\n⚠️ تم تحديد ${faultTextAr} كطرف مسؤول عن تكاليف الشحن بقيمة ${shippingCost} AED.`;
+                finalMessageEn += `\n\n⚠️ ${faultTextEn} has been identified as responsible for shipping costs of AED ${shippingCost}.`;
+
+                if (isPayee) {
+                    if (recipient.role === 'MERCHANT') {
+                        finalMessageAr += `\n\n⛔ تحذير: في حال عدم السداد، ستظل مستحقاتك مجمدة في الموقع وقد يتعرض حسابك للإغلاق. يرجى التوجه لتفاصيل الطلب للسداد.`;
+                        finalMessageEn += `\n\n⛔ Warning: If unpaid, your funds will remain frozen and your account may be subject to closure. Please go to Order Details to pay.`;
+                    } else {
+                        finalMessageAr += `\n\n⛔ تحذير: يرجى سداد تكاليف الشحن لتجنب إغلاق حسابك أو التعرض لغرامات. يرجى التوجه لتفاصيل الطلب للسداد.`;
+                        finalMessageEn += `\n\n⛔ Warning: Please pay shipping costs to avoid account closure or fines. Please go to Order Details to pay.`;
+                    }
+                }
+            }
+
             this.notificationsService.create({
                 recipientId: recipient.id,
                 recipientRole: recipient.role,
                 titleAr: 'تم إصدار الحكم النهائي في النزاع',
                 titleEn: 'Final Verdict Issued on Case',
-                messageAr: `تم إغلاق النزاع للطلب #${caseRecord.order?.orderNumber} بقرار: ${vTextAr}. الملاحظات: ${notes}`,
-                messageEn: `Case for Order #${caseRecord.order?.orderNumber} closed with verdict: ${vTextEn}. Notes: ${notes}`,
+                messageAr: finalMessageAr,
+                messageEn: finalMessageEn,
                 type: 'DISPUTE',
-                link: 'dispute-details',
-                metadata: { caseId: caseId }
+                link: recipient.role === 'MERCHANT' ? `orders/${caseRecord.orderId}` : `order-details/${caseRecord.orderId}`,
+                metadata: { caseId: caseId, isPayee, shippingCost }
             }).catch(err => {
                 console.error(`[ASYNC_NOTIFICATION_FAILURE] Failed to notify ${recipient.role} ${recipient.id}: ${err.message}`);
             });
@@ -1310,6 +1361,8 @@ export class ReturnsService {
         }
     }
 
+
+
     /**
      * Shared Helper: Generate a Return Waybill
      */
@@ -1446,5 +1499,133 @@ export class ReturnsService {
         }
 
         console.log(`[SHIPPING] Generated Return Waybill & Shipment: ${waybillNumber} for Case ${caseRecord.id}`);
+    }
+
+    /**
+     * 2026 Financial Automation: Deduct shipping cost from wallet balance
+     * Triggers logistics state transition and real-time notifications
+     */
+    async deductShippingFromBalance(userId: string, caseId: string, caseType: 'return' | 'dispute') {
+        const modelName = caseType === 'return' ? 'returnRequest' : 'dispute';
+        
+        return await this.prisma.$transaction(async (tx) => {
+            // 1. Fetch Case and Verify Role
+            const caseRecord = await (tx as any)[modelName].findUnique({
+                where: { id: caseId },
+                include: { store: true, order: { include: { customer: true } } }
+            });
+
+            if (!caseRecord) throw new NotFoundException('Case not found');
+            if (caseRecord.shippingPaymentStatus === 'PAID') throw new BadRequestException('Shipping already paid');
+            
+            const amount = Number(caseRecord.shippingRefund);
+            if (amount <= 0) throw new BadRequestException('Invalid shipping amount');
+
+            // 2. Role-specific Balance Check & Deduction
+            let balanceAfter = 0;
+            if (caseRecord.shippingPayee === 'MERCHANT') {
+                const store = await tx.store.findUnique({ where: { id: caseRecord.storeId } });
+                if (!store) throw new NotFoundException('Store not found');
+                if (store.ownerId !== userId) throw new BadRequestException('Unauthorized payment');
+                
+                if (Number(store.balance) < amount) {
+                    throw new BadRequestException('Insufficient store balance');
+                }
+
+                await tx.store.update({
+                    where: { id: store.id },
+                    data: { balance: { decrement: amount } }
+                });
+                balanceAfter = Number(store.balance) - amount;
+            } else {
+                const user = await tx.user.findUnique({ where: { id: caseRecord.customerId } });
+                if (!user) throw new NotFoundException('User not found');
+                if (user.id !== userId) throw new BadRequestException('Unauthorized payment');
+
+                if (Number(user.customerBalance) < amount) {
+                    throw new BadRequestException('Insufficient rewards balance');
+                }
+
+                await tx.user.update({
+                    where: { id: user.id },
+                    data: { customerBalance: { decrement: amount } }
+                });
+                balanceAfter = Number(user.customerBalance) - amount;
+            }
+
+            // 3. Create Wallet Transaction Log
+            await tx.walletTransaction.create({
+                data: {
+                    userId,
+                    role: caseRecord.shippingPayee === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+                    type: 'DEBIT',
+                    transactionType: 'SHIPPING_FEE',
+                    amount: amount,
+                    currency: 'AED',
+                    description: `Shipping cost for ${caseType} #${caseRecord.orderId} (Wallet Deduction)`,
+                    balanceAfter
+                }
+            });
+
+            // 4. Update Case Status
+            const updatedCase = await (tx as any)[modelName].update({
+                where: { id: caseId },
+                data: {
+                    shippingPaymentStatus: 'PAID',
+                    shippingPaymentMethod: 'WALLET',
+                    updatedAt: new Date()
+                }
+            });
+
+            // 5. Transition Shipment Status to RETURN_STARTED (بدء الارجاع)
+            const shipment = await tx.shipment.findFirst({
+                where: { orderId: caseRecord.orderId },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            if (shipment) {
+                await tx.shipment.update({
+                    where: { id: shipment.id },
+                    data: { status: 'RETURN_STARTED' as any }
+                });
+
+                await tx.shipmentStatusLog.create({
+                    data: {
+                        shipmentId: shipment.id,
+                        fromStatus: shipment.status,
+                        toStatus: 'RETURN_STARTED' as any,
+                        notes: 'بدء الارجاع - تم خصم تكلفة الشحن من المحفظة',
+                        source: 'API'
+                    }
+                });
+            }
+
+            // 6. Notify All Parties
+            const titleAr = 'تم سداد تكلفة الشحن بنجاح! 💰';
+            const titleEn = 'Shipping Paid Successfully! 💰';
+            const messageAr = `تم خصم ${amount} AED من محفظتك للطلب #${caseRecord.orderId}. عملية الإرجاع جارية الآن.`;
+            const messageEn = `AED ${amount} deducted from your wallet for Order #${caseRecord.orderId}. Return process started.`;
+
+            await this.notificationsService.create({
+                recipientId: caseRecord.order.customer.id,
+                recipientRole: 'CUSTOMER',
+                type: 'ORDER',
+                titleAr, titleEn, messageAr, messageEn,
+                link: `order-details/${caseRecord.orderId}`,
+                metadata: { caseId, caseType }
+            });
+
+            const storeOwnerId = (await tx.store.findUnique({ where: { id: caseRecord.storeId }, select: { ownerId: true } })).ownerId;
+            await this.notificationsService.create({
+                recipientId: storeOwnerId,
+                recipientRole: 'VENDOR',
+                type: 'ORDER',
+                titleAr, titleEn, messageAr, messageEn,
+                link: `orders/${caseRecord.orderId}`,
+                metadata: { caseId, caseType }
+            });
+
+            return updatedCase;
+        });
     }
 }

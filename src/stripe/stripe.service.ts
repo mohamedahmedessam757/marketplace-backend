@@ -95,6 +95,45 @@ export class StripeService {
     }
 
     /**
+     * Creates a Stripe Checkout Session for one-time payment (e.g. shipping).
+     * 2026 Best Practice: Using hosted checkout for maximum 3DS and SCA compliance.
+     */
+    async createCheckoutSession(params: {
+        amount: string;
+        currency: string;
+        successUrl: string;
+        cancelUrl: string;
+        metadata: any;
+        customerEmail?: string;
+    }): Promise<any> {
+        const amountCents = Math.round(parseFloat(params.amount) * 100);
+
+        return await this.stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: params.currency,
+                    product_data: {
+                        name: `Shipping Payment - Order #${params.metadata.orderNumber || 'N/A'}`,
+                        description: `Shipping cost for ${params.metadata.caseType} #${params.metadata.caseId}`,
+                    },
+                    unit_amount: amountCents,
+                },
+                quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: params.successUrl,
+            cancel_url: params.cancelUrl,
+            metadata: params.metadata,
+            customer_email: params.customerEmail,
+            payment_intent_data: {
+                transfer_group: params.metadata.orderId,
+                metadata: params.metadata,
+            }
+        });
+    }
+
+    /**
      * Creates a destination transfer, releasing funds from Platform to Merchant.
      */
     async createTransfer(amountStr: string, currency: string, connectedAccountId: string, transferGroup: string, metadata: any): Promise<any> {

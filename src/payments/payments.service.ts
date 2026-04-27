@@ -4,7 +4,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StripeService } from '../stripe/stripe.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { CreateIntentDto } from './dto/create-intent.dto';
-import { Prisma } from '@prisma/client';
+import { AdminManualPayoutDto, PayoutMethod } from './dto/admin-payout.dto';
+import { Prisma, ActorType } from '@prisma/client';
 
 import { EscrowService } from './escrow.service';
 
@@ -388,6 +389,132 @@ export class PaymentsService {
     }
 
     /**
+     * Phase 2: Create a Stripe PaymentIntent for RETURN/DISPUTE shipping costs.
+     */
+    async createShippingPaymentIntent(userId: string, caseId: string, caseType: 'return' | 'dispute') {
+        const model = caseType === 'return' ? this.prisma.returnRequest : this.prisma.dispute;
+        
+        const caseRecord = await (model as any).findUnique({
+            where: { id: caseId },
+            include: { 
+                store: true,
+                order: true 
+            }
+        });
+
+        if (!caseRecord) throw new NotFoundException('Case not found');
+        
+        // Validation: Is this user the one obligated to pay?
+        const isMerchant = caseRecord.shippingPayee === 'MERCHANT';
+        const isCustomer = caseRecord.shippingPayee === 'CUSTOMER';
+        
+        if (isMerchant) {
+            const store = await this.prisma.store.findUnique({ where: { ownerId: userId } });
+            if (!store || store.id !== caseRecord.storeId) {
+                throw new ForbiddenException('You are not the merchant assigned to this shipping payment');
+            }
+        } else if (isCustomer) {
+            if (caseRecord.customerId !== userId) {
+                throw new ForbiddenException('You are not the customer assigned to this shipping payment');
+            }
+        } else {
+            throw new BadRequestException('No shipping payee assigned to this case');
+        }
+
+        const shippingAmount = Number(caseRecord.shippingRefund || 0);
+        if (shippingAmount <= 0) throw new BadRequestException('No shipping cost to pay');
+        
+        if (caseRecord.shippingPaymentStatus === 'PAID') {
+            throw new BadRequestException('Shipping already paid');
+        }
+
+        // Create Stripe Intent
+        const intent = await this.stripeService.createPaymentIntent(
+            shippingAmount.toString(),
+            'AED',
+            {
+                caseId,
+                caseType,
+                isShippingPayment: 'true',
+                orderId: caseRecord.orderId,
+                orderNumber: caseRecord.order?.orderNumber
+            }
+        );
+
+        // Record intent ID in the case record
+        await (model as any).update({
+            where: { id: caseId },
+            data: { shippingStripeId: intent.id }
+        });
+
+        return {
+            clientSecret: intent.client_secret,
+            paymentIntentId: intent.id,
+            amount: shippingAmount,
+            currency: 'AED'
+        };
+    }
+    async createShippingCheckoutSession(userId: string, caseId: string, caseType: 'return' | 'dispute', frontendUrl?: string) {
+        const model = caseType === 'return' ? this.prisma.returnRequest : this.prisma.dispute;
+        
+        const caseRecord = await (model as any).findUnique({
+            where: { id: caseId },
+            include: { 
+                customer: true,
+                order: true 
+            }
+        });
+
+        if (!caseRecord) throw new NotFoundException('Case not found');
+        
+        // Validation
+        const isMerchant = caseRecord.shippingPayee === 'MERCHANT';
+        const isCustomer = caseRecord.shippingPayee === 'CUSTOMER';
+        
+        if (isMerchant) {
+            const store = await this.prisma.store.findUnique({ where: { ownerId: userId } });
+            if (!store || store.id !== caseRecord.storeId) {
+                throw new ForbiddenException('You are not the merchant assigned to this shipping payment');
+            }
+        } else if (isCustomer) {
+            if (caseRecord.customerId !== userId) {
+                throw new ForbiddenException('You are not the customer assigned to this shipping payment');
+            }
+        }
+
+        const shippingAmount = Number(caseRecord.shippingRefund || 0);
+        if (shippingAmount <= 0) throw new BadRequestException('No shipping cost to pay');
+
+        // Success and Cancel URLs (Dynamic based on frontend request)
+        const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
+        const successUrl = `${baseUrl}/dashboard/resolution?payment=success&caseId=${caseId}&caseType=${caseType}`;
+        const cancelUrl = `${baseUrl}/dashboard/resolution?payment=cancel&caseId=${caseId}&caseType=${caseType}`;
+
+        const session = await this.stripeService.createCheckoutSession({
+            amount: shippingAmount.toString(),
+            currency: 'AED',
+            successUrl,
+            cancelUrl,
+            customerEmail: caseRecord.customer?.email,
+            metadata: {
+                caseId,
+                caseType,
+                isShippingPayment: 'true',
+                orderId: caseRecord.orderId,
+                orderNumber: caseRecord.order?.orderNumber
+            }
+        });
+
+        // Record session ID in the case record for tracking
+        await (model as any).update({
+            where: { id: caseId },
+            data: { shippingStripeId: session.id }
+        });
+
+        return { url: session.url };
+    }
+
+    /**
      * Phase 2: Webhook Fulfillment
      * Finalizes the payment, credits wallets, generates invoices, and holds funds in escrow.
      * Triggered by Stripe Webhook (payment_intent.succeeded)
@@ -405,6 +532,12 @@ export class PaymentsService {
         });
 
         if (!payment) {
+            // Check if it's a shipping payment intent (these aren't in paymentTransaction table)
+            const intent = await this.stripeService.getStripeClient().paymentIntents.retrieve(paymentIntentId);
+            if (intent.metadata?.isShippingPayment === 'true') {
+                return await this.fulfillShippingPayment(intent);
+            }
+
             this.logger.warn(`Stripe payment fulfillment failed: Record not found for intent ${paymentIntentId}`);
             return;
         }
@@ -537,6 +670,118 @@ export class PaymentsService {
                 link: 'checkout',
                 metadata: { orderId: payment.orderId, offerId: payment.offerId, amount: payment.totalAmount },
             });
+        });
+    }
+
+    /**
+     * Phase 2: Fulfill Shipping Payment (Return/Dispute)
+     */
+    private async fulfillShippingPayment(intent: any) {
+        const { caseId, caseType } = intent.metadata;
+        const modelName = caseType === 'return' ? 'returnRequest' : 'dispute';
+
+        this.logger.log(`Fulfilling shipping payment for ${caseType} ${caseId}`);
+
+        return await this.prisma.$transaction(async (tx) => {
+            // 1. Update the case status
+            const updatedCase = await (tx as any)[modelName].update({
+                where: { id: caseId },
+                data: {
+                    shippingPaymentStatus: 'PAID',
+                    shippingPaymentMethod: 'STRIPE',
+                    updatedAt: new Date()
+                }
+            });
+
+            // 2. Create financial log (WalletTransaction for transparency)
+            // Even if paid via Stripe, we log it.
+            const payeeId = updatedCase.shippingPayee === 'MERCHANT' ? 
+                           (await tx.store.findUnique({ where: { id: updatedCase.storeId }, select: { ownerId: true } })).ownerId :
+                           updatedCase.customerId;
+
+            await tx.walletTransaction.create({
+                data: {
+                    userId: payeeId,
+                    role: updatedCase.shippingPayee === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+                    type: 'DEBIT',
+                    transactionType: 'SHIPPING_FEE',
+                    amount: Number(updatedCase.shippingRefund),
+                    currency: 'AED',
+                    description: `Shipping cost for ${caseType} #${updatedCase.orderId} (Paid via Stripe)`,
+                    balanceAfter: 0 // Stripe payment doesn't affect wallet balance directly
+                }
+            });
+
+            // 3. Transition Shipment Status to RETURN_STARTED (بدء الارجاع)
+            const shipment = await tx.shipment.findFirst({
+                where: { orderId: updatedCase.orderId },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            if (shipment) {
+                await tx.shipment.update({
+                    where: { id: shipment.id },
+                    data: { status: 'RETURN_STARTED' as any }
+                });
+
+                await tx.shipmentStatusLog.create({
+                    data: {
+                        shipmentId: shipment.id,
+                        fromStatus: shipment.status,
+                        toStatus: 'RETURN_STARTED' as any,
+                        notes: 'بدء الارجاع - تم سداد تكلفة الشحن عبر Stripe',
+                        source: 'API'
+                    }
+                });
+            }
+
+            // 4. Notify all parties
+            const titleAr = 'تم سداد تكلفة الشحن! 🚚';
+            const titleEn = 'Shipping Paid! 🚚';
+            const messageAr = `تم استلام دفعة الشحن للطلب #${updatedCase.orderId}. عملية الإرجاع جارية الآن.`;
+            const messageEn = `Shipping payment received for Order #${updatedCase.orderId}. Return process is now active.`;
+
+            await this.notifications.create({
+                recipientId: updatedCase.customerId,
+                recipientRole: 'CUSTOMER',
+                type: 'order',
+                titleAr, titleEn, messageAr, messageEn,
+                link: `orders/${updatedCase.orderId}`,
+                metadata: { caseId, caseType }
+            });
+
+            const store = await tx.store.findUnique({ where: { id: updatedCase.storeId }, select: { ownerId: true } });
+            if (store) {
+                await this.notifications.create({
+                    recipientId: store.ownerId,
+                    recipientRole: 'VENDOR',
+                    type: 'order',
+                    titleAr, titleEn, messageAr, messageEn,
+                    link: `marketplace/orders/${updatedCase.orderId}`,
+                    metadata: { caseId, caseType }
+                });
+            }
+
+            // 5. Notify ADMIN
+            const adminTitleAr = `سداد شحن: ${caseType === 'return' ? 'طلب إرجاع' : 'نزاع'} #${updatedCase.orderId}`;
+            const adminTitleEn = `Shipping Paid: ${caseType === 'return' ? 'Return' : 'Dispute'} #${updatedCase.orderId}`;
+            const adminMsgAr = `قام ${updatedCase.shippingPayee === 'MERCHANT' ? 'التاجر' : 'العميل'} بسداد تكلفة الشحن بقيمة ${updatedCase.shippingRefund} درهم.`;
+            const adminMsgEn = `${updatedCase.shippingPayee === 'MERCHANT' ? 'Merchant' : 'Customer'} paid AED ${updatedCase.shippingRefund} for shipping.`;
+
+            // Broadcast to all admins (recipientId = null + role = ADMIN often used for broadcast in our system)
+            await this.notifications.create({
+                recipientId: null as any,
+                recipientRole: 'ADMIN',
+                type: 'order',
+                titleAr: adminTitleAr,
+                titleEn: adminTitleEn,
+                messageAr: adminMsgAr,
+                messageEn: adminMsgEn,
+                link: 'resolution', // Admin resolution center
+                metadata: { caseId, caseType }
+            });
+
+            return updatedCase;
         });
     }
 
@@ -1525,6 +1770,216 @@ export class PaymentsService {
             where: { settingKey: 'withdrawal_limits' },
             update: { settingValue: limits },
             create: { settingKey: 'withdrawal_limits', settingValue: limits }
+        });
+    }
+
+    // --- Admin Financial Hub ---
+
+    async getAdminFinancials(filters?: any) {
+        const dateFilter: any = {};
+        if (filters?.startDate) dateFilter.gte = new Date(filters.startDate);
+        if (filters?.endDate) {
+            const end = new Date(filters.endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter.lte = end;
+        }
+        const hasDateFilter = Object.keys(dateFilter).length > 0;
+
+        const [
+            totalSalesAgg,
+            commissionAgg,
+            shippingAgg,
+            referralAgg,
+            referralCount,
+            pendingWithdrawalsAgg,
+            frozenFundsAgg,
+            transactions,
+            userLiquidityAgg,
+            storeLiquidityAgg
+        ] = await Promise.all([
+            // 1. Total Sales (from PaymentTransaction where status=SUCCESS)
+            this.prisma.paymentTransaction.aggregate({
+                where: { status: 'SUCCESS', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { totalAmount: true }
+            }),
+            // 2. Net Profit (from commission in PaymentTransaction)
+            this.prisma.paymentTransaction.aggregate({
+                where: { status: 'SUCCESS', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { commission: true }
+            }),
+            // 3. Shipping Profit (from shippingCost in PaymentTransaction)
+            this.prisma.paymentTransaction.aggregate({
+                where: { status: 'SUCCESS', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { shippingCost: true }
+            }),
+            // 4. Referral Profit (from wallet_transactions where type=CREDIT and transactionType=REFERRAL_PROFIT)
+            this.prisma.walletTransaction.aggregate({
+                where: { type: 'CREDIT', transactionType: 'REFERRAL_PROFIT', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { amount: true }
+            }),
+            // 5. Referral Count
+            this.prisma.walletTransaction.count({
+                where: { type: 'CREDIT', transactionType: 'REFERRAL_PROFIT', ...(hasDateFilter ? { createdAt: dateFilter } : {}) }
+            }),
+            // 6. Pending Withdrawals
+            this.prisma.withdrawalRequest.aggregate({
+                where: { status: 'PENDING', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { amount: true },
+                _count: { id: true }
+            }),
+            // 7. Frozen Funds (from EscrowHoldings)
+            this.prisma.escrowTransaction.aggregate({
+                where: { status: { in: ['HELD', 'DISPUTED'] }, ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                _sum: { merchantAmount: true }
+            }),
+            // 8. Transactions Feed
+            this.prisma.walletTransaction.findMany({
+                where: { ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
+                include: { user: { select: { name: true, role: true } } },
+                orderBy: { createdAt: 'desc' },
+                take: filters?.limit ? Number(filters.limit) : 100,
+                skip: filters?.page && filters?.limit ? (Number(filters.page) - 1) * Number(filters.limit) : 0
+            }),
+            // 9. Overall Liquidity (User + Store Balances)
+            this.prisma.user.aggregate({ _sum: { customerBalance: true } }),
+            this.prisma.store.aggregate({ _sum: { balance: true } })
+        ]);
+
+        return {
+            kpis: {
+                totalSales: Number(totalSalesAgg._sum.totalAmount || 0),
+                netCommission: Number(commissionAgg._sum.commission || 0),
+                shippingProfit: Number(shippingAgg._sum.shippingCost || 0),
+                referralEarnings: Number(referralAgg._sum.amount || 0),
+                referralCount: referralCount,
+                pendingWithdrawals: Number(pendingWithdrawalsAgg._sum.amount || 0),
+                pendingWithdrawalsCount: pendingWithdrawalsAgg._count.id,
+                frozenFunds: Number(frozenFundsAgg._sum.merchantAmount || 0),
+                overallLiquidity: Number(userLiquidityAgg?._sum?.customerBalance || 0) + Number(storeLiquidityAgg?._sum?.balance || 0),
+                todayTransactionsCount: transactions.filter(t => new Date(t.createdAt).toDateString() === new Date().toDateString()).length
+            },
+            transactions: (transactions as any[]).map(t => ({
+                id: t.id,
+                userId: t.userId,
+                userName: t.user?.name || 'Unknown',
+                userRole: t.user?.role || t.role,
+                amount: Number(t.amount),
+                type: t.type,
+                transactionType: t.transactionType,
+                status: 'COMPLETED',
+                date: t.createdAt
+            }))
+        };
+    }
+
+    async exportFinancialTransactions(filters?: any) {
+        const data = await this.getAdminFinancials(filters);
+        return data.transactions;
+    }
+
+    async sendManualPayout(adminId: string, dto: AdminManualPayoutDto) {
+        const { userId, amount, note, adminName, adminEmail, adminSignature, method } = dto;
+
+        const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { store: true } });
+        if (!user) throw new NotFoundException('User not found');
+
+        let balance = 0;
+        let role = user.role;
+        let stripeId = null;
+
+        if (role === 'CUSTOMER') {
+            balance = Number(user.customerBalance || 0);
+            stripeId = user.stripeAccountId;
+        } else if (user.store) {
+            balance = Number(user.store.balance || 0);
+            stripeId = user.store.stripeAccountId;
+            role = 'VENDOR' as any;
+        }
+
+        if (balance < amount) {
+            throw new BadRequestException('Insufficient balance for manual payout');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            let balanceAfter = 0;
+
+            if (role === 'CUSTOMER') {
+                await tx.user.update({
+                    where: { id: userId },
+                    data: { customerBalance: { decrement: amount } }
+                });
+                balanceAfter = balance - amount;
+            } else {
+                await tx.store.update({
+                    where: { id: user.store!.id },
+                    data: { balance: { decrement: amount } }
+                });
+                balanceAfter = balance - amount;
+            }
+
+            const walletTx = await tx.walletTransaction.create({
+                data: {
+                    userId,
+                    role: role,
+                    type: 'DEBIT',
+                    transactionType: 'MANUAL_PAYOUT',
+                    amount,
+                    description: `Admin Payout: ${note || 'No notes'}`,
+                    balanceAfter
+                }
+            });
+
+            let transferId = null;
+            if (method === PayoutMethod.STRIPE_CONNECT) {
+                if (!stripeId) throw new BadRequestException('User does not have a Stripe Connect account');
+                try {
+                    const transfer = await this.stripeService.createTransfer(
+                        amount.toString(),
+                        'AED',
+                        stripeId,
+                        `MANUAL_PAYOUT_${walletTx.id}`,
+                        { adminId, note }
+                    );
+                    transferId = transfer.id;
+                } catch (err: any) {
+                    this.logger.error(`Stripe Transfer failed for manual payout: ${err.message}`);
+                    throw new BadRequestException(`Stripe Transfer failed: ${err.message}`);
+                }
+            }
+
+            await tx.auditLog.create({
+                data: {
+                    entity: 'FINANCIAL',
+                    action: 'MANUAL_PAYOUT',
+                    actorType: ActorType.ADMIN,
+                    actorId: adminId,
+                    actorName: adminName,
+                    metadata: {
+                        amount,
+                        method,
+                        note,
+                        adminEmail,
+                        adminSignature,
+                        stripeTransferId: transferId
+                    }
+                }
+            });
+
+            this.notifications.create({
+                recipientId: userId,
+                titleAr: 'تم إرسال دفعة مالية',
+                titleEn: 'Payout Processed',
+                messageAr: `تم إرسال دفعة بمبلغ ${amount} درهم إلى حسابك.`,
+                messageEn: `A payout of ${amount} AED has been processed to your account.`,
+                type: 'financial',
+                link: '/dashboard/wallet'
+            });
+
+            return {
+                success: true,
+                message: 'Manual payout executed successfully',
+                walletTransactionId: walletTx.id
+            };
         });
     }
 }

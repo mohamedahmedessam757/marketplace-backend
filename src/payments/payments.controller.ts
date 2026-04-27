@@ -4,12 +4,13 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaymentsService } from './payments.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { CreateIntentDto } from './dto/create-intent.dto';
+import { AdminManualPayoutDto } from './dto/admin-payout.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('payments')
 @UseGuards(JwtAuthGuard)
 export class PaymentsController {
-    constructor(private readonly paymentsService: PaymentsService) { }
+    constructor (private readonly paymentsService: PaymentsService) { }
 
     @Post('process')
     processPayment(@Request() req, @Body() dto: ProcessPaymentDto) {
@@ -19,6 +20,16 @@ export class PaymentsController {
     @Post('create-intent')
     createPaymentIntent(@Request() req, @Body() dto: CreateIntentDto) {
         return this.paymentsService.createPaymentIntent(req.user.id, dto);
+    }
+
+    @Post('shipping-intent')
+    createShippingPaymentIntent(@Request() req, @Body() body: { caseId: string; caseType: 'return' | 'dispute' }) {
+        return this.paymentsService.createShippingPaymentIntent(req.user.id, body.caseId, body.caseType);
+    }
+
+    @Post('shipping-checkout')
+    createShippingCheckoutSession(@Request() req, @Body() body: { caseId: string; caseType: 'return' | 'dispute'; frontendUrl?: string }) {
+        return this.paymentsService.createShippingCheckoutSession(req.user.id, body.caseId, body.caseType, body.frontendUrl);
     }
 
     @Get('pending')
@@ -146,5 +157,28 @@ export class PaymentsController {
     @Put('admin/withdrawal-settings')
     updateWithdrawalSettings(@Body() body: { min: number; max: number }) {
         return this.paymentsService.updateWithdrawalLimits(body);
+    }
+
+    // --- Admin Financial Hub Endpoints ---
+
+    @Get('admin/financials')
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    getAdminFinancials(@Query() filters: any) {
+        return this.paymentsService.getAdminFinancials(filters);
+    }
+
+    @Get('admin/financials/export')
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    exportFinancialTransactions(@Query() filters: any) {
+        return this.paymentsService.exportFinancialTransactions(filters);
+    }
+
+    @Post('admin/manual-payout')
+    @Roles('SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    sendManualPayout(@Request() req, @Body() dto: AdminManualPayoutDto) {
+        return this.paymentsService.sendManualPayout(req.user.id, dto);
     }
 }

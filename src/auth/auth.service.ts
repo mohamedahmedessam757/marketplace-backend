@@ -7,6 +7,7 @@ import { UAParser } from 'ua-parser-js';
 import * as geoip from 'geoip-lite';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +15,7 @@ export class AuthService {
         private usersService: UsersService,
         private jwtService: JwtService,
         private prisma: PrismaService,
+        private auditLogs: AuditLogsService,
     ) { }
 
     async validateUser(email: string, pass: string): Promise<any> {
@@ -91,6 +93,15 @@ export class AuthService {
 
         // Log Admin Activity for 2026 Audit Standards
         if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'SUPPORT') {
+            const loginMetadata = {
+                os: osName,
+                fingerprint: fingerprint || 'none',
+                ip: cleanIp,
+                browser: browserName,
+                device: deviceName,
+                location: location
+            };
+
             await this.prisma.adminActivityLog.create({
                 data: {
                     adminId: user.id,
@@ -101,11 +112,19 @@ export class AuthService {
                     deviceType: ua.device.type || 'desktop',
                     browser: browserName,
                     location: location,
-                    metadata: {
-                        os: osName,
-                        fingerprint: fingerprint || 'none'
-                    }
+                    metadata: loginMetadata
                 }
+            });
+
+            // 2026 Global Audit Stream Integration
+            await this.auditLogs.logAction({
+                action: 'LOGIN',
+                entity: 'USER',
+                actorType: user.role as any,
+                actorId: user.id,
+                actorName: user.name,
+                reason: `Administrative login from ${browserName} on ${osName}`,
+                metadata: loginMetadata
             });
         }
 
