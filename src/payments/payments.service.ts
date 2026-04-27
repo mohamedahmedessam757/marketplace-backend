@@ -1860,9 +1860,52 @@ export class PaymentsService {
             this.prisma.user.aggregate({ _sum: { loyaltyPoints: true } })
         ]);
 
+        // 13. Top Spenders (Customers by total spend)
+        const topSpendersRaw = await this.prisma.$queryRaw`
+            SELECT "customer_id" as "customerId", SUM("total_amount") as "totalAmount"
+            FROM "payment_transactions"
+            WHERE "status" = 'SUCCESS' AND "customer_id" IS NOT NULL
+            GROUP BY "customer_id"
+            ORDER BY "totalAmount" DESC
+            LIMIT 5
+        `;
+
+        // 14. Top Earners (Stores/Merchants by commissions earned)
+        const topEarnersRaw = await this.prisma.$queryRaw`
+            SELECT o."store_id" as "storeId", SUM(pt."total_amount") as "totalAmount"
+            FROM "payment_transactions" pt
+            JOIN "orders" o ON pt."order_id" = o."id"
+            WHERE pt."status" = 'SUCCESS' AND o."store_id" IS NOT NULL
+            GROUP BY o."store_id"
+            ORDER BY "totalAmount" DESC
+            LIMIT 5
+        `;
+
         const totalCommission = Number(commissionAgg._sum.commission || 0);
         const totalReferral = Number(referralAgg._sum.amount || 0);
         const totalGatewayFees = Number(gatewayFeesAgg?._sum?.gatewayFee || 0);
+
+        // Resolve top spender names
+        const spenderIds = (topSpendersRaw as any[]).map((s: any) => s.customerId).filter(Boolean);
+        const spenderUsers = await this.prisma.user.findMany({
+            where: { id: { in: spenderIds } },
+            select: { id: true, name: true, avatar: true }
+        });
+        const topSpenders = (topSpendersRaw as any[]).map((s: any) => {
+            const user = spenderUsers.find(u => u.id === s.customerId);
+            return { id: s.customerId, name: user?.name || 'Unknown', avatar: user?.avatar || null, totalSpent: Number(s.totalAmount || 0) };
+        });
+
+        // Resolve top earner store names
+        const storeIds = (topEarnersRaw as any[]).map((e: any) => e.storeId).filter(Boolean);
+        const earnerStores = await this.prisma.store.findMany({
+            where: { id: { in: storeIds } },
+            select: { id: true, name: true }
+        });
+        const topEarners = (topEarnersRaw as any[]).map((e: any) => {
+            const store = earnerStores.find(s => s.id === e.storeId);
+            return { id: e.storeId, name: store?.name || 'Unknown Store', totalEarned: Number(e.totalAmount || 0) };
+        });
 
         return {
             kpis: {
@@ -1890,7 +1933,9 @@ export class PaymentsService {
                 transactionType: t.transactionType,
                 status: 'COMPLETED',
                 date: t.createdAt
-            }))
+            })),
+            topSpenders,
+            topEarners
         };
     }
 
