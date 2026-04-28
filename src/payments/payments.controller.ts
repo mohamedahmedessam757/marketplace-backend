@@ -143,10 +143,19 @@ export class PaymentsController {
     processWithdrawal(
         @Request() req,
         @Param('id') id: string,
-        @Body() body: { action: 'APPROVE' | 'REJECT'; notes?: string }
+        @Body() body: { action: 'APPROVE' | 'REJECT'; notes?: string; adminSignature?: string; adminName?: string; adminEmail?: string; method?: string }
     ) {
         // Role check should be enforced by a Guard
-        return this.paymentsService.processWithdrawalRequest(req.user.id, id, body.action, body.notes);
+        return this.paymentsService.processWithdrawalRequest(
+            req.user.id, 
+            id, 
+            body.action, 
+            body.notes,
+            body.adminSignature,
+            body.adminName,
+            body.adminEmail,
+            body.method
+        );
     }
 
     @Get('admin/withdrawal-settings')
@@ -180,5 +189,15 @@ export class PaymentsController {
     @UseGuards(RolesGuard)
     sendManualPayout(@Request() req, @Body() dto: AdminManualPayoutDto) {
         return this.paymentsService.sendManualPayout(req.user.id, dto);
+    }
+
+    @Post('admin/verify-bank-details')
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    verifyBankDetails(
+        @Request() req,
+        @Body() body: { targetId: string; role: 'CUSTOMER' | 'VENDOR' }
+    ) {
+        return this.paymentsService.adminVerifyBankDetails(req.user.id, body.targetId, body.role);
     }
 }

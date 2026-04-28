@@ -1288,7 +1288,9 @@ export class PaymentsService {
                 })(),
                 profitPercentage: userRate * 100,
                 tierBenefits: currentTierData.benefits,
-                nextTierBenefits: nextTierData?.benefits || []
+                nextTierBenefits: nextTierData?.benefits || [],
+                stripeOnboarded: store.owner.stripeOnboarded,
+                stripeAccountId: store.owner.stripeAccountId
             },
             notifications,
             transactions: walletActions // Wallet actions has exactly all sales, cancellations, and referrals
@@ -1511,6 +1513,33 @@ export class PaymentsService {
         };
     }
 
+    async adminVerifyBankDetails(adminId: string, targetId: string, role: 'CUSTOMER' | 'VENDOR') {
+        if (role === 'CUSTOMER') {
+            await this.prisma.user.update({
+                where: { id: targetId },
+                data: { bankDetailsVerified: true }
+            });
+        } else {
+            await this.prisma.store.update({
+                where: { id: targetId },
+                data: { bankDetailsVerified: true }
+            });
+        }
+
+        // Audit log
+        await this.prisma.auditLog.create({
+            data: {
+                entity: 'FINANCIAL',
+                action: 'BANK_DETAILS_VERIFIED',
+                actorType: ActorType.ADMIN,
+                actorId: adminId,
+                metadata: { targetId, role }
+            }
+        });
+
+        return { success: true, message: 'Bank details verified successfully' };
+    }
+
     async requestWithdrawal(userId: string, amount: number, payoutMethod: string = 'BANK_TRANSFER') {
         const store = await this.prisma.store.findUnique({
             where: { ownerId: userId }
@@ -1556,6 +1585,7 @@ export class PaymentsService {
             for (const admin of admins) {
                 await this.notifications.create({
                     recipientId: admin.id,
+                    recipientRole: 'ADMIN',
                     titleAr: 'طلب سحب جديد',
                     titleEn: 'New Withdrawal Request',
                     messageAr: `قام التاجر ${store.name} بطلب سحب ${amount} AED عبر ${payoutMethod === 'STRIPE' ? 'Stripe' : 'تحويل بنكي'}`,
@@ -1615,6 +1645,7 @@ export class PaymentsService {
             for (const admin of admins) {
                 await this.notifications.create({
                     recipientId: admin.id,
+                    recipientRole: 'ADMIN',
                     titleAr: 'طلب سحب عميل جديد',
                     titleEn: 'New Customer Withdrawal Request',
                     messageAr: `قام العميل ${user.name || user.email} بطلب سحب ${amount} AED عبر ${methodLabel}`,
@@ -1632,8 +1663,8 @@ export class PaymentsService {
         if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
             return this.prisma.withdrawalRequest.findMany({
                 include: { 
-                    store: { select: { name: true, id: true } },
-                    user: { select: { name: true, email: true, id: true } }
+                    store: { select: { name: true, id: true, balance: true, bankName: true, bankIban: true, bankAccountHolder: true, bankSwift: true, bankDetailsVerified: true } },
+                    user: { select: { name: true, email: true, id: true, customerBalance: true, bankName: true, bankIban: true, bankAccountHolder: true, bankSwift: true, bankDetailsVerified: true } }
                 },
                 orderBy: { createdAt: 'desc' }
             });
@@ -1652,7 +1683,16 @@ export class PaymentsService {
         });
     }
 
-    async processWithdrawalRequest(adminId: string, requestId: string, action: 'APPROVE' | 'REJECT', notes?: string) {
+    async processWithdrawalRequest(
+        adminId: string, 
+        requestId: string, 
+        action: 'APPROVE' | 'REJECT', 
+        notes?: string,
+        adminSignature?: string,
+        adminName?: string,
+        adminEmail?: string,
+        overrideMethod?: string
+    ) {
         const request = await this.prisma.withdrawalRequest.findUnique({
             where: { id: requestId },
             include: { store: true }
@@ -1673,6 +1713,7 @@ export class PaymentsService {
             let balanceAfter = 0;
             let stripeId = null;
             let finalStatus = 'COMPLETED';
+            const methodToUse = overrideMethod || request.payoutMethod;
 
             if (request.role === 'CUSTOMER') {
                 // 1. Re-check customer balance
@@ -1714,16 +1755,17 @@ export class PaymentsService {
                     type: 'DEBIT',
                     transactionType: 'withdrawal',
                     amount: request.amount,
-                    description: `Withdrawal via ${request.payoutMethod}: ${request.id}`,
+                    description: `Withdrawal via ${methodToUse}: ${request.id}`,
                     balanceAfter: balanceAfter,
-                    metadata: { requestId: request.id, payoutMethod: request.payoutMethod }
+                    metadata: { requestId: request.id, payoutMethod: methodToUse }
                 }
             });
 
             // 4. Process based on payout method
             let transferId = null;
 
-            if (request.payoutMethod === 'STRIPE') {
+            if (methodToUse === 'STRIPE') {
+                if (!stripeId) throw new BadRequestException('User does not have a Stripe Connect account');
                 // Stripe Transfer Flow
                 try {
                     const transfer = await this.stripeService.createTransfer(
@@ -1736,23 +1778,91 @@ export class PaymentsService {
                     transferId = transfer.id;
                 } catch (err: any) {
                     this.logger.error(`Stripe Transfer failed for request ${request.id}: ${err.message}`);
-                    finalStatus = 'FAILED';
+                    // Critical Bug Fix: Throw to rollback Prisma transaction instead of setting FAILED
+                    throw new BadRequestException(`Stripe Transfer failed: ${err.message}`);
                 }
             } else {
-                // Bank Transfer Flow - Mark as COMPLETED (admin transfers manually)
+                // Bank Transfer Flow
+                let bankDetailsValid = false;
+                if (request.role === 'CUSTOMER') {
+                    const user = await tx.user.findUnique({ where: { id: request.userId } });
+                    if (user?.bankIban && user?.bankName) bankDetailsValid = true;
+                } else {
+                    const store = await tx.store.findUnique({ where: { id: request.storeId } });
+                    if (store?.bankIban && store?.bankName) bankDetailsValid = true;
+                }
+
+                if (!bankDetailsValid) {
+                    throw new BadRequestException('Bank details (IBAN, Bank Name) are missing for this user/store. Cannot process manual bank transfer.');
+                }
+
+                // Mark as COMPLETED (admin transfers manually)
                 finalStatus = 'COMPLETED';
                 this.logger.log(`Bank Transfer approved for request ${request.id} for ${request.role}`);
             }
 
-            // 5. Update Request
-            return tx.withdrawalRequest.update({
+            // 5. Audit Log (Security compliance)
+            if (adminSignature) {
+                await tx.auditLog.create({
+                    data: {
+                        entity: 'FINANCIAL',
+                        action: 'WITHDRAWAL_APPROVAL',
+                        actorType: ActorType.ADMIN,
+                        actorId: adminId,
+                        actorName: adminName,
+                        metadata: {
+                            requestId: request.id,
+                            amount: request.amount,
+                            method: methodToUse,
+                            note: notes,
+                            adminEmail,
+                            adminSignature,
+                            stripeTransferId: transferId
+                        }
+                    }
+                });
+            }
+
+            // 6. Update Request
+            const updatedRequest = await tx.withdrawalRequest.update({
                 where: { id: requestId },
                 data: { 
                     status: finalStatus,
+                    payoutMethod: methodToUse, // Reflect the override
                     stripeTransferId: transferId,
-                    adminNotes: notes || (finalStatus === 'COMPLETED' ? `Processed via ${request.payoutMethod}` : 'Stripe transfer failed')
+                    adminNotes: notes || `Processed via ${methodToUse}`
                 }
             });
+
+            // 7. Send Notifications to User/Merchant
+            const recipientId = request.role === 'CUSTOMER' ? request.userId : request.store.ownerId;
+            const recipientRole = request.role === 'CUSTOMER' ? 'CUSTOMER' : 'VENDOR';
+
+            if (action === 'APPROVE') {
+                await this.notifications.create({
+                    recipientId: recipientId,
+                    recipientRole: recipientRole,
+                    type: 'payment',
+                    titleAr: methodToUse === 'STRIPE' ? '✅ تم تحويل مبلغ السحب بنجاح' : '✅ تمت الموافقة على طلب السحب',
+                    titleEn: methodToUse === 'STRIPE' ? '✅ Withdrawal Transferred Successfully' : '✅ Withdrawal Approved',
+                    messageAr: `تمت الموافقة على طلب سحب مبلغ ${request.amount} درهم. سيتم وصول التحويل لحسابك خلال أيام عمل قليلة${adminName ? ' (بواسطة الإدارة: ' + adminName + ')' : ''}. ${notes ? '\\nملاحظة: ' + notes : ''}`,
+                    messageEn: `Your withdrawal of AED ${request.amount} has been approved. The transfer will complete in a few business days${adminName ? ' (Processed by: ' + adminName + ')' : ''}. ${notes ? '\\nNote: ' + notes : ''}`,
+                    metadata: { type: 'WITHDRAWAL_APPROVED', requestId, method: methodToUse }
+                });
+            } else if (action === 'REJECT') {
+                await this.notifications.create({
+                    recipientId: recipientId,
+                    recipientRole: recipientRole,
+                    type: 'alert',
+                    titleAr: '⚠️ تم رفض طلب السحب',
+                    titleEn: '⚠️ Withdrawal Request Rejected',
+                    messageAr: `تم رفض طلب سحب ${request.amount} درهم لسبب: ${notes || 'غير محدد'}. ${adminName ? 'الإدارة: ' + adminName : ''}. يُرجى مراجعة التفاصيل والمحاولة مرة أخرى.`,
+                    messageEn: `Your withdrawal of AED ${request.amount} has been rejected. Reason: ${notes || 'Not specified'}. ${adminName ? 'Admin: ' + adminName : ''}. Please check and try again.`,
+                    metadata: { type: 'WITHDRAWAL_REJECTED', requestId, reason: notes }
+                });
+            }
+
+            return updatedRequest;
         });
     }
 
@@ -1958,7 +2068,6 @@ export class PaymentsService {
                 netCommission: totalCommission - (totalReferral + totalGatewayFees),
                 shippingProfit: Number(shippingAgg._sum.shippingCost || 0),
                 referralEarnings: totalReferral,
-                referralCount: referralCount,
                 pendingWithdrawals: Number(pendingWithdrawalsAgg._sum.amount || 0),
                 pendingWithdrawalsCount: pendingWithdrawalsAgg._count.id,
                 frozenFunds: Number(frozenFundsAgg._sum.merchantAmount || 0),

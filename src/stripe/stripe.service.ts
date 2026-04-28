@@ -33,6 +33,9 @@ export class StripeService {
                 requirement_collection: 'stripe',
             },
             email: email,
+            capabilities: {
+                transfers: { requested: true }
+            },
             metadata: { 
                 id: storeId,
                 type: isCustomer ? 'customer' : 'store'
