@@ -22,10 +22,21 @@ export class AuditLogsService {
   async logAction(data: CreateAuditLogDto, tx?: Prisma.TransactionClient) {
     const prisma = tx || this.prisma;
     
-    // Ensure a reason exists for 2026 transparency standards
+    // 1. ActorType Normalization Layer (2026 Resilience Pattern)
+    // Mapping extended roles to Prisma Enum to prevent validation crashes
+    const validActorTypes = Object.values(ActorType);
+    let finalActorType: ActorType = ActorType.SYSTEM;
+
+    if (validActorTypes.includes(data.actorType as any)) {
+      finalActorType = data.actorType;
+    } else if (['SUPER_ADMIN', 'SUPPORT', 'MODERATOR'].includes(data.actorType as any)) {
+      finalActorType = ActorType.ADMIN;
+    }
+
+    // 2. Ensure a reason exists for 2026 transparency standards
     let finalReason = data.reason;
     if (!finalReason) {
-      if (data.actorType === 'SYSTEM') {
+      if (finalActorType === ActorType.SYSTEM) {
         finalReason = 'AUDIT_REASON_SYSTEM_AUTOMATED';
       } else {
         finalReason = 'AUDIT_REASON_NO_REASON_PROVIDED';
@@ -37,7 +48,7 @@ export class AuditLogsService {
         orderId: data.orderId,
         action: data.action,
         entity: data.entity,
-        actorType: data.actorType,
+        actorType: finalActorType,
         actorId: data.actorId,
         actorName: data.actorName,
         previousState: data.previousState,

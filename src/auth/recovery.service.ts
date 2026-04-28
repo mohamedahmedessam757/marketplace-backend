@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { ActorType } from '@prisma/client';
 
 @Injectable()
@@ -9,7 +10,8 @@ export class RecoveryService {
     constructor(
         private prisma: PrismaService,
         private notifications: NotificationsService,
-        private auditLogs: AuditLogsService
+        private auditLogs: AuditLogsService,
+        private platformSettings: PlatformSettingsService
     ) { }
 
     // In a real app, this would use Redis for rate limiting and OTP storage.
@@ -398,12 +400,14 @@ export class RecoveryService {
             }
         };
 
-        try {
-            await this.prisma.adminActivityLog.create({ data: logData });
-        } catch (err) {
-            console.warn(`[RecoveryService] AdminActivityLog creation failed, retrying without relation...`);
-            await this.prisma.adminActivityLog.create({ data: { ...logData, adminId: null } });
-        }
+        // 2026 Admin Session Management: Deduplicated Activity Logging
+        await this.platformSettings.logAdminActivity(
+            adminId || 'SYSTEM',
+            request.user.email,
+            `ACCOUNT_RECOVERY_${action}`,
+            logData.metadata,
+            { ip, ua: userAgent }
+        );
 
         // 2026 Global Audit
         await this.auditLogs.logAction({

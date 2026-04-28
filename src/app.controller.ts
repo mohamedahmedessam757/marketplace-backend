@@ -1,9 +1,13 @@
 import { Controller, Get, Put, Body, Req } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
+import { PlatformSettingsService } from './platform-settings/platform-settings.service';
 
 @Controller()
 export class AppController {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private settingsService: PlatformSettingsService
+    ) {}
 
     @Get()
     getRoot() {
@@ -55,19 +59,19 @@ export class AppController {
         if (ip.includes(',')) ip = ip.split(',')[0].trim();
         if (ip.startsWith('::ffff:')) ip = ip.substring(7);
         
-        return this.prisma.adminActivityLog.create({
-            data: {
-                adminId: null,
-                email: body.email,
-                action: body.action,
-                ipAddress: body.metadata?.ipAddress || ip,
-                userAgent: userAgent,
-                deviceType: body.metadata?.deviceType || this.parseDevice(userAgent),
-                browser: body.metadata?.browser || this.parseBrowser(userAgent),
-                location: body.metadata?.location || 'Unknown',
-                metadata: body.metadata || {}
+        return this.settingsService.logAdminActivity(
+            null,
+            body.email,
+            body.action,
+            body.metadata || {},
+            { 
+                ip: body.metadata?.ipAddress || ip, 
+                ua: userAgent, 
+                device: body.metadata?.deviceType || this.parseDevice(userAgent), 
+                browser: body.metadata?.browser || this.parseBrowser(userAgent), 
+                location: body.metadata?.location || 'Unknown' 
             }
-        });
+        );
     }
 
     private parseBrowser(ua: string) {

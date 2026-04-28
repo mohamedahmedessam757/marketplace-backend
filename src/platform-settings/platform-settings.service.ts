@@ -154,8 +154,33 @@ export class PlatformSettingsService {
         },
       };
 
-      // 3. Attempt creation with fallback
+      // 3. Absolute Deduplication (2026 Zero-Duplicate Standard)
       try {
+        const existingLogs = await this.prisma.adminActivityLog.findMany({
+          where: logData.adminId ? { adminId: logData.adminId } : { email: logData.email },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        if (existingLogs.length > 0) {
+          const [latest, ...duplicates] = existingLogs;
+
+          // Remove any existing duplicates to maintain a single interaction row
+          if (duplicates.length > 0) {
+            await this.prisma.adminActivityLog.deleteMany({
+              where: { id: { in: duplicates.map(d => d.id) } }
+            });
+          }
+
+          // Update the primary log entry with the latest session data
+          return await this.prisma.adminActivityLog.update({
+            where: { id: latest.id },
+            data: {
+              ...logData,
+              createdAt: new Date() // Force timestamp update for Realtime ordering
+            }
+          });
+        }
+
         return await this.prisma.adminActivityLog.create({ data: logData });
       } catch (prismaError) {
         // If it still fails (e.g. valid UUID but not in Users table), record without adminId

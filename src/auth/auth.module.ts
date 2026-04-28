@@ -10,12 +10,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 
 @Module({
   imports: [
     UsersModule,
     NotificationsModule,
     AuditLogsModule,
+    PlatformSettingsModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

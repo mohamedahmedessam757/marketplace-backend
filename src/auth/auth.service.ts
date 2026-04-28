@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { ActorType } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -8,6 +9,7 @@ import * as geoip from 'geoip-lite';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +18,7 @@ export class AuthService {
         private jwtService: JwtService,
         private prisma: PrismaService,
         private auditLogs: AuditLogsService,
+        private platformSettings: PlatformSettingsService,
     ) { }
 
     async validateUser(email: string, pass: string): Promise<any> {
@@ -114,20 +117,26 @@ export class AuthService {
                 metadata: loginMetadata
             };
 
-            try {
-                await this.prisma.adminActivityLog.create({ data: logData });
-            } catch (err) {
-                console.warn(`[AuthService] AdminActivityLog creation failed for user ${user.id}, retrying without relation...`);
-                await this.prisma.adminActivityLog.create({
-                    data: { ...logData, adminId: null }
-                });
-            }
+            // 2026 Admin Session Management: Deduplicated Activity Logging
+            await this.platformSettings.logAdminActivity(
+                user.id,
+                user.email,
+                'LOGIN',
+                loginMetadata,
+                { 
+                    ip: cleanIp, 
+                    ua: userAgent, 
+                    device: deviceName, 
+                    browser: browserName, 
+                    location: location 
+                }
+            );
 
             // 2026 Global Audit Stream Integration
             await this.auditLogs.logAction({
                 action: 'LOGIN',
                 entity: 'USER',
-                actorType: user.role as any,
+                actorType: ActorType.ADMIN,
                 actorId: user.id,
                 actorName: user.name,
                 reason: `Administrative login from ${browserName} on ${osName}`,
