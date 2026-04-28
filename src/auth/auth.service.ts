@@ -102,19 +102,26 @@ export class AuthService {
                 location: location
             };
 
-            await this.prisma.adminActivityLog.create({
-                data: {
-                    adminId: user.id,
-                    email: user.email,
-                    action: 'LOGIN',
-                    ipAddress: cleanIp,
-                    userAgent: userAgent,
-                    deviceType: ua.device.type || 'desktop',
-                    browser: browserName,
-                    location: location,
-                    metadata: loginMetadata
-                }
-            });
+            const logData = {
+                adminId: user.id,
+                email: user.email,
+                action: 'LOGIN',
+                ipAddress: cleanIp,
+                userAgent: userAgent,
+                deviceType: ua.device.type || 'desktop',
+                browser: browserName,
+                location: location,
+                metadata: loginMetadata
+            };
+
+            try {
+                await this.prisma.adminActivityLog.create({ data: logData });
+            } catch (err) {
+                console.warn(`[AuthService] AdminActivityLog creation failed for user ${user.id}, retrying without relation...`);
+                await this.prisma.adminActivityLog.create({
+                    data: { ...logData, adminId: null }
+                });
+            }
 
             // 2026 Global Audit Stream Integration
             await this.auditLogs.logAction({

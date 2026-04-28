@@ -333,24 +333,29 @@ export class RecoveryService {
         }
 
         // --- NEW: RECORD ADMIN ACTIVITY LOG ---
-        await this.prisma.adminActivityLog.create({
-            data: {
-                adminId: adminId || null,
-                action: `ACCOUNT_RECOVERY_${action}`,
-                ipAddress: ip,
-                userAgent: userAgent,
-                email: request.user.email,
-                metadata: {
-                    requestId,
-                    targetUserId: request.userId,
-                    snapshot: {
-                        balance: request.balanceSnapshot,
-                        orders: request.openOrdersCount,
-                        disputes: request.disputesCount
-                    }
+        const logData = {
+            adminId: adminId || null,
+            action: `ACCOUNT_RECOVERY_${action}`,
+            ipAddress: ip,
+            userAgent: userAgent,
+            email: request.user.email,
+            metadata: {
+                requestId,
+                targetUserId: request.userId,
+                snapshot: {
+                    balance: request.balanceSnapshot,
+                    orders: request.openOrdersCount,
+                    disputes: request.disputesCount
                 }
             }
-        });
+        };
+
+        try {
+            await this.prisma.adminActivityLog.create({ data: logData });
+        } catch (err) {
+            console.warn(`[RecoveryService] AdminActivityLog creation failed, retrying without relation...`);
+            await this.prisma.adminActivityLog.create({ data: { ...logData, adminId: null } });
+        }
 
         // Update request status
         return this.prisma.accountRecoveryRequest.update({

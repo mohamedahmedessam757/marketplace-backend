@@ -6,8 +6,8 @@ import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { CreateIntentDto } from './dto/create-intent.dto';
 import { AdminManualPayoutDto, PayoutMethod } from './dto/admin-payout.dto';
 import { Prisma, ActorType } from '@prisma/client';
-
 import { EscrowService } from './escrow.service';
+import { UnifiedFinancialEventDto, FinancialEventSource, FinancialDirection } from './dto/unified-financial-feed.dto';
 
 @Injectable()
 export class PaymentsService {
@@ -2202,6 +2202,403 @@ export class PaymentsService {
                 walletTransactionId: walletTx.id
             };
         });
+    }
+
+    /**
+     * Phase 1: Unified Financial Feed (2026 Standard)
+     * Aggregates events from Payments, Wallet, Escrow, and Withdrawals.
+     */
+    async getUnifiedFinancialFeed(filters: any) {
+        const limit = filters?.limit ? Number(filters.limit) : 50;
+        const page = filters?.page ? Number(filters.page) : 1;
+        const skip = (page - 1) * limit;
+
+        const dateFilter: any = {};
+        if (filters?.startDate) dateFilter.gte = new Date(filters.startDate);
+        if (filters?.endDate) {
+            const end = new Date(filters.endDate);
+            end.setHours(23, 59, 59, 999);
+            dateFilter.lte = end;
+        }
+
+        const commonWhere: any = Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {};
+
+        // 1. Fetch from 4 sources in parallel
+        const [payments, walletTx, escrows, withdrawals] = await Promise.all([
+            // Payments Feed
+            this.prisma.paymentTransaction.findMany({
+                where: { ...commonWhere, ...(filters?.search ? { transactionNumber: { contains: filters.search, mode: 'insensitive' } } : {}) },
+                include: { 
+                    customer: { select: { id: true, name: true, avatar: true } }, 
+                    order: { select: { orderNumber: true } },
+                    offer: { include: { store: { select: { id: true, name: true, logo: true, storeCode: true } } } }
+                },
+                orderBy: { createdAt: 'desc' },
+                take: limit + skip
+            }),
+            // Wallet Feed
+            this.prisma.walletTransaction.findMany({
+                where: { ...commonWhere, ...(filters?.search ? { description: { contains: filters.search, mode: 'insensitive' } } : {}) },
+                include: { 
+                    user: { 
+                        select: { 
+                            id: true, 
+                            name: true, 
+                            avatar: true,
+                            store: { select: { id: true, name: true, logo: true, storeCode: true } }
+                        } 
+                    }, 
+                    payment: { select: { order: { select: { orderNumber: true, id: true } } } } 
+                },
+                orderBy: { createdAt: 'desc' },
+                take: limit + skip
+            }),
+            // Escrow Feed
+            this.prisma.escrowTransaction.findMany({
+                where: { ...commonWhere },
+                include: { order: { select: { orderNumber: true, customer: { select: { id: true, name: true, avatar: true } }, store: { select: { id: true, name: true, logo: true, storeCode: true } } } } },
+                orderBy: { createdAt: 'desc' },
+                take: limit + skip
+            }),
+            // Withdrawals Feed
+            this.prisma.withdrawalRequest.findMany({
+                where: { ...commonWhere },
+                include: { user: { select: { id: true, name: true, avatar: true } }, store: { select: { id: true, name: true, logo: true, storeCode: true } } },
+                orderBy: { createdAt: 'desc' },
+                take: limit + skip
+            })
+        ]);
+
+        // 2. Normalize and Map
+        const allEvents: UnifiedFinancialEventDto[] = [
+            ...payments.map(p => this.mapPaymentToUnified(p)),
+            ...walletTx.map(w => this.mapWalletToUnified(w)),
+            ...escrows.map(e => this.mapEscrowToUnified(e)),
+            ...withdrawals.map(wd => this.mapWithdrawalToUnified(wd))
+        ];
+
+        // 3. Global Filter by Type if requested
+        let filteredEvents = allEvents;
+        if (filters?.type && filters.type !== 'ALL') {
+            filteredEvents = allEvents.filter(e => e.source === filters.type || e.eventType === filters.type);
+        }
+
+        // 4. Sort and Paginate
+        // We use updatedAt if available, falling back to createdAt
+        const sorted = filteredEvents.sort((a, b) => {
+            const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+            const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+            return dateB - dateA;
+        });
+
+        const paginated = sorted.slice(skip, skip + limit);
+
+        return {
+            data: paginated,
+            total: sorted.length,
+            hasMore: sorted.length > skip + limit
+        };
+    }
+
+    /**
+     * Phase 2: Order Financial Timeline (2026 Audit Trail)
+     * Provides a granular history of money flow for a specific order.
+     */
+    async getOrderFinancialTimeline(orderId: string) {
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: {
+                customer: { select: { id: true, name: true, avatar: true } },
+                offers: {
+                    where: { status: 'accepted' },
+                    include: { store: { select: { id: true, name: true, logo: true, storeCode: true } } }
+                },
+                payments: {
+                    include: { walletTransactions: true }
+                },
+                escrowTransactions: {
+                    include: { walletTransactions: true }
+                },
+                auditLogs: {
+                    where: { entity: 'FINANCIAL' },
+                    orderBy: { timestamp: 'asc' }
+                },
+                returns: true,
+                disputes: true
+            }
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+
+        const timeline: any[] = [];
+
+        // 1. Add Payment Events
+        order.payments.forEach(pt => {
+            timeline.push({
+                eventType: 'PAYMENT',
+                timestamp: pt.createdAt,
+                status: pt.status,
+                amount: Number(pt.totalAmount),
+                details: {
+                    txnNumber: pt.transactionNumber,
+                    method: pt.cardBrand,
+                    commission: Number(pt.commission),
+                    shipping: Number(pt.shippingCost)
+                },
+                descriptionEn: `Customer paid ${pt.totalAmount} AED for order`,
+                descriptionAr: `قام العميل بدفع ${pt.totalAmount} درهم للطلب`
+            });
+
+            // Add related wallet transactions (Admin commission etc)
+            pt.walletTransactions.forEach(wt => {
+                timeline.push({
+                    eventType: 'WALLET',
+                    timestamp: wt.createdAt,
+                    direction: wt.type,
+                    amount: Number(wt.amount),
+                    role: wt.role,
+                    descriptionEn: wt.description || `Wallet ${wt.type} for payment`,
+                    descriptionAr: wt.description || `عملية ${wt.type === 'CREDIT' ? 'إيداع' : 'خصم'} للمحفظة`
+                });
+            });
+        });
+
+        // 2. Add Escrow Events (escrowTransactions is an array, use [0] since orderId is unique)
+        const escrow = order.escrowTransactions?.[0];
+        if (escrow) {
+            timeline.push({
+                eventType: 'ESCROW',
+                timestamp: escrow.createdAt,
+                status: escrow.status,
+                amount: Number(escrow.merchantAmount),
+                descriptionEn: `Funds held in escrow: ${escrow.merchantAmount} AED`,
+                descriptionAr: `تم حجز مبلغ ${escrow.merchantAmount} درهم في الضمان`
+            });
+
+            if (escrow.status === 'RELEASED') {
+                timeline.push({
+                    eventType: 'ESCROW_RELEASE',
+                    timestamp: escrow.releasedAt,
+                    status: 'COMPLETED',
+                    amount: Number(escrow.merchantAmount),
+                    descriptionEn: `Funds released to merchant: ${escrow.merchantAmount} AED`,
+                    descriptionAr: `تم تحرير الأموال للمتجر: ${escrow.merchantAmount} درهم`
+                });
+            }
+
+            if (escrow.status === 'FROZEN') {
+                timeline.push({
+                    eventType: 'ESCROW_FREEZE',
+                    timestamp: escrow.updatedAt,
+                    status: 'FROZEN',
+                    amount: Number(escrow.merchantAmount),
+                    descriptionEn: `Funds frozen due to dispute: ${escrow.frozenReason || 'Dispute'}`,
+                    descriptionAr: `تم تجميد الأموال بسبب نزاع: ${escrow.frozenReason || 'نزاع'}`
+                });
+            }
+
+            escrow.walletTransactions.forEach(wt => {
+                timeline.push({
+                    eventType: 'WALLET',
+                    timestamp: wt.createdAt,
+                    direction: wt.type,
+                    amount: Number(wt.amount),
+                    role: wt.role,
+                    descriptionEn: wt.description || `Wallet ${wt.type} for escrow release`,
+                    descriptionAr: wt.description || `عملية ${wt.type === 'CREDIT' ? 'إيداع' : 'خصم'} من الضمان`
+                });
+            });
+        }
+
+        // 3. Add Audit Logs
+        order.auditLogs.forEach(log => {
+            timeline.push({
+                eventType: 'AUDIT',
+                timestamp: log.timestamp,
+                action: log.action,
+                actor: { type: log.actorType, name: log.actorName },
+                descriptionEn: `Action: ${log.action} by ${log.actorName || 'System'}`,
+                descriptionAr: `إجراء: ${log.action} بواسطة ${log.actorName || 'النظام'}`
+            });
+        });
+
+        // 4. Add Returns/Disputes
+        order.returns.forEach(r => {
+            timeline.push({
+                eventType: 'RETURN',
+                timestamp: r.createdAt,
+                status: r.status,
+                amount: r.refundAmount ? Number(r.refundAmount) : undefined,
+                descriptionEn: `Return requested: ${r.reason}`,
+                descriptionAr: `طلب إرجاع: ${r.reason}`
+            });
+        });
+
+        order.disputes.forEach(d => {
+            timeline.push({
+                eventType: 'DISPUTE',
+                timestamp: d.createdAt,
+                status: d.status,
+                amount: d.refundAmount ? Number(d.refundAmount) : undefined,
+                descriptionEn: `Dispute opened: ${d.reason}`,
+                descriptionAr: `تم فتح نزاع: ${d.reason}`
+            });
+        });
+
+        // Sort by timestamp
+        const sortedTimeline = timeline.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+        return {
+            order: {
+                id: order.id,
+                orderNumber: order.orderNumber,
+                status: order.status,
+                createdAt: order.createdAt
+            },
+            customer: order.customer,
+            merchants: order.offers.map(o => o.store),
+            timeline: sortedTimeline,
+            summary: {
+                totalPaid: order.payments.reduce((sum, pt) => sum + Number(pt.totalAmount), 0),
+                totalCommission: order.payments.reduce((sum, pt) => sum + Number(pt.commission), 0),
+                shippingCosts: order.payments.reduce((sum, pt) => sum + Number(pt.shippingCost), 0),
+                merchantEarnings: order.payments.reduce((sum, pt) => {
+                    // Merchant gets: Total - Commission - Shipping
+                    return sum + (Number(pt.totalAmount) - Number(pt.commission) - Number(pt.shippingCost));
+                }, 0),
+                escrowStatus: escrow?.status || 'N/A',
+                hasDispute: order.disputes.length > 0,
+                hasReturn: order.returns.length > 0
+            }
+        };
+    }
+
+    private mapPaymentToUnified(p: any): UnifiedFinancialEventDto {
+        return {
+            id: p.id,
+            source: FinancialEventSource.PAYMENT,
+            orderId: p.orderId,
+            orderNumber: p.order?.orderNumber,
+            customerId: p.customerId,
+            customerName: p.customer?.name,
+            customerAvatar: p.customer?.avatar,
+            storeId: p.offer?.store?.id,
+            storeName: p.offer?.store?.name,
+            storeLogo: p.offer?.store?.logo,
+            storeCode: p.offer?.store?.storeCode,
+            amount: Number(p.totalAmount),
+            currency: p.currency,
+            direction: FinancialDirection.DEBIT,
+            eventType: `PAYMENT_${p.status}`,
+            eventTypeEn: p.status === 'SUCCESS' ? 'Order Payment Received' : `Payment ${p.status}`,
+            eventTypeAr: p.status === 'SUCCESS' ? 'استلام دفعة طلب' : `عملية دفع ${p.status}`,
+            status: p.status,
+            createdAt: p.createdAt,
+            updatedAt: p.paidAt || p.createdAt,
+            metadata: { transactionNumber: p.transactionNumber, method: p.cardBrand }
+        };
+    }
+
+    private mapWalletToUnified(w: any): UnifiedFinancialEventDto {
+        const isCredit = w.type === 'CREDIT';
+        return {
+            id: w.id,
+            source: FinancialEventSource.WALLET,
+            orderId: w.payment?.order?.id,
+            orderNumber: w.payment?.order?.orderNumber,
+            customerId: w.role === 'CUSTOMER' ? w.userId : undefined,
+            customerName: w.role === 'CUSTOMER' ? w.user?.name : undefined,
+            customerAvatar: w.role === 'CUSTOMER' ? w.user?.avatar : undefined,
+            storeId: w.role === 'VENDOR' ? w.user?.store?.id : undefined,
+            storeName: w.role === 'VENDOR' ? w.user?.store?.name : undefined,
+            storeLogo: w.role === 'VENDOR' ? w.user?.store?.logo : undefined,
+            storeCode: w.role === 'VENDOR' ? w.user?.store?.storeCode : undefined,
+            amount: Number(w.amount),
+            currency: w.currency,
+            direction: isCredit ? FinancialDirection.CREDIT : FinancialDirection.DEBIT,
+            eventType: w.transactionType.toUpperCase(),
+            eventTypeEn: this.getWalletTypeLabel(w.transactionType, 'en'),
+            eventTypeAr: this.getWalletTypeLabel(w.transactionType, 'ar'),
+            status: 'COMPLETED',
+            description: w.description,
+            createdAt: w.createdAt,
+            updatedAt: w.createdAt
+        };
+    }
+
+    private mapEscrowToUnified(e: any): UnifiedFinancialEventDto {
+        return {
+            id: e.id,
+            source: FinancialEventSource.ESCROW,
+            orderId: e.orderId,
+            orderNumber: e.order?.orderNumber,
+            customerId: e.order?.customer?.id,
+            customerName: e.order?.customer?.name,
+            storeId: e.order?.store?.id,
+            storeName: e.order?.store?.name,
+            storeCode: e.order?.store?.storeCode,
+            amount: Number(e.merchantAmount),
+            currency: 'AED',
+            direction: e.status === 'RELEASED' ? FinancialDirection.RELEASE : e.status === 'FROZEN' ? FinancialDirection.FREEZE : FinancialDirection.HOLD,
+            eventType: `ESCROW_${e.status}`,
+            eventTypeEn: e.status === 'HELD' ? 'Funds Secured in Escrow' : e.status === 'RELEASED' ? 'Escrow Funds Released' : 'Escrow Funds Frozen',
+            eventTypeAr: e.status === 'HELD' ? 'تأمين الأموال في الضمان' : e.status === 'RELEASED' ? 'تحرير أموال الضمان' : 'تجميد أموال الضمان',
+            status: e.status,
+            createdAt: e.createdAt,
+            updatedAt: e.releasedAt || e.createdAt
+        };
+    }
+
+    private mapWithdrawalToUnified(wd: any): UnifiedFinancialEventDto {
+        return {
+            id: wd.id,
+            source: FinancialEventSource.WITHDRAWAL,
+            customerId: wd.role === 'CUSTOMER' ? wd.userId : undefined,
+            customerName: wd.role === 'CUSTOMER' ? wd.user?.name : undefined,
+            customerAvatar: wd.role === 'CUSTOMER' ? wd.user?.avatar : undefined,
+            storeId: wd.role === 'VENDOR' ? wd.storeId : undefined,
+            storeName: wd.role === 'VENDOR' ? wd.store?.name : undefined,
+            storeLogo: wd.role === 'VENDOR' ? wd.store?.logo : undefined,
+            storeCode: wd.role === 'VENDOR' ? wd.store?.storeCode : undefined,
+            amount: Number(wd.amount),
+            currency: wd.currency,
+            direction: FinancialDirection.DEBIT,
+            eventType: `WITHDRAWAL_${wd.status}`,
+            eventTypeEn: this.getWithdrawalLabel(wd.status, 'en'),
+            eventTypeAr: this.getWithdrawalLabel(wd.status, 'ar'),
+            status: wd.status,
+            createdAt: wd.createdAt,
+            updatedAt: wd.updatedAt,
+            metadata: { method: wd.payoutMethod, role: wd.role }
+        };
+    }
+
+    private getWalletTypeLabel(type: string, lang: 'ar' | 'en'): string {
+        const labels: Record<string, Record<string, string>> = {
+            payment: { en: 'Order Payment Received', ar: 'استلام دفعة طلب' },
+            commission: { en: 'Platform Commission Earned', ar: 'تحصيل عمولة المنصة' },
+            withdrawal: { en: 'Balance Withdrawal', ar: 'سحب رصيد من المحفظة' },
+            referral: { en: 'Referral Bonus Reward', ar: 'مكافأة إحالة مستخدم' },
+            referral_profit: { en: 'Referral Commission', ar: 'أرباح نظام الإحالة' },
+            order_profit: { en: 'Order Profit Released', ar: 'إيداع أرباح الطلب للمتجر' },
+            shipping_fee: { en: 'Shipping Logistics Fee', ar: 'رسوم خدمات الشحن' },
+            manual_payout: { en: 'Manual Bank Transfer', ar: 'تحويل بنكي يدوي للمتجر' },
+            payout: { en: 'Merchant Payout Executed', ar: 'تحويل مستحقات التاجر' },
+            refund: { en: 'Customer Refund Processed', ar: 'استرداد مبلغ للعميل' },
+            penalty: { en: 'Violation Penalty Deducted', ar: 'خصم غرامة مخالفة' }
+        };
+        return labels[type.toLowerCase()]?.[lang] || type;
+    }
+
+    private getWithdrawalLabel(status: string, lang: 'ar' | 'en'): string {
+        const labels: Record<string, Record<string, string>> = {
+            pending: { en: 'Withdrawal Request Pending', ar: 'طلب سحب قيد المراجعة' },
+            completed: { en: 'Withdrawal Successfully Executed', ar: 'تم تحويل المبلغ بنجاح' },
+            approved: { en: 'Withdrawal Approved for Processing', ar: 'تمت الموافقة على السحب' },
+            rejected: { en: 'Withdrawal Request Rejected', ar: 'تم رفض طلب السحب' },
+            failed: { en: 'Withdrawal Transfer Failed', ar: 'فشل في تحويل المبلغ' }
+        };
+        return labels[status.toLowerCase()]?.[lang] || `Withdrawal ${status}`;
     }
 }
 

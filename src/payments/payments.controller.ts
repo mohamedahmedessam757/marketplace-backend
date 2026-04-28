@@ -177,6 +177,20 @@ export class PaymentsController {
         return this.paymentsService.getAdminFinancials(filters);
     }
 
+    @Get('admin/financial-feed')
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    getUnifiedFinancialFeed(@Query() filters: any) {
+        return this.paymentsService.getUnifiedFinancialFeed(filters);
+    }
+
+    @Get('admin/order-financial-timeline/:orderId')
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    getOrderFinancialTimeline(@Param('orderId') orderId: string) {
+        return this.paymentsService.getOrderFinancialTimeline(orderId);
+    }
+
     @Get('admin/financials/export')
     @Roles('ADMIN', 'SUPER_ADMIN')
     @UseGuards(RolesGuard)
