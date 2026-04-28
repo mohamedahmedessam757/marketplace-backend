@@ -1,15 +1,57 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificationsService {
-    constructor(private prisma: PrismaService) { }
+    private readonly logger = new Logger(NotificationsService.name);
+
+    constructor(
+        private prisma: PrismaService,
+        private readonly gateway: NotificationsGateway
+    ) { }
 
     async create(data: CreateNotificationDto) {
-        return this.prisma.notification.create({
-            data,
+        // 1. Rate Limiting: Max 20 per hour per user
+        if (await this.isRateLimited(data.recipientId)) {
+            this.logger.warn(`Rate limit reached for user ${data.recipientId}. Notification suppressed.`);
+            return null;
+        }
+
+        // 2. Role Fallback: Resolve from DB if not provided
+        let recipientRole = data.recipientRole;
+        if (!recipientRole) {
+            const user = await this.prisma.user.findUnique({
+                where: { id: data.recipientId },
+                select: { role: true }
+            });
+            recipientRole = user?.role === 'VENDOR' ? 'MERCHANT' : user?.role || 'CUSTOMER';
+        }
+
+        // 3. Persist Notification
+        const notification = await this.prisma.notification.create({
+            data: {
+                ...data,
+                recipientRole,
+            },
         });
+
+        // 4. Real-time Emission
+        this.gateway.sendToUser(data.recipientId, notification);
+
+        return notification;
+    }
+
+    private async isRateLimited(userId: string): Promise<boolean> {
+        const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+        const count = await this.prisma.notification.count({
+            where: {
+                recipientId: userId,
+                createdAt: { gte: oneMinuteAgo }
+            }
+        });
+        return count >= 20;
     }
 
     async findAll(userId: string) {
@@ -55,16 +97,26 @@ export class NotificationsService {
             select: { id: true }
         });
 
-        const notifications = admins.map(admin => ({
+        const notificationsData = admins.map(admin => ({
             ...data,
             recipientId: admin.id,
             recipientRole: 'ADMIN',
             type: data.type || 'alert'
         }));
 
-        return this.prisma.notification.createMany({
-            data: notifications
+        // Use transaction for consistency
+        const result = await this.prisma.notification.createMany({
+            data: notificationsData
         });
+
+        // Emit to admins room
+        this.gateway.sendToAdmins({
+            ...data,
+            type: data.type || 'alert',
+            createdAt: new Date()
+        });
+
+        return result;
     }
 
     /**
@@ -76,6 +128,50 @@ export class NotificationsService {
             recipientId,
             recipientRole: role,
             type: data.type || 'system'
+        });
+    }
+
+    /**
+     * Phase 1 Enhancement: Auto-resolve store owner from storeId
+     */
+    async notifyMerchantByStoreId(storeId: string, data: Omit<CreateNotificationDto, 'recipientId' | 'recipientRole'>) {
+        const store = await this.prisma.store.findUnique({
+            where: { id: storeId },
+            select: { ownerId: true }
+        });
+
+        if (!store) {
+            this.logger.error(`Failed to notify merchant: Store ${storeId} not found.`);
+            return null;
+        }
+
+        return this.notifyUser(store.ownerId, 'MERCHANT', data);
+    }
+
+    /**
+     * Phase 1 Enhancement: Prevent duplicate notifications within a TTL window
+     */
+    async notifyWithDedup(recipientId: string, dedupKey: string, ttlMinutes: number, data: CreateNotificationDto) {
+        const recent = await this.prisma.notification.findFirst({
+            where: {
+                recipientId,
+                type: data.type,
+                createdAt: { gte: new Date(Date.now() - ttlMinutes * 60000) },
+                metadata: {
+                    path: ['dedupKey'],
+                    equals: dedupKey
+                }
+            }
+        });
+
+        if (recent) {
+            this.logger.debug(`Duplicate notification suppressed for user ${recipientId} (key: ${dedupKey})`);
+            return recent;
+        }
+
+        return this.create({
+            ...data,
+            metadata: { ...data.metadata, dedupKey }
         });
     }
 }

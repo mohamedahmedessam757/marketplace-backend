@@ -239,6 +239,16 @@ export class ViolationsService {
         metadata: { violationId: violation.id, points, fineAmount },
       });
 
+      // 7.1 Notify Admin Group (Oversight)
+      await this.notifications.notifyAdmins({
+        titleAr: 'تم تسجيل مخالفة 🛡️',
+        titleEn: 'Violation Issued 🛡️',
+        messageAr: `قام أدمن بتسجيل مخالفة (${vType.nameAr}) بحق المستخدم ${targetUserId}. النقاط: ${points}.`,
+        messageEn: `Admin issued violation (${vType.nameEn}) to user ${targetUserId}. Points: ${points}.`,
+        type: 'VIOLATION',
+        metadata: { violationId: violation.id, targetUserId }
+      });
+
       // 8. Check for Penalties
       await this.checkAndTriggerPenalty(targetUserId, targetType, newScore, targetStoreId, tx);
 

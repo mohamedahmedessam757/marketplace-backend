@@ -124,6 +124,37 @@ export class OrdersService {
                 link: `/admin/orders/${result.id}`,
                 metadata: { orderId: result.id, orderNumber }
             });
+
+            // 4. Notify Relevant Merchants (Matching Car Expertise) - 2026 Smart Routing
+            const matchingStores = await this.prisma.store.findMany({
+                where: {
+                    status: 'ACTIVE',
+                    OR: [
+                        { selectedMakes: { has: createOrderDto.vehicleMake } },
+                        { customMake: { equals: createOrderDto.vehicleMake, mode: 'insensitive' } }
+                    ]
+                },
+                select: { ownerId: true }
+            });
+
+            if (matchingStores.length > 0) {
+                const merchantMessageAr = `طلب جديد لسيارة ${createOrderDto.vehicleMake} ${createOrderDto.vehicleModel}. هل تتوفر لديك القطعة؟ قدم عرضك الآن!`;
+                const merchantMessageEn = `New request for ${createOrderDto.vehicleMake} ${createOrderDto.vehicleModel}. Do you have the part? Submit your offer now!`;
+                
+                for (const store of matchingStores) {
+                    await this.notifications.create({
+                        recipientId: store.ownerId,
+                        recipientRole: 'MERCHANT',
+                        titleAr: 'فرصة بيع جديدة! 💰',
+                        titleEn: 'New Sales Opportunity! 💰',
+                        messageAr: merchantMessageAr,
+                        messageEn: merchantMessageEn,
+                        type: 'ORDER',
+                        link: `/merchant/orders/${result.id}`,
+                        metadata: { orderId: result.id, orderNumber }
+                    }).catch(() => {}); // Non-blocking
+                }
+            }
         } catch (e) {
             console.error('Failed to send notification', e);
         }
@@ -435,6 +466,17 @@ export class OrdersService {
                     }
                 }
             }
+
+            // 3.3 Notify Admins about ANY status transition (Oversight Policy)
+            await this.notifications.notifyAdmins({
+                titleAr: `تحديث حالة الطلب #${order.orderNumber}`,
+                titleEn: `Order #${order.orderNumber} Status Updated`,
+                messageAr: `تغيرت حالة الطلب إلى: ${newStatus}. المنفذ: ${actor.name || actor.type}`,
+                messageEn: `Order status changed to: ${newStatus}. Actor: ${actor.name || actor.type}`,
+                type: 'ORDER',
+                link: `/admin/orders/${order.id}`,
+                metadata: { orderId: order.id, status: newStatus, actor: actor.type }
+            });
         } catch (e) {
             console.error('Failed to send notification', e);
         }
@@ -743,9 +785,7 @@ export class OrdersService {
         }).catch(e => console.error('Failed to notify customer upon preparation completion', e));
 
         // Add Merchant Reminder for Documentation
-        this.notifications.create({
-            recipientId: storeId,
-            recipientRole: 'MERCHANT',
+        this.notifications.notifyMerchantByStoreId(storeId, {
             titleAr: 'توثيق حالة القطعة إلزامي!',
             titleEn: 'Part Verification Required!',
             messageAr: `تم تجهيز طلب #${order.orderNumber}. يرجى رفع التوثيق لتتمكن من تسليمه للمندوب ومتابعة الطلب.`,

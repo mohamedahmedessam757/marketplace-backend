@@ -4,12 +4,15 @@ import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
 import { User } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { ActorType } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
   constructor(
     private prisma: PrismaService,
-    private notificationsService: NotificationsService
+    private notificationsService: NotificationsService,
+    private auditLogs: AuditLogsService
   ) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -148,7 +151,44 @@ export class UsersService {
               }))
             });
           }
+
+          // Notify Admin about new Store Registration
+          await this.notificationsService.notifyAdmins({
+            type: 'system',
+            titleAr: 'متجر جديد قيد المراجعة 🏪',
+            titleEn: 'New Store Pending Review 🏪',
+            messageAr: `قام (${createUserDto.storeName}) بالتسجيل كتاجر جديد. يرجى مراجعة المستندات.`,
+            messageEn: `(${createUserDto.storeName}) has registered as a new merchant. Please review their documents.`,
+            metadata: { storeId: store.id, ownerId: user.id }
+          });
+        } else {
+          // Notify Admin about new Customer Registration (Broadcasting to all Admins)
+          await this.notificationsService.notifyAdmins({
+            type: 'system',
+            titleAr: 'عضو جديد في المنصة 👤',
+            titleEn: 'New Member Joined 👤',
+            messageAr: `انضم العضو (${user.name || user.email}) إلى المنصة كـ ${user.role === 'CUSTOMER' ? 'عميل' : 'مستخدم'}.`,
+            messageEn: `User (${user.name || user.email}) has joined the platform as a ${user.role.toLowerCase()}.`,
+            metadata: { userId: user.id, role: user.role }
+          });
         }
+
+        // 2026 Audit Trail: Log new account creation
+        await this.auditLogs.logAction({
+          action: 'CREATE',
+          entity: 'USER',
+          actorType: user.role === 'VENDOR' ? ActorType.VENDOR : ActorType.CUSTOMER,
+          actorId: user.id,
+          actorName: user.name || user.email,
+          newState: user.role,
+          reason: user.role === 'VENDOR' ? 'New Merchant Registration' : 'New Customer Registration',
+          metadata: { 
+            email: user.email, 
+            role: user.role, 
+            country: user.country,
+            referredById: user.referredById 
+          }
+        }, tx);
 
         return user;
       });
@@ -536,6 +576,16 @@ export class UsersService {
             timestamp: new Date().toISOString()
           }
         }
+      });
+
+      // 3. Notify Admin Group (Oversight)
+      await this.notificationsService.notifyAdmins({
+        titleAr: status === 'SUSPENDED' ? 'تم إيقاف حساب مستخدم ⛔' : 'تم تفعيل حساب مستخدم ✅',
+        titleEn: status === 'SUSPENDED' ? 'User Account Suspended ⛔' : 'User Account Activated ✅',
+        messageAr: `قام أدمن بتغيير حالة المستخدم (${user.name || user.email}) إلى ${status}. السبب: ${reason || 'لا يوجد'}`,
+        messageEn: `Admin changed status for user (${user.name || user.email}) to ${status}. Reason: ${reason || 'None'}`,
+        type: 'SECURITY',
+        metadata: { userId: id, status }
       });
 
       return user;

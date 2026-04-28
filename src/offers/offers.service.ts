@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { StoresService } from '../stores/stores.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { ActorType } from '@prisma/client';
 
 @Injectable()
 export class OffersService {
@@ -10,6 +12,7 @@ export class OffersService {
         private prisma: PrismaService,
         private storesService: StoresService,
         private notificationsService: NotificationsService,
+        private auditLogs: AuditLogsService,
     ) { }
 
     async create(userId: string, createOfferDto: CreateOfferDto) {
@@ -111,8 +114,25 @@ export class OffersService {
                 throw prismaError;
             }
         }
+        
+        // 5. Audit Log (2026 Observability)
+        await this.auditLogs.logAction({
+            orderId: createOfferDto.orderId,
+            action: 'CREATE_OFFER',
+            entity: 'Offer',
+            actorType: ActorType.VENDOR,
+            actorId: userId,
+            actorName: store.name,
+            newState: 'pending',
+            metadata: { 
+                offerId: offer.id, 
+                offerNumber: offer.offerNumber, 
+                unitPrice: offer.unitPrice,
+                shippingCost: offer.shippingCost
+            }
+        });
 
-        // 5. Update Order Status to AWAITING_OFFERS (if not already)
+        // 6. Update Order Status to AWAITING_OFFERS (if not already)
         // Actually, status logic might be handled by OrdersService, but here we just ensure flow.
 
         // 6. Notify Customer (Fire and Forget)
@@ -127,6 +147,17 @@ export class OffersService {
                 type: 'OFFER',
                 link: `/dashboard/orders/${orderInfo.id}`
             }).catch(e => console.error('Failed to notify customer of new offer', e));
+
+            // 7. Notify Admin about New Offer (Marketplace Oversight)
+            this.notificationsService.notifyAdmins({
+                titleAr: 'عرض سعر جديد في المنصة',
+                titleEn: 'New Marketplace Offer',
+                messageAr: `قام متجر "${store.name}" بتقديم عرض للطلب #${orderInfo.orderNumber}`,
+                messageEn: `Store "${store.name}" submitted an offer for order #${orderInfo.orderNumber}`,
+                type: 'OFFER',
+                link: `/admin/orders/${orderInfo.id}`,
+                metadata: { orderId: orderInfo.id, offerId: offer.id }
+            }).catch(() => {});
         }
 
         return offer;
@@ -220,13 +251,28 @@ export class OffersService {
         if (updateDto.offerImage !== undefined) data.offerImage = updateDto.offerImage;
         data.updatedAt = new Date();
 
-        return this.prisma.offer.update({
+        const updated = await this.prisma.offer.update({
             where: { id: offerId },
             data,
             include: {
                 store: { select: { id: true, name: true } }
             }
         });
+
+        // Audit Log (2026 Change Tracking)
+        await this.auditLogs.logAction({
+            orderId: existing.orderId,
+            action: 'UPDATE_OFFER',
+            entity: 'Offer',
+            actorType: ActorType.VENDOR,
+            actorId: userId,
+            actorName: updated.store?.name || 'Vendor',
+            previousState: JSON.stringify(existing),
+            newState: JSON.stringify(updated),
+            metadata: { offerId, changes: data }
+        });
+
+        return updated;
     }
 
     /**
@@ -256,6 +302,19 @@ export class OffersService {
         if (!existing.order || existing.order.status !== 'AWAITING_OFFERS') {
             throw new BadRequestException('Cannot cancel offer — bidding is closed or order has progressed.');
         }
+
+        // Audit Log (2026 Cancellation Tracking)
+        await this.auditLogs.logAction({
+            orderId: existing.orderId,
+            action: 'CANCEL_OFFER_VENDOR',
+            entity: 'Offer',
+            actorType: ActorType.VENDOR,
+            actorId: userId,
+            actorName: store.name,
+            previousState: JSON.stringify(existing),
+            newState: 'DELETED',
+            reason: 'Vendor retracted their offer during bidding window'
+        });
 
         await this.prisma.offer.delete({ where: { id: offerId } });
 
@@ -307,6 +366,19 @@ export class OffersService {
             }
         });
 
+        // Audit Log (2026 Admin Oversight)
+        await this.auditLogs.logAction({
+            orderId: offer.order?.id || offer.orderId,
+            action: 'ADMIN_UPDATE_OFFER',
+            entity: 'Offer',
+            actorType: ActorType.ADMIN,
+            actorId: adminId,
+            actorName: 'Administrator',
+            previousState: JSON.stringify(existing),
+            newState: JSON.stringify(updated),
+            metadata: { offerId, changes: data }
+        });
+
         // Notify Merchant
         if (offer.store?.userId) {
             await this.notificationsService.create({
@@ -343,6 +415,19 @@ export class OffersService {
 
         // Cast after null-guard — the include clause already fetched store + order
         const offer = existing as any;
+
+        // Audit Log (2026 Admin Intervention)
+        await this.auditLogs.logAction({
+            orderId: offer.order?.id || offer.orderId,
+            action: 'ADMIN_DELETE_OFFER',
+            entity: 'Offer',
+            actorType: ActorType.ADMIN,
+            actorId: adminId,
+            actorName: 'Administrator',
+            previousState: JSON.stringify(existing),
+            newState: 'DELETED',
+            reason: 'Administrative removal of offer'
+        });
 
         await this.prisma.offer.delete({ where: { id: offerId } });
 

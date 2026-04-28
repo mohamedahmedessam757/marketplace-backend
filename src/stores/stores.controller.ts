@@ -51,30 +51,33 @@ export class StoresController {
     @UseGuards(RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
     updateStatus(
+        @Request() req,
         @Param('id') id: string, 
         @Body() body: { status: StoreStatus, reason?: string, suspendedUntil?: Date }
     ) {
-        return this.storesService.updateStatus(id, body.status, body.reason, body.suspendedUntil);
+        return this.storesService.updateStatus(req.user.id, id, body.status, body.reason, body.suspendedUntil);
     }
 
     @Patch(':id/notes')
     @UseGuards(RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
     updateAdminNotes(
+        @Request() req,
         @Param('id') id: string,
         @Body() body: { notes: string }
     ) {
-        return this.storesService.updateAdminNotes(id, body.notes);
+        return this.storesService.updateAdminNotes(req.user.id, id, body.notes);
     }
 
     @Patch(':id/documents/:docType/status')
     @UseGuards(RolesGuard)
     @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
     updateDocumentStatus(
+        @Request() req,
         @Param('id') id: string,
         @Param('docType') docType: string,
         @Body() body: { status: string, reason?: string }
     ) {
-        return this.storesService.updateDocumentStatus(id, docType, body.status, body.reason);
+        return this.storesService.updateDocumentStatus(req.user.id, id, docType, body.status, body.reason);
     }
 }

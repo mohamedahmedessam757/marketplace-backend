@@ -1,12 +1,15 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { ActorType } from '@prisma/client';
 
 @Injectable()
 export class RecoveryService {
     constructor(
         private prisma: PrismaService,
-        private notifications: NotificationsService
+        private notifications: NotificationsService,
+        private auditLogs: AuditLogsService
     ) { }
 
     // In a real app, this would use Redis for rate limiting and OTP storage.
@@ -41,6 +44,17 @@ export class RecoveryService {
                 action: 'RECOVERY_EMAIL_OTP_SENT',
                 isSuccess: true,
             },
+        });
+
+        // 2026 Global Audit
+        await this.auditLogs.logAction({
+            action: 'RECOVERY_REQUEST',
+            entity: 'USER',
+            actorType: user.role as any,
+            actorId: user.id,
+            actorName: user.name,
+            reason: 'OTP Request for Email Recovery',
+            metadata: { email, role }
         });
 
         return { success: true, message: 'An OTP has been sent to your email.' };
@@ -195,6 +209,17 @@ export class RecoveryService {
 
             await this.logSecurityEvent(email, `RECOVERY_QUEUED_FOR_ADMIN_${role.toUpperCase()}`, true, ip, device);
 
+            // 2026 Global Audit
+            await this.auditLogs.logAction({
+                action: 'RECOVERY_SUBMITTED',
+                entity: 'AccountRecoveryRequest',
+                actorType: user.role as any,
+                actorId: user.id,
+                actorName: user.name,
+                reason: 'Recovery request queued for admin review (High Risk)',
+                metadata: { email, newPhone, balance, totalActiveOrders }
+            });
+
             return {
                 success: true,
                 action: 'PENDING_REVIEW',
@@ -213,6 +238,29 @@ export class RecoveryService {
 
             // TODO: SEND EMAIL NOTIFICATION HERE
             console.log(`[EMAIL NOTIFICATION] To: ${email} -> Your phone number has been updated. Withdrawals are frozen for 12 hours.`);
+
+            // Persistent Notification for the user
+            await this.notifications.create({
+                recipientId: user.id,
+                recipientRole: role === 'merchant' ? 'VENDOR' : 'CUSTOMER',
+                titleAr: 'تم تحديث رقم الجوال بنجاح ✅',
+                titleEn: 'Phone Number Updated Successfully ✅',
+                messageAr: 'تم تحديث رقم جوالك المرتبط بالحساب. لأمانك، تم تجميد عمليات السحب لمدة 12 ساعة.',
+                messageEn: 'Your account phone number has been updated. For security, withdrawals are frozen for 12 hours.',
+                type: 'alert',
+                link: '/dashboard/profile'
+            });
+
+            // 2026 Global Audit
+            await this.auditLogs.logAction({
+                action: 'RECOVERY_AUTO_APPROVED',
+                entity: 'USER',
+                actorType: user.role as any,
+                actorId: user.id,
+                actorName: user.name,
+                reason: 'Account recovery auto-approved (Low Risk)',
+                metadata: { email, newPhone }
+            });
 
             // Clear sessions
             this.otpCache.delete(`${role}_${email}_verified`);
@@ -356,6 +404,16 @@ export class RecoveryService {
             console.warn(`[RecoveryService] AdminActivityLog creation failed, retrying without relation...`);
             await this.prisma.adminActivityLog.create({ data: { ...logData, adminId: null } });
         }
+
+        // 2026 Global Audit
+        await this.auditLogs.logAction({
+            action: action === 'APPROVE' ? 'RECOVERY_APPROVED' : 'RECOVERY_REJECTED',
+            entity: 'AccountRecoveryRequest',
+            actorType: 'ADMIN',
+            actorId: adminId,
+            reason: `Admin ${action.toLowerCase()}d account recovery for ${request.user.email}`,
+            metadata: { requestId, targetUserId: request.userId, action }
+        });
 
         // Update request status
         return this.prisma.accountRecoveryRequest.update({

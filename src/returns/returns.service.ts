@@ -2,13 +2,15 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class ReturnsService {
     constructor(
         private prisma: PrismaService,
         private uploadsService: UploadsService,
-        private notificationsService: NotificationsService
+        private notificationsService: NotificationsService,
+        private auditLogs: AuditLogsService
     ) { }
 
     // --- Case Messaging (Phase 4) ---
@@ -283,8 +285,20 @@ export class ReturnsService {
             return returnRecord;
         });
 
-        // 4. Notify Admin & Merchant (Fire and Forget)
         this.notifyResolutionCenter(orderId, result.id, 'RETURN_REQUEST', order.orderNumber).catch(e => console.error('Failed to notify return', e));
+
+        // 5. Audit Log (2026 Return Request)
+        await this.auditLogs.logAction({
+            entity: 'RETURN_REQUEST',
+            action: 'RETURN_CREATED',
+            actorType: 'CUSTOMER',
+            actorId: userId,
+            metadata: { 
+                returnId: result.id, 
+                orderId, 
+                reason 
+            }
+        });
 
         return result;
     }
@@ -388,6 +402,19 @@ export class ReturnsService {
         if (order.acceptedOffer?.storeId) {
             this.checkMerchantRiskAlert(order.acceptedOffer.storeId).catch(console.error);
         }
+
+        // 6. Audit Log (2026 Dispute Escalation)
+        await this.auditLogs.logAction({
+            entity: 'DISPUTE',
+            action: 'DISPUTE_CREATED',
+            actorType: 'CUSTOMER',
+            actorId: userId,
+            metadata: { 
+                disputeId: result.id, 
+                orderId, 
+                reason 
+            }
+        });
 
         return result;
     }
@@ -1104,6 +1131,16 @@ export class ReturnsService {
             });
         });
 
+        // Audit Log (2026 Administrative Verdict)
+        await this.auditLogs.logAction({
+            entity: type === 'return' ? 'RETURN_REQUEST' : 'DISPUTE',
+            action: 'VERDICT_ISSUED',
+            actorType: 'ADMIN',
+            actorId: adminId,
+            reason: notes,
+            metadata: { caseId, verdict, type, extra }
+        });
+
         return result;
     }
 
@@ -1125,7 +1162,19 @@ export class ReturnsService {
             throw new BadRequestException('Verdict edit window (24h) has expired');
         }
 
-        return this.issueVerdict(adminId, caseId, type, verdict, notes, extra);
+        const result = await this.issueVerdict(adminId, caseId, type, verdict, notes, extra);
+
+        // Audit Log (2026 Verdict Update)
+        await this.auditLogs.logAction({
+            entity: type === 'return' ? 'RETURN_REQUEST' : 'DISPUTE',
+            action: 'VERDICT_UPDATED',
+            actorType: 'ADMIN',
+            actorId: adminId,
+            reason: notes,
+            metadata: { caseId, verdict, type }
+        });
+
+        return result;
     }
 
     async manualEscalation(userId: string, caseId: string) {
@@ -1177,18 +1226,16 @@ export class ReturnsService {
             }
         });
 
-        // Audit Trail
-        await this.prisma.auditLog.create({
-            data: {
-                orderId: record.orderId,
-                action: 'MANUAL_ESCALATION',
-                entity: type.toUpperCase(),
-                actorType: actorType,
-                actorId: userId,
-                previousState: record.status,
-                newState: 'ESCALATED',
-                reason: 'User requested manual escalation to administration'
-            }
+        // Audit Log (2026 Manual Escalation)
+        await this.auditLogs.logAction({
+            orderId: record.orderId,
+            action: 'MANUAL_ESCALATION',
+            entity: type.toUpperCase(),
+            actorType: actorType as any,
+            actorId: userId,
+            previousState: record.status,
+            newState: 'ESCALATED',
+            reason: 'User requested manual escalation to administration'
         });
 
         // Notify Admins
@@ -1279,6 +1326,36 @@ export class ReturnsService {
                 type: 'RETURN_ESCALATION',
                 link: `/dashboard/resolution`
             });
+
+            // Notify Customer about Escalation
+            await this.notificationsService.create({
+                recipientId: ret.customerId,
+                recipientRole: 'CUSTOMER',
+                titleAr: 'تحديث النزاع: تم التصعيد للإدارة',
+                titleEn: 'Dispute Update: Escalated to Admin',
+                messageAr: `تم تصعيد طلب الإرجاع الخاص بك للطلب #${ret.order.orderNumber} تلقائياً لمراجعة الإدارة لعدم رد التاجر.`,
+                messageEn: `Your return request for Order #${ret.order.orderNumber} has been auto-escalated to admin review.`,
+                type: 'RETURN',
+                link: `/dashboard/orders/${ret.orderId}`
+            });
+
+            // Notify Merchant about Escalation (Warning)
+            const store = await this.prisma.store.findFirst({
+                where: { OR: [{ id: ret.storeId }, { orders: { some: { id: ret.orderId } } }] },
+                select: { ownerId: true }
+            });
+            if (store?.ownerId) {
+                await this.notificationsService.create({
+                    recipientId: store.ownerId,
+                    recipientRole: 'VENDOR',
+                    titleAr: 'تنبيه: تم تصعيد طلب إرجاع للإدارة ⚠️',
+                    titleEn: 'Warning: Return Escalated to Admin ⚠️',
+                    messageAr: `تم تصعيد طلب الإرجاع للطلب #${ret.order.orderNumber} للإدارة لعدم ردكم خلال المهلة. يرجى المتابعة مع الإدارة.`,
+                    messageEn: `The return request for Order #${ret.order.orderNumber} has been escalated to admin due to no response.`,
+                    type: 'RETURN',
+                    link: '/dashboard/merchant/resolution'
+                });
+            }
         }
 
         // 2. Process Open Disputes
@@ -1304,6 +1381,36 @@ export class ReturnsService {
                 type: 'DISPUTE_ESCALATION',
                 link: `/dashboard/resolution`
             });
+
+            // Notify Customer about Escalation
+            await this.notificationsService.create({
+                recipientId: dispute.customerId,
+                recipientRole: 'CUSTOMER',
+                titleAr: 'تحديث النزاع: تم التصعيد للإدارة',
+                titleEn: 'Dispute Update: Escalated to Admin',
+                messageAr: `تم تصعيد النزاع الخاص بالطلب #${dispute.order.orderNumber} تلقائياً لمراجعة الإدارة لعدم رد التاجر.`,
+                messageEn: `Your dispute for Order #${dispute.order.orderNumber} has been auto-escalated to admin review.`,
+                type: 'DISPUTE',
+                link: `/dashboard/orders/${dispute.orderId}`
+            });
+
+            // Notify Merchant about Escalation (Warning)
+            const store = await this.prisma.store.findFirst({
+                where: { OR: [{ id: dispute.storeId }, { orders: { some: { id: dispute.orderId } } }] },
+                select: { ownerId: true }
+            });
+            if (store?.ownerId) {
+                await this.notificationsService.create({
+                    recipientId: store.ownerId,
+                    recipientRole: 'VENDOR',
+                    titleAr: 'تنبيه: تم تصعيد نزاع للإدارة ⚠️',
+                    titleEn: 'Warning: Case Escalated to Admin ⚠️',
+                    messageAr: `تم تصعيد النزاع للطلب #${dispute.order.orderNumber} للإدارة لعدم ردكم خلال المهلة. يرجى المتابعة مع الإدارة.`,
+                    messageEn: `The dispute for Order #${dispute.order.orderNumber} has been escalated to admin due to no response.`,
+                    type: 'DISPUTE',
+                    link: '/dashboard/merchant/resolution'
+                });
+            }
         }
     }
 

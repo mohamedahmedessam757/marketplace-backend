@@ -432,11 +432,9 @@ export class ShipmentsService {
         }
 
         // Notify Admins
-        const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
-        await Promise.all(
-            admins.map(admin => 
-                this.notifications.create({ ...notifyData, recipientId: admin.id, recipientRole: 'ADMIN' })
-            )
-        );
+        await this.notifications.notifyAdmins({
+            ...notifyData,
+            type: 'SHIPMENT_UPDATE', // More specific type for admin
+        });
     }
 };

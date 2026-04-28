@@ -8,6 +8,7 @@ import { AdminManualPayoutDto, PayoutMethod } from './dto/admin-payout.dto';
 import { Prisma, ActorType } from '@prisma/client';
 import { EscrowService } from './escrow.service';
 import { UnifiedFinancialEventDto, FinancialEventSource, FinancialDirection } from './dto/unified-financial-feed.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class PaymentsService {
@@ -19,6 +20,7 @@ export class PaymentsService {
         private readonly escrowService: EscrowService,
         @Inject(forwardRef(() => StripeService))
         private readonly stripeService: StripeService,
+        private readonly auditLogs: AuditLogsService,
     ) { }
 
     /**
@@ -198,21 +200,37 @@ export class PaymentsService {
                     });
 
                     // Audit log
-                    await tx.auditLog.create({
-                        data: {
-                            orderId,
-                            action: 'STATUS_CHANGE',
-                            entity: 'Order',
-                            actorType: 'CUSTOMER',
-                            actorId: customerId,
-                            previousState: 'AWAITING_PAYMENT',
-                            newState: 'PREPARATION',
-                            reason: 'All offers paid successfully',
-                        },
-                    });
+                // Audit log (2026 Status Tracking)
+                await this.auditLogs.logAction({
+                    orderId,
+                    action: 'STATUS_CHANGE',
+                    entity: 'Order',
+                    actorType: ActorType.CUSTOMER,
+                    actorId: customerId,
+                    previousState: 'AWAITING_PAYMENT',
+                    newState: 'PREPARATION',
+                    reason: 'All offers paid successfully',
+                });
 
                     orderTransitioned = true;
                 }
+
+                // Audit Log (2026 Payment Success)
+                await this.auditLogs.logAction({
+                    orderId,
+                    action: 'PAYMENT_SUCCESS',
+                    entity: 'PaymentTransaction',
+                    actorType: ActorType.CUSTOMER,
+                    actorId: customerId,
+                    metadata: {
+                        offerId,
+                        transactionNumber,
+                        amount: totalAmount,
+                        commission,
+                        orderTransitioned
+                    },
+                    newState: 'SUCCESS'
+                });
 
                 return {
                     payment,
@@ -378,6 +396,20 @@ export class PaymentsService {
                     },
                 });
             }
+
+            // Audit Log (2026 Payment Intent)
+            await this.auditLogs.logAction({
+                orderId,
+                action: 'PAYMENT_INTENT_CREATED',
+                entity: 'PaymentTransaction',
+                actorType: ActorType.CUSTOMER,
+                actorId: customerId,
+                metadata: {
+                    offerId,
+                    amount: totalAmount,
+                    stripeIntentId: intent.id
+                }
+            });
         });
 
         return {
@@ -643,18 +675,40 @@ export class PaymentsService {
                     data: { status: 'PREPARATION' }
                 });
 
+                // Notify Merchant to Start Preparation
+                this.notifications.create({
+                    recipientId: payment.offer.store.ownerId,
+                    recipientRole: 'MERCHANT',
+                    titleAr: 'طلب جديد جاهز للتجهيز! 📦',
+                    titleEn: 'New Order Ready for Preparation! 📦',
+                    messageAr: `تم دفع قيمة الطلب #${payment.order.orderNumber}. يرجى البدء في تجهيز القطع للشحن.`,
+                    messageEn: `Payment for Order #${payment.order.orderNumber} confirmed. Please start preparing parts for shipment.`,
+                    type: 'ORDER',
+                    link: `/merchant/orders/${payment.orderId}`
+                }).catch(() => {});
+
+                // Notify Admin about Payment Success
+                this.notifications.notifyAdmins({
+                    titleAr: 'تم سداد طلب بنجاح 💸',
+                    titleEn: 'Order Payment Successful 💸',
+                    messageAr: `تم سداد مبلغ ${payment.totalAmount} درهم للطلب #${payment.order.orderNumber}.`,
+                    messageEn: `Payment of AED ${payment.totalAmount} confirmed for Order #${payment.order.orderNumber}.`,
+                    type: 'PAYMENT',
+                    link: `/admin/orders/${payment.orderId}`,
+                    metadata: { orderId: payment.orderId, amount: payment.totalAmount }
+                }).catch(() => {});
+
                 // Audit log
-                await tx.auditLog.create({
-                    data: {
-                        orderId: payment.orderId,
-                        action: 'STATUS_CHANGE',
-                        entity: 'Order',
-                        actorType: 'SYSTEM',
-                        actorId: 'STRIPE_WEBHOOK',
-                        previousState: 'AWAITING_PAYMENT',
-                        newState: 'PREPARATION',
-                        reason: 'All offers paid successfully via Stripe',
-                    },
+                // Audit log (2026 System Tracking)
+                await this.auditLogs.logAction({
+                    orderId: payment.orderId,
+                    action: 'STATUS_CHANGE',
+                    entity: 'Order',
+                    actorType: ActorType.SYSTEM,
+                    actorId: 'STRIPE_WEBHOOK',
+                    previousState: 'AWAITING_PAYMENT',
+                    newState: 'PREPARATION',
+                    reason: 'All offers paid successfully via Stripe',
                 });
             }
 
@@ -670,6 +724,40 @@ export class PaymentsService {
                 link: 'checkout',
                 metadata: { orderId: payment.orderId, offerId: payment.offerId, amount: payment.totalAmount },
             });
+        });
+    }
+
+    /**
+     * Handle payment failures from Stripe.
+     * Triggered by payment_intent.payment_failed
+     */
+    async handlePaymentFailure(paymentIntentId: string) {
+        const payment = await this.prisma.paymentTransaction.findFirst({
+            where: { stripePaymentId: paymentIntentId },
+            include: { order: true }
+        });
+
+        if (!payment) return;
+
+        // Idempotency check: don't overwrite success or already failed status
+        if (payment.status !== 'PENDING') return;
+
+        await this.prisma.paymentTransaction.update({
+            where: { id: payment.id },
+            data: { status: 'FAILED' }
+        });
+
+        // Notify customer about the failure
+        await this.notifications.create({
+            recipientId: payment.customerId,
+            recipientRole: 'CUSTOMER',
+            type: 'payment',
+            titleAr: 'عذراً، فشلت عملية الدفع ❌',
+            titleEn: 'Payment Failed ❌',
+            messageAr: `لم نتمكن من إتمام عملية الدفع للطلب #${payment.order.orderNumber}. يرجى المحاولة مرة أخرى أو استخدام وسيلة دفع مختلفة.`,
+            messageEn: `We couldn't process your payment for Order #${payment.order.orderNumber}. Please try again or use a different payment method.`,
+            link: `checkout?orderId=${payment.orderId}`,
+            metadata: { orderId: payment.orderId, failureReason: 'STRIPE_FAILURE' }
         });
     }
 
@@ -1351,8 +1439,8 @@ export class PaymentsService {
         });
     }
 
-    async releaseEscrowManually(orderId: string) {
-        await this.escrowService.releaseFunds(orderId, 'ADMIN_RELEASE');
+    async releaseEscrowManually(adminId: string, orderId: string) {
+        await this.escrowService.releaseFunds(orderId, 'ADMIN_RELEASE', adminId);
         return { success: true, message: 'Funds released successfully.' };
     }
 
@@ -1527,14 +1615,13 @@ export class PaymentsService {
         }
 
         // Audit log
-        await this.prisma.auditLog.create({
-            data: {
-                entity: 'FINANCIAL',
-                action: 'BANK_DETAILS_VERIFIED',
-                actorType: ActorType.ADMIN,
-                actorId: adminId,
-                metadata: { targetId, role }
-            }
+        // Audit log (2026 Financial Integrity)
+        await this.auditLogs.logAction({
+            entity: 'FINANCIAL',
+            action: 'BANK_DETAILS_VERIFIED',
+            actorType: ActorType.ADMIN,
+            actorId: adminId,
+            metadata: { targetId, role }
         });
 
         return { success: true, message: 'Bank details verified successfully' };
@@ -1801,24 +1888,22 @@ export class PaymentsService {
                 this.logger.log(`Bank Transfer approved for request ${request.id} for ${request.role}`);
             }
 
-            // 5. Audit Log (Security compliance)
+            // Audit Log (2026 Security compliance)
             if (adminSignature) {
-                await tx.auditLog.create({
-                    data: {
-                        entity: 'FINANCIAL',
-                        action: 'WITHDRAWAL_APPROVAL',
-                        actorType: ActorType.ADMIN,
-                        actorId: adminId,
-                        actorName: adminName,
-                        metadata: {
-                            requestId: request.id,
-                            amount: request.amount,
-                            method: methodToUse,
-                            note: notes,
-                            adminEmail,
-                            adminSignature,
-                            stripeTransferId: transferId
-                        }
+                await this.auditLogs.logAction({
+                    entity: 'FINANCIAL',
+                    action: 'WITHDRAWAL_APPROVAL',
+                    actorType: ActorType.ADMIN,
+                    actorId: adminId,
+                    actorName: adminName,
+                    metadata: {
+                        requestId: request.id,
+                        amount: request.amount,
+                        method: methodToUse,
+                        note: notes,
+                        adminEmail,
+                        adminSignature,
+                        stripeTransferId: transferId
                     }
                 });
             }
@@ -1875,12 +1960,23 @@ export class PaymentsService {
         return settings.settingValue as any;
     }
 
-    async updateWithdrawalLimits(limits: { min: number, max: number }) {
-        return this.prisma.platformSettings.upsert({
+    async updateWithdrawalLimits(adminId: string, limits: { min: number, max: number }) {
+        const result = await this.prisma.platformSettings.upsert({
             where: { settingKey: 'withdrawal_limits' },
             update: { settingValue: limits },
             create: { settingKey: 'withdrawal_limits', settingValue: limits }
         });
+
+        // Audit Log (2026 Policy Change)
+        await this.auditLogs.logAction({
+            entity: 'FINANCIAL',
+            action: 'UPDATE_WITHDRAWAL_LIMITS',
+            actorType: ActorType.ADMIN,
+            actorId: adminId,
+            metadata: { newLimits: limits }
+        });
+
+        return result;
     }
 
     // --- Admin Financial Hub ---
@@ -2168,21 +2264,19 @@ export class PaymentsService {
                 }
             }
 
-            await tx.auditLog.create({
-                data: {
-                    entity: 'FINANCIAL',
-                    action: 'MANUAL_PAYOUT',
-                    actorType: ActorType.ADMIN,
-                    actorId: adminId,
-                    actorName: adminName,
-                    metadata: {
-                        amount,
-                        method,
-                        note,
-                        adminEmail,
-                        adminSignature,
-                        stripeTransferId: transferId
-                    }
+            await this.auditLogs.logAction({
+                entity: 'FINANCIAL',
+                action: 'MANUAL_PAYOUT',
+                actorType: ActorType.ADMIN,
+                actorId: adminId,
+                actorName: adminName,
+                metadata: {
+                    amount,
+                    method,
+                    note,
+                    adminEmail,
+                    adminSignature,
+                    stripeTransferId: transferId
                 }
             });
 

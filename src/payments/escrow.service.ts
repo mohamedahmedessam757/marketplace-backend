@@ -1,7 +1,8 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, ActorType } from '@prisma/client';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 export interface EscrowAmounts {
     merchantAmount: number;
@@ -10,6 +11,8 @@ export interface EscrowAmounts {
     gatewayFee: number;
 }
 
+import { NotificationsService } from '../notifications/notifications.service';
+
 @Injectable()
 export class EscrowService {
     private readonly logger = new Logger(EscrowService.name);
@@ -17,6 +20,8 @@ export class EscrowService {
     constructor(
         private prisma: PrismaService,
         private stripeService: StripeService,
+        private notifications: NotificationsService,
+        private auditLogs: AuditLogsService,
     ) {}
 
     /**
@@ -35,7 +40,16 @@ export class EscrowService {
                 shippingAmount: amounts.shippingAmount,
                 gatewayFee: amounts.gatewayFee,
                 status: 'HELD'
-            }
+     } });
+
+        // Audit Log (2026 Escrow Hold)
+        await this.auditLogs.logAction({
+            orderId,
+            action: 'ESCROW_HELD',
+            entity: 'EscrowTransaction',
+            actorType: ActorType.SYSTEM,
+            actorId: 'PAYMENT_PROCESSOR',
+            metadata: { paymentId, amounts }
         });
 
         // 2. Increase Merchant's pending balance
@@ -54,7 +68,7 @@ export class EscrowService {
     /**
      * 2. Release Funds (after delivery confirmation or 48H auto-release)
      */
-    async releaseFunds(orderId: string, releaseCondition: 'CUSTOMER_CONFIRM' | 'AUTO_48H' | 'ADMIN_RELEASE'): Promise<void> {
+    async releaseFunds(orderId: string, releaseCondition: 'CUSTOMER_CONFIRM' | 'AUTO_48H' | 'ADMIN_RELEASE', adminId?: string): Promise<void> {
         const escrow = await this.prisma.escrowTransaction.findFirst({
             where: { orderId, status: 'HELD' }
         });
@@ -146,12 +160,59 @@ export class EscrowService {
                    description: `Escrow released for Order #${order.orderNumber}`
                 }
             });
+
+            // 6. Notify Merchant
+            await this.notifications.create({
+                recipientId: store.ownerId,
+                recipientRole: 'VENDOR',
+                type: 'payment',
+                titleAr: 'تم تحرير الدفعة! 💸',
+                titleEn: 'Funds Released! 💸',
+                messageAr: `تم تحرير مبلغ ${escrow.merchantAmount} درهم للطلب #${order.orderNumber} وإضافته إلى رصيدك المتاح.`,
+                messageEn: `Amount of AED ${escrow.merchantAmount} for Order #${order.orderNumber} has been released to your available balance.`,
+                link: 'wallet',
+                metadata: { orderId, amount: escrow.merchantAmount }
+            });
+
+            // 7. Notify Admin
+            await this.notifications.notifyAdmins({
+                titleAr: 'تحرير رصيد من الضمان 🔓',
+                titleEn: 'Escrow Funds Released 🔓',
+                messageAr: `تم تحرير مبلغ ${escrow.merchantAmount} درهم للطلب #${order.orderNumber}. الشرط: ${releaseCondition}`,
+                messageEn: `AED ${escrow.merchantAmount} released for Order #${order.orderNumber}. Condition: ${releaseCondition}`,
+                type: 'PAYMENT',
+                link: `/admin/orders/${orderId}`,
+                metadata: { orderId, amount: escrow.merchantAmount, condition: releaseCondition }
+            });
+
+            // 8. Notify Customer (Transparency)
+            await this.notifications.create({
+                recipientId: order.customerId,
+                recipientRole: 'CUSTOMER',
+                titleAr: 'تحديث الضمان: تم تحرير المبلغ 🔓',
+                titleEn: 'Escrow Update: Funds Released 🔓',
+                messageAr: `تم تحرير مبلغ الضمان الخاص بطلبك #${order.orderNumber} للتاجر بعد اكتمال الطلب.`,
+                messageEn: `The escrow funds for your order #${order.orderNumber} have been released to the merchant.`,
+                type: 'ORDER',
+                link: `/dashboard/orders/${orderId}`
+            });
+
+            // Audit Log (2026 Escrow Release)
+            await this.auditLogs.logAction({
+                orderId,
+                action: 'ESCROW_RELEASED',
+                entity: 'EscrowTransaction',
+                actorType: adminId ? ActorType.ADMIN : ActorType.SYSTEM,
+                actorId: adminId || (releaseCondition === 'CUSTOMER_CONFIRM' ? order.customerId : 'ESCROW_SCHEDULER'),
+                metadata: {
+                    releaseCondition,
+                    amount: escrow.merchantAmount,
+                    stripeTransferId: transferResponse.id
+                }
+            });
         });
     }
 
-    /**
-     * 3. Freeze Funds (When a dispute is opened)
-     */
     async freezeFunds(orderId: string, reason: string): Promise<void> {
         const escrow = await this.prisma.escrowTransaction.findFirst({
             where: { orderId, status: 'HELD' }
@@ -177,6 +238,56 @@ export class EscrowService {
                          pendingBalance: { decrement: Number(escrow.merchantAmount) },
                          frozenBalance: { increment: Number(escrow.merchantAmount) }
                      }
+                 });
+
+                 // 3. Notify Merchant about frozen funds
+                 const store = await tx.store.findUnique({ where: { id: order.storeId }, select: { ownerId: true } });
+                 if (store) {
+                     await this.notifications.create({
+                         recipientId: store.ownerId,
+                         recipientRole: 'VENDOR',
+                         type: 'system',
+                         titleAr: 'تجميد رصيد مؤقت ❄️',
+                         titleEn: 'Funds Frozen Temporarily ❄️',
+                         messageAr: `تم تجميد مبلغ (${escrow.merchantAmount}) درهم للطلب #${order.orderNumber} بسبب وجود نزاع مفتوح. سيتم البت في الرصيد بعد حل النزاع.`,
+                         messageEn: `AED ${escrow.merchantAmount} for Order #${order.orderNumber} has been frozen due to an active dispute. Funds will be decided after resolution.`,
+                         link: `marketplace/orders/${order.id}`,
+                         metadata: { orderId, amount: escrow.merchantAmount }
+                     });
+                 }
+                 
+                 // 4. Notify Admin about Frozen Funds
+                 await this.notifications.notifyAdmins({
+                     titleAr: 'تجميد رصيد في الضمان ❄️',
+                     titleEn: 'Escrow Funds Frozen ❄️',
+                     messageAr: `تم تجميد مبلغ ${escrow.merchantAmount} درهم للطلب #${order.orderNumber}. السبب: ${reason}`,
+                     messageEn: `AED ${escrow.merchantAmount} frozen for Order #${order.orderNumber}. Reason: ${reason}`,
+                     type: 'PAYMENT',
+                     link: `/admin/orders/${orderId}`,
+                     metadata: { orderId, amount: escrow.merchantAmount, reason }
+                 });
+
+                 // 5. Notify Customer about Frozen Funds
+                 await this.notifications.create({
+                     recipientId: order.customerId,
+                     recipientRole: 'CUSTOMER',
+                     titleAr: 'تحديث النزاع: تجميد المبلغ ❄️',
+                     titleEn: 'Dispute Update: Funds Frozen ❄️',
+                     messageAr: `تم تجميد مبلغ الطلب #${order.orderNumber} مؤقتاً في نظام الضمان لحين حل النزاع.`,
+                     messageEn: `The funds for order #${order.orderNumber} have been frozen in escrow pending dispute resolution.`,
+                     type: 'ORDER',
+                     link: `/dashboard/orders/${orderId}`
+                 });
+
+                 // Audit Log (2026 Escrow Freeze)
+                 await this.auditLogs.logAction({
+                     orderId,
+                     action: 'ESCROW_FROZEN',
+                     entity: 'EscrowTransaction',
+                     actorType: ActorType.SYSTEM,
+                     actorId: 'DISPUTE_ENGINE',
+                     reason,
+                     metadata: { amount: escrow.merchantAmount }
                  });
              }
         });
@@ -236,9 +347,61 @@ export class EscrowService {
                      data: updateData
                  });
 
-                 // Credit Customer Balance if they used wallet, or track that card was refunded
-                 // For now, Stripe handles the card refund directly to the customer's bank.
+                 // 4. Notify Merchant
+                 const store = await tx.store.findUnique({ where: { id: order.storeId }, select: { ownerId: true } });
+                 if (store) {
+                     await this.notifications.create({
+                         recipientId: store.ownerId,
+                         recipientRole: 'VENDOR',
+                         type: 'payment',
+                         titleAr: 'تم استرجاع عملية دفع ⚠️',
+                         titleEn: 'Payment Refunded ⚠️',
+                         messageAr: `تم استرجاع مبلغ ${refundAmount} درهم من الطلب #${order.orderNumber}. السبب: ${reason}`,
+                         messageEn: `AED ${refundAmount} has been refunded for Order #${order.orderNumber}. Reason: ${reason}`,
+                         link: `marketplace/orders/${order.id}`,
+                         metadata: { orderId, amount: refundAmount }
+                     });
+                 }
              }
+
+             // 5. Notify Customer
+             await this.notifications.create({
+                 recipientId: payment.customerId,
+                 recipientRole: 'CUSTOMER',
+                 type: 'payment',
+                 titleAr: 'تم استرداد المبلغ 💰',
+                 titleEn: 'Refund Processed 💰',
+                 messageAr: `تم استرداد مبلغ ${refundAmount} درهم للطلب #${order?.orderNumber}. قد يستغرق ظهور المبلغ في حسابك البنكي عدة أيام عمل.`,
+                 messageEn: `A refund of AED ${refundAmount} for Order #${order?.orderNumber} has been processed. It may take a few business days to appear in your account.`,
+                 link: 'orders',
+                 metadata: { orderId, amount: refundAmount }
+             });
+
+             // 6. Notify Admin about Refund
+             await this.notifications.notifyAdmins({
+                 titleAr: 'استرداد مبلغ مالي 💰',
+                 titleEn: 'Refund Processed 💰',
+                 messageAr: `تم استرداد مبلغ ${refundAmount} درهم للطلب #${order?.orderNumber}. السبب: ${reason}`,
+                 messageEn: `AED ${refundAmount} refunded for Order #${order?.orderNumber}. Reason: ${reason}`,
+                 type: 'PAYMENT',
+                 link: `/admin/orders/${orderId}`,
+                 metadata: { orderId, amount: refundAmount, reason }
+             });
+
+            // Audit Log (2026 Escrow Refund)
+            await this.auditLogs.logAction({
+                orderId,
+                action: 'ESCROW_REFUNDED',
+                entity: 'EscrowTransaction',
+                actorType: ActorType.SYSTEM,
+                actorId: 'REFUND_PROCESSOR',
+                reason,
+                metadata: { 
+                    refundAmount, 
+                    stripeRefundId: refundResponse.id,
+                    faultParty
+                }
+            });
         });
     }
 }

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class WithdrawalReminderService {
@@ -9,6 +9,7 @@ export class WithdrawalReminderService {
 
     constructor(
         private prisma: PrismaService,
+        private notifications: NotificationsService
     ) {}
 
     // Run every 12 hours
@@ -39,27 +40,17 @@ export class WithdrawalReminderService {
 
             this.logger.log(`Found ${overdueRequests.length} overdue withdrawal requests.`);
 
-            const admins = await this.prisma.user.findMany({
-                where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } }
-            });
-
             for (const request of overdueRequests) {
                 const entityName = request.role === 'CUSTOMER' ? (request.user?.name || request.user?.email) : (request.store?.name);
                 
-                for (const admin of admins) {
-                    await this.prisma.notification.create({
-                        data: {
-                            recipientId: admin.id,
-                            recipientRole: 'ADMIN',
-                            type: 'SYSTEM',
-                            titleAr: 'تذكير: طلب سحب متأخر ⏳',
-                            titleEn: 'Reminder: Overdue Withdrawal Request ⏳',
-                            messageAr: `طلب السحب الخاص بـ (${entityName}) بمبلغ ${request.amount} معلّق منذ أكثر من 48 ساعة. يرجى مراجعته.`,
-                            messageEn: `The withdrawal request for (${entityName}) of ${request.amount} AED has been pending for over 48 hours. Please review it.`,
-                            metadata: { type: 'WITHDRAWAL_REMINDER', requestId: request.id, role: request.role }
-                        }
-                    });
-                }
+                await this.notifications.notifyAdmins({
+                    type: 'SYSTEM',
+                    titleAr: 'تذكير: طلب سحب متأخر ⏳',
+                    titleEn: 'Reminder: Overdue Withdrawal Request ⏳',
+                    messageAr: `طلب السحب الخاص بـ (${entityName}) بمبلغ ${request.amount} معلّق منذ أكثر من 48 ساعة. يرجى مراجعته.`,
+                    messageEn: `The withdrawal request for (${entityName}) of ${request.amount} AED has been pending for over 48 hours. Please review it.`,
+                    metadata: { type: 'WITHDRAWAL_REMINDER', requestId: request.id, role: request.role }
+                });
             }
 
             this.logger.log('Overdue withdrawal reminders sent successfully.');

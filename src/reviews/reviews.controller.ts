@@ -51,10 +51,11 @@ export class ReviewsController {
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard)
   updateStatus(
+    @Req() req,
     @Param('id') id: string,
     @Body() updateReviewStatusDto: UpdateReviewStatusDto,
   ) {
-    return this.reviewsService.updateStatus(id, updateReviewStatusDto);
+    return this.reviewsService.updateStatus(req.user.id, id, updateReviewStatusDto);
   }
 
   // Frontend generic fetch by store ID

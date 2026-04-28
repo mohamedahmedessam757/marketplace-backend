@@ -2,6 +2,7 @@ import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoyaltyTier, StoreLoyaltyTier } from '@prisma/client';
 import { LoyaltyGateway } from './loyalty.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class LoyaltyService {
@@ -10,7 +11,8 @@ export class LoyaltyService {
   constructor(
     private prisma: PrismaService,
     @Inject(forwardRef(() => LoyaltyGateway))
-    private readonly loyaltyGateway: LoyaltyGateway
+    private readonly loyaltyGateway: LoyaltyGateway,
+    private notifications: NotificationsService
   ) {}
 
   /**
@@ -112,16 +114,15 @@ export class LoyaltyService {
       earnedProfit = 0;
 
       // Notify user about reaching the cap (v2026 transparency)
-      await this.prisma.notification.create({
-        data: {
-          recipientId: order.customerId,
-          titleAr: 'تم الوصول للحد الشهري! 🛑',
-          titleEn: 'Monthly Cap Reached! 🛑',
-          messageAr: `لقد حققت الحد الأقصى للأرباح لهذا الشهر (${effectiveMonthlyCap} درهم). ستتمكن من البدء في كسب مكافآت جديدة ابتداءً من الشهر القادم. استمر في التميز!`,
-          messageEn: `You've reached your maximum profit cap for this month (${effectiveMonthlyCap} AED). You will start earning rewards again next month. Keep it up!`,
-          type: 'loyalty',
-          link: '/dashboard/wallet'
-        }
+      await this.notifications.create({
+        recipientId: order.customerId,
+        recipientRole: 'CUSTOMER',
+        titleAr: 'تم الوصول للحد الشهري! 🛑',
+        titleEn: 'Monthly Cap Reached! 🛑',
+        messageAr: `لقد حققت الحد الأقصى للأرباح لهذا الشهر (${effectiveMonthlyCap} درهم). ستتمكن من البدء في كسب مكافآت جديدة ابتداءً من الشهر القادم. استمر في التميز!`,
+        messageEn: `You've reached your maximum profit cap for this month (${effectiveMonthlyCap} AED). You will start earning rewards again next month. Keep it up!`,
+        type: 'loyalty',
+        link: '/dashboard/wallet'
       });
     } else if (currentMonthlyProfitTotal + earnedProfit > effectiveMonthlyCap) {
       earnedProfit = effectiveMonthlyCap - currentMonthlyProfitTotal;
@@ -185,16 +186,15 @@ export class LoyaltyService {
 
     // 10. NOTIFICATION ENGINE
     if (this.isTierUpgrade(oldTier, newTier)) {
-      await this.prisma.notification.create({
-        data: {
-          recipientId: order.customerId,
-          titleAr: 'ارتقاء مستوى الولاء! 🎊',
-          titleEn: 'Loyalty Level Ascended! 🎊',
-          messageAr: `مبروك! لقد وصلت إلى مستوى ${newTier}. نسبة أرباحك الآن هي ${tierConfig[newTier].percent * 100}%.`,
-          messageEn: `Congrats! You have reached ${newTier} level. Your profit share is now ${tierConfig[newTier].percent * 100}%.`,
-          type: 'loyalty',
-          link: '/dashboard/wallet'
-        }
+      await this.notifications.create({
+        recipientId: order.customerId,
+        recipientRole: 'CUSTOMER',
+        titleAr: 'ارتقاء مستوى الولاء! 🎊',
+        titleEn: 'Loyalty Level Ascended! 🎊',
+        messageAr: `مبروك! لقد وصلت إلى مستوى ${newTier}. نسبة أرباحك الآن هي ${tierConfig[newTier].percent * 100}%.`,
+        messageEn: `Congrats! You have reached ${newTier} level. Your profit share is now ${tierConfig[newTier].percent * 100}%.`,
+        type: 'loyalty',
+        link: '/dashboard/wallet'
       });
     }
 
@@ -263,15 +263,14 @@ export class LoyaltyService {
 
       // Notification for Merchant if tier upgraded
       if (this.isStoreTierUpgrade(order.store.loyaltyTier, newStoreTier)) {
-        await this.prisma.notification.create({
-          data: {
-            recipientId: order.store.ownerId,
-            titleAr: 'ترقية مستوى المتجر! 🏆',
-            titleEn: 'Store Tier Upgrade! 🏆',
-            messageAr: `مبروك! وصلت متجرك إلى مستوى ${newStoreTier}.`,
-            messageEn: `Congratulations! Your store reached ${newStoreTier} tier.`,
-            type: 'loyalty',
-          }
+        await this.notifications.create({
+          recipientId: order.store.ownerId,
+          recipientRole: 'MERCHANT',
+          titleAr: 'ترقية مستوى المتجر! 🏆',
+          titleEn: 'Store Tier Upgrade! 🏆',
+          messageAr: `مبروك! وصلت متجرك إلى مستوى ${newStoreTier}.`,
+          messageEn: `Congratulations! Your store reached ${newStoreTier} tier.`,
+          type: 'loyalty',
         });
       }
     }
@@ -281,15 +280,14 @@ export class LoyaltyService {
 
     // 5. Fire Push Notification (If user tier increased)
     if (this.isTierUpgrade(order.customer.loyaltyTier, newTier)) {
-      await this.prisma.notification.create({
-        data: {
-          recipientId: order.customerId,
-          titleAr: 'ترقية المستوى! 🎉',
-          titleEn: 'Tier Upgrade! 🎉',
-          messageAr: `مبروك! لقد وصلت إلى المستوى ${newTier}. استمتع بمميزات أكثر.`,
-          messageEn: `Congratulations! You have reached ${newTier} tier. Enjoy more benefits.`,
-          type: 'loyalty',
-        }
+      await this.notifications.create({
+        recipientId: order.customerId,
+        recipientRole: 'CUSTOMER',
+        titleAr: 'ترقية المستوى! 🎉',
+        titleEn: 'Tier Upgrade! 🎉',
+        messageAr: `مبروك! لقد وصلت إلى المستوى ${newTier}. استمتع بمميزات أكثر.`,
+        messageEn: `Congratulations! You have reached ${newTier} tier. Enjoy more benefits.`,
+        type: 'loyalty',
       });
     }
 
@@ -348,16 +346,15 @@ export class LoyaltyService {
       });
 
       // d. Premium Encouraging Notification
-      await this.prisma.notification.create({
-        data: {
-          recipientId: user.referredById,
-          titleAr: 'مكافأة نجاح مبهرة! 🌟💸',
-          titleEn: 'Spectacular Referral Reward! 🌟💸',
-          messageAr: `خبر رائع! صديقك ${user.name || ''} أكمل طلبه الأول. تقديراً لتوصيتك، أضفنا ${rewardAmount} درهم إلى محفظتك. استمر في مشاركة التميز! 🚀`,
-          messageEn: `Great news! Your friend ${user.name || ''} completed their first order. As a token of thanks, we've added ${rewardAmount} AED to your wallet. Keep sharing the excellence! 🚀`,
-          type: 'loyalty',
-          link: '/dashboard/wallet'
-        }
+      await this.notifications.create({
+        recipientId: user.referredById,
+        recipientRole: 'CUSTOMER',
+        titleAr: 'مكافأة نجاح مبهرة! 🌟💸',
+        titleEn: 'Spectacular Referral Reward! 🌟💸',
+        messageAr: `خبر رائع! صديقك ${user.name || ''} أكمل طلبه الأول. تقديراً لتوصيتك، أضفنا ${rewardAmount} درهم إلى محفظتك. استمر في مشاركة التيمز! 🚀`,
+        messageEn: `Great news! Your friend ${user.name || ''} completed their first order. As a token of thanks, we've added ${rewardAmount} AED to your wallet. Keep sharing the excellence! 🚀`,
+        type: 'loyalty',
+        link: '/dashboard/wallet'
       });
     }
   }

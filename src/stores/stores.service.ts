@@ -58,7 +58,7 @@ export class StoresService {
 
     async updateMyStore(userId: string, dto: any) {
         const store = await this.findMyStore(userId);
-        return this.prisma.store.update({
+        const result = await this.prisma.store.update({
             where: { id: store.id },
             data: {
                 ...dto,
@@ -69,6 +69,17 @@ export class StoresService {
                 documents: true
             }
         });
+
+        // Audit Log (2026 Vendor Self-Service)
+        await this.auditLogs.logAction({
+            entity: 'STORE',
+            action: 'STORE_UPDATE',
+            actorType: 'VENDOR',
+            actorId: userId,
+            metadata: { storeId: store.id, updatedFields: Object.keys(dto) }
+        });
+
+        return result;
     }
 
     async uploadDocument(userId: string, dto: UploadStoreDocumentDto) {
@@ -106,6 +117,15 @@ export class StoresService {
             },
         });
 
+        // Audit Log (2026 Vendor Compliance)
+        await this.auditLogs.logAction({
+            entity: 'STORE_DOCUMENT',
+            action: 'DOC_UPLOAD',
+            actorType: 'VENDOR',
+            actorId: userId,
+            metadata: { storeId: store.id, docType: dto.docType }
+        });
+
         // 3. Auto-suspend for legal documents (CR, LICENSE)
         if (dto.docType === 'CR' || dto.docType === 'LICENSE') {
             await this.prisma.store.update({
@@ -124,6 +144,28 @@ export class StoresService {
                 type: 'SYSTEM',
                 link: '/dashboard/merchant/store'
             }).catch(e => console.error('Failed to notify merchant of auto-suspension', e));
+
+            // Notify Admin about Auto-Suspension for Review
+            this.notificationsService.notifyAdmins({
+                titleAr: 'تحديث مستندات قانونية - متجر معلق',
+                titleEn: 'Legal Docs Updated - Store Suspended',
+                messageAr: `قام المتجر (${store.name}) بتحديث مستندات (${dto.docType}). تم تعليق المتجر للمراجعة.`,
+                messageEn: `Store (${store.name}) updated documents (${dto.docType}). Store suspended for review.`,
+                type: 'SYSTEM',
+                link: `/admin/stores/${store.id}`,
+                metadata: { storeId: store.id, docType: dto.docType }
+            }).catch(() => {});
+        } else {
+            // Notify Admin about standard document upload
+            this.notificationsService.notifyAdmins({
+                titleAr: 'مستند جديد قيد المراجعة',
+                titleEn: 'New Document Pending Review',
+                messageAr: `رفع المتجر (${store.name}) مستنداً جديداً: ${dto.docType}`,
+                messageEn: `Store (${store.name}) uploaded a new document: ${dto.docType}`,
+                type: 'SYSTEM',
+                link: `/admin/stores/${store.id}`,
+                metadata: { storeId: store.id, docType: dto.docType }
+            }).catch(() => {});
         }
 
         return doc;
@@ -317,7 +359,7 @@ export class StoresService {
 
         return enrichedStore;
     }
-    async updateStatus(id: string, status: StoreStatus, reason?: string, suspendedUntil?: Date) {
+    async updateStatus(adminId: string, id: string, status: StoreStatus, reason?: string, suspendedUntil?: Date) {
         const result = await this.prisma.store.update({
             where: { id },
             data: { 
@@ -374,7 +416,7 @@ export class StoresService {
             action: 'STORE_STATUS_CHANGE',
             entity: 'STORE',
             actorType: 'ADMIN',
-            actorId: id,
+            actorId: adminId,
             reason: reason || 'Manual Admin Update',
             metadata: { 
                 storeId: id, 
@@ -384,10 +426,20 @@ export class StoresService {
             }
         });
 
+        // --- Notify Admin Group (Oversight) ---
+        await this.notificationsService.notifyAdmins({
+            titleAr: `تحديث حالة متجر: ${status} 🏪`,
+            titleEn: `Store Status Updated: ${status} 🏪`,
+            messageAr: `تم تغيير حالة متجر (${result.name}) إلى ${status}. السبب: ${reason || 'تحديث إداري'}`,
+            messageEn: `Store (${result.name}) status changed to ${status}. Reason: ${reason || 'Admin update'}`,
+            type: 'SYSTEM',
+            metadata: { storeId: id, status }
+        });
+
         return result;
     }
 
-    async updateAdminNotes(id: string, notes: string) {
+    async updateAdminNotes(adminId: string, id: string, notes: string) {
         const result = await this.prisma.store.update({
             where: { id },
             data: { adminNotes: notes, updatedAt: new Date() }
@@ -398,6 +450,7 @@ export class StoresService {
             action: 'STORE_NOTES_UPDATE',
             entity: 'STORE',
             actorType: 'ADMIN',
+            actorId: adminId,
             reason: 'Internal Admin Note Added/Modified',
             metadata: { 
                 storeId: id,
@@ -408,7 +461,7 @@ export class StoresService {
         return result;
     }
 
-    async updateDocumentStatus(storeId: string, docType: string, status: string, reason?: string) {
+    async updateDocumentStatus(adminId: string, storeId: string, docType: string, status: string, reason?: string) {
         // Find specific doc by type for this store (using the composite key logic or findFirst)
         // Since schema has @@unique([storeId, docType]), we can use findUnique if Prisma generated it,
         // or findFirst. To be safe given pure string inputs:
@@ -447,6 +500,7 @@ export class StoresService {
             action: `DOC_${status.toUpperCase()}`,
             entity: 'STORE_DOCUMENT',
             actorType: 'ADMIN',
+            actorId: adminId,
             reason: reason || 'Document Review Protocol',
             metadata: { 
                 storeId, 
@@ -562,6 +616,17 @@ export class StoresService {
                 messageEn: `Your account has been suspended for not renewing mandatory documents after the 15-day grace period. Please upload renewed documents.`,
                 type: 'DOC_EXPIRY',
                 link: '/dashboard/merchant/store'
+            }).catch(() => {});
+
+            // Notify Admin about Expiry Suspension
+            this.notificationsService.notifyAdmins({
+                titleAr: 'إيقاف متجر (انتهاء مستندات)',
+                titleEn: 'Store Suspended (Expired Docs)',
+                messageAr: `تم إيقاف المتجر (${store.name}) تلقائياً بسبب انتهاء صلاحية المستندات وفترة السماح.`,
+                messageEn: `Store (${store.name}) was automatically suspended due to expired documents and grace period.`,
+                type: 'DOC_EXPIRY',
+                link: `/admin/stores/${store.id}`,
+                metadata: { storeId: store.id }
             }).catch(() => {});
         } else {
             // Check for upcoming expiries (30 days or in grace period)

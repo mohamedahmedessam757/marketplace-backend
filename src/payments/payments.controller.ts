@@ -107,9 +107,10 @@ export class PaymentsController {
     }
 
     @Post('admin/release-escrow')
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
     releaseEscrow(@Body() body: { orderId: string }, @Request() req) {
-        // Should have Admin Guard in production
-        return this.paymentsService.releaseEscrowManually(body.orderId);
+        return this.paymentsService.releaseEscrowManually(req.user.id, body.orderId);
     }
 
     // --- Withdrawal & Stripe Connect Endpoints ---
@@ -164,8 +165,10 @@ export class PaymentsController {
     }
 
     @Put('admin/withdrawal-settings')
-    updateWithdrawalSettings(@Body() body: { min: number; max: number }) {
-        return this.paymentsService.updateWithdrawalLimits(body);
+    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(RolesGuard)
+    updateWithdrawalSettings(@Request() req, @Body() body: { min: number; max: number }) {
+        return this.paymentsService.updateWithdrawalLimits(req.user.id, body);
     }
 
     // --- Admin Financial Hub Endpoints ---

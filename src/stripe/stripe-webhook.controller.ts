@@ -42,6 +42,11 @@ export class StripeWebhookController {
                     this.logger.log(`PaymentIntent for ${paymentIntent.amount} was successful!`);
                     await this.paymentsService.fulfillStripePayment(paymentIntent.id);
                     break;
+                case 'payment_intent.payment_failed':
+                    const failedIntent = event.data.object;
+                    this.logger.warn(`PaymentIntent for ${failedIntent.amount} failed: ${failedIntent.last_payment_error?.message}`);
+                    await this.paymentsService.handlePaymentFailure(failedIntent.id);
+                    break;
                 case 'account.updated':
                     const account = event.data.object;
                     if (account.details_submitted) {

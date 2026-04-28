@@ -3,10 +3,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
 import { CreateRatingImpactRuleDto, UpdateRatingImpactRuleDto } from './dto/rating-impact-rule.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+    private auditLogs: AuditLogsService
+  ) {}
 
   async create(customerId: string, createReviewDto: CreateReviewDto) {
     // 1. Validate Order belongs to Customer and is in CLOSED state
@@ -48,22 +55,24 @@ export class ReviewsService {
       },
     });
 
-    // 4. Notify Super Admins
-    const admins = await this.prisma.user.findMany({ where: { role: 'SUPER_ADMIN' } });
-    for (const admin of admins) {
-      await this.prisma.notification.create({
-        data: {
-          recipientId: admin.id,
-          recipientRole: 'ADMIN',
-          titleAr: 'تقييم جديد للمراجعة',
-          titleEn: 'New Review for Moderation',
-          messageAr: `قام العميل بوضع تقييم للطلب ${order.orderNumber}. بانتظار موافقتك.`,
-          messageEn: `A customer has left a review on order ${order.orderNumber}. Awaiting your approval.`,
-          type: 'alert',
-          metadata: { reviewId: review.id }
-        }
-      });
-    }
+    // 4. Notify Admins
+    await this.notifications.notifyAdmins({
+      titleAr: 'تقييم جديد للمراجعة',
+      titleEn: 'New Review for Moderation',
+      messageAr: `قام العميل بوضع تقييم للطلب ${order.orderNumber}. بانتظار موافقتك.`,
+      messageEn: `A customer has left a review on order ${order.orderNumber}. Awaiting your approval.`,
+      type: 'alert',
+      metadata: { reviewId: review.id }
+    });
+
+    // 5. Audit Log (2026 Customer Feedback)
+    await this.auditLogs.logAction({
+        entity: 'REVIEW',
+        action: 'REVIEW_CREATED',
+        actorType: 'CUSTOMER',
+        actorId: customerId,
+        metadata: { reviewId: review.id, orderId: createReviewDto.orderId, rating: createReviewDto.rating }
+    });
 
     return review;
   }
@@ -84,7 +93,7 @@ export class ReviewsService {
     }));
   }
 
-  async updateStatus(id: string, updateDto: UpdateReviewStatusDto) {
+  async updateStatus(adminId: string, id: string, updateDto: UpdateReviewStatusDto) {
     const review = await this.prisma.review.findUnique({ 
         where: { id },
         include: { store: true, order: true }
@@ -99,6 +108,15 @@ export class ReviewsService {
       data: { adminStatus: updateDto.status },
     });
 
+    // Audit Log (2026 Review Moderation)
+    await this.auditLogs.logAction({
+        entity: 'REVIEW',
+        action: 'REVIEW_MODERATED',
+        actorType: 'ADMIN',
+        actorId: adminId,
+        metadata: { reviewId: id, status: updateDto.status, orderId: review.orderId }
+    });
+
     // 5. Notify Merchant if Published
     if (updateDto.status === 'PUBLISHED') {
       await this.updateStoreRating(updatedReview.storeId);
@@ -106,17 +124,15 @@ export class ReviewsService {
       // 6. Evaluate Rating Impact (2026 Standard: Automatic Rule Processing)
       await this.evaluateRatingImpact(updatedReview.storeId);
 
-      await this.prisma.notification.create({
-        data: {
-          recipientId: review.store.ownerId,
-          recipientRole: 'MERCHANT',
-          titleAr: 'تقييم جديد رائع! ⭐',
-          titleEn: 'New Great Review! ⭐',
-          messageAr: `حصلت للتو على تقييم ${review.rating} نجوم للطلب ${review.order.orderNumber}.`,
-          messageEn: `You just received a ${review.rating}-star review for order ${review.order.orderNumber}.`,
-          type: 'alert',
-          link: '/merchant/profile'
-        }
+      await this.notifications.create({
+        recipientId: review.store.ownerId,
+        recipientRole: 'MERCHANT',
+        titleAr: 'تقييم جديد رائع! ⭐',
+        titleEn: 'New Great Review! ⭐',
+        messageAr: `حصلت للتو على تقييم ${review.rating} نجوم للطلب ${review.order.orderNumber}.`,
+        messageEn: `You just received a ${review.rating}-star review for order ${review.order.orderNumber}.`,
+        type: 'alert',
+        link: '/merchant/profile'
       });
     }
 
@@ -309,43 +325,35 @@ export class ReviewsService {
         });
 
         // Notify Admins
-        await this.prisma.notification.create({
-          data: {
-              recipientRole: 'ADMIN',
-              recipientId: (await this.prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' } }))?.id || '',
-              titleAr: 'مراجعة إيقاف متجر مطلوبة ⚠️',
-              titleEn: 'Store Suspension Review Required ⚠️',
-              messageAr: `متوسط تقييم المتجر "${store.name}" انخفض إلى ${rating.toFixed(2)}. تم إنشاء طلب إيقاف للمراجعة.`,
-              messageEn: `Store "${store.name}" average rating fell to ${rating.toFixed(2)}. A suspension request has been created for review.`,
-              type: 'alert'
-          }
+        await this.notifications.notifyAdmins({
+          titleAr: 'مراجعة إيقاف متجر مطلوبة ⚠️',
+          titleEn: 'Store Suspension Review Required ⚠️',
+          messageAr: `متوسط تقييم المتجر "${store.name}" انخفض إلى ${rating.toFixed(2)}. تم إنشاء طلب إيقاف للمراجعة.`,
+          messageEn: `Store "${store.name}" average rating fell to ${rating.toFixed(2)}. A suspension request has been created for review.`,
+          type: 'alert'
         });
       }
     } else if (rule.actionType === 'WARNING') {
       // Send warning notification to merchant
-      await this.prisma.notification.create({
-        data: {
-          recipientId: store.ownerId,
-          recipientRole: 'MERCHANT',
-          titleAr: 'تحذير بخصوص مستوى التقييم ⚠️',
-          titleEn: 'Performance Warning: Rating Levels ⚠️',
-          messageAr: `نود تنبيهك بأن متوسط تقييم متجرك حالياً هو ${rating.toFixed(2)}. يرجى العمل على تحسين جودة الخدمة لتجنب الإجراءات الإدارية.`,
-          messageEn: `Please be advised that your store's average rating is currently ${rating.toFixed(2)}. Please improve service quality to avoid administrative actions.`,
-          type: 'alert'
-        }
+      await this.notifications.create({
+        recipientId: store.ownerId,
+        recipientRole: 'MERCHANT',
+        titleAr: 'تحذير بخصوص مستوى التقييم ⚠️',
+        titleEn: 'Performance Warning: Rating Levels ⚠️',
+        messageAr: `نود تنبيهك بأن متوسط تقييم متجرك حالياً هو ${rating.toFixed(2)}. يرجى العمل على تحسين جودة الخدمة لتجنب الإجراءات الإدارية.`,
+        messageEn: `Please be advised that your store's average rating is currently ${rating.toFixed(2)}. Please improve service quality to avoid administrative actions.`,
+        type: 'alert'
       });
     } else if (rule.actionType === 'FEATURED') {
       // Notify merchant of featured status
-      await this.prisma.notification.create({
-        data: {
-          recipientId: store.ownerId,
-          recipientRole: 'MERCHANT',
-          titleAr: 'تهانينا! متجرك الآن مميز 🌟',
-          titleEn: 'Congratulations! Your store is now Featured 🌟',
-          messageAr: `بناءً على تقييمك الرائع (${rating.toFixed(2)})، حصل متجرك على وسم التاجر المميز في المنصة.`,
-          messageEn: `Based on your excellent rating (${rating.toFixed(2)}), your store has earned the Featured Merchant badge.`,
-          type: 'alert'
-        }
+      await this.notifications.create({
+        recipientId: store.ownerId,
+        recipientRole: 'MERCHANT',
+        titleAr: 'تهانينا! متجرك الآن مميز 🌟',
+        titleEn: 'Congratulations! Your store is now Featured 🌟',
+        messageAr: `بناءً على تقييمك الرائع (${rating.toFixed(2)})، حصل متجرك على وسم التاجر المميز في المنصة.`,
+        messageEn: `Based on your excellent rating (${rating.toFixed(2)}), your store has earned the Featured Merchant badge.`,
+        type: 'alert'
       });
     }
   }

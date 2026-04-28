@@ -246,8 +246,8 @@ export class ChatService {
         const chat = await this.prisma.orderChat.findUnique({ 
             where: { id: chatId },
             include: { 
-                customer: { select: { name: true } }, 
-                vendor: { select: { name: true } } 
+                customer: { select: { id: true, name: true } }, 
+                vendor: { select: { id: true, name: true, ownerId: true } } 
             } 
         });
         if (!chat) throw new NotFoundException('Chat not found');
@@ -298,25 +298,42 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                     metadata: { text, chatId, senderRole }
                 });
 
+                // Notify User about the block (Education & Transparency)
+                await this.notificationsService.create({
+                    recipientId: senderId!,
+                    recipientRole: actorType as any,
+                    type: 'alert',
+                    titleAr: 'تنبيه أمان: تم حظر الرسالة 🛡️',
+                    titleEn: 'Security Alert: Message Blocked 🛡️',
+                    messageAr: 'نعتذر، تم حظر رسالتك لأنها تحتوي على بيانات اتصال مخالفة لسياسة المنصة. يرجى التواصل عبر النظام فقط.',
+                    messageEn: 'Sorry, your message was blocked because it contains contact info violating our policy. Please communicate through the system only.',
+                    metadata: { chatId }
+                });
+
                 // Notify all Admins immediately about the violation
                 try {
-                    const admins = await this.prisma.user.findMany({
-                        where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } }
+                    await this.notificationsService.notifyAdmins({
+                        type: 'CHAT_VIOLATION',
+                        titleAr: 'مخالفة فلتر المحادثات 🛡️',
+                        titleEn: 'Chat filter violation 🛡️',
+                        messageAr: `تم رصد محاولة مشاركة بيانات اتصال من طرف (${actorName}) في المحادثة.`,
+                        messageEn: `Detected contact sharing attempt from (${actorName}) in chat.`,
+                        metadata: { chatId, text },
                     });
-                    
-                    for (const admin of admins) {
-                        await this.prisma.notification.create({
-                            data: {
-                                recipientId: admin.id,
-                                recipientRole: admin.role,
-                                type: 'CHAT_VIOLATION',
-                                titleAr: 'مخالفة فلتر المحادثات 🛡️',
-                                titleEn: 'Chat filter violation 🛡️',
-                                messageAr: `تم رصد محاولة مشاركة بيانات اتصال من طرف (${actorName}) في المحادثة.`,
-                                messageEn: `Detected contact sharing attempt from (${actorName}) in chat.`,
-                                metadata: { chatId, text },
-                                isRead: false
-                            }
+
+                    // Notify the OTHER party (Transparency)
+                    const otherPartyId = senderRole === 'CUSTOMER' ? chat.vendor?.ownerId : chat.customer?.id;
+                    const otherPartyRole = senderRole === 'CUSTOMER' ? 'VENDOR' : 'CUSTOMER';
+                    if (otherPartyId) {
+                        await this.notificationsService.create({
+                            recipientId: otherPartyId,
+                            recipientRole: otherPartyRole,
+                            type: 'alert',
+                            titleAr: 'تم حجب رسالة واردة 🚫',
+                            titleEn: 'Incoming Message Blocked 🚫',
+                            messageAr: 'تم حجب رسالة من الطرف الآخر لمخالفتها سياسة المنصة (تبادل بيانات اتصال خارجية).',
+                            messageEn: 'A message from the other party was blocked for violating platform policy (external contact info).',
+                            metadata: { chatId }
                         });
                     }
                 } catch (notifError) {
@@ -618,28 +635,14 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
             });
 
             // 4b. Create Database Notifications for all Admin users
-            const admins = await this.prisma.user.findMany({
-                where: {
-                    role: { in: ['ADMIN', 'SUPER_ADMIN'] }
-                },
-                select: { id: true }
+            await this.notificationsService.notifyAdmins({
+                titleAr: 'تذكرة دعم فني جديدة',
+                titleEn: 'New Support Ticket',
+                messageAr: `قام ${dto.name} بإرسال تذكرة دعم جديدة بخصوص: ${dto.subject}`,
+                messageEn: `${dto.name} submitted a new support ticket regarding: ${dto.subject}`,
+                type: 'system',
+                metadata: { chatId: chat.id, source: 'LANDING' },
             });
-
-            if (admins.length > 0) {
-                await this.prisma.notification.createMany({
-                    data: admins.map(admin => ({
-                        recipientId: admin.id,
-                        recipientRole: 'ADMIN',
-                        titleAr: 'تذكرة دعم فني جديدة',
-                        titleEn: 'New Support Ticket',
-                        messageAr: `قام ${dto.name} بإرسال تذكرة دعم جديدة بخصوص: ${dto.subject}`,
-                        messageEn: `${dto.name} submitted a new support ticket regarding: ${dto.subject}`,
-                        type: 'system',
-                        metadata: { chatId: chat.id, source: 'LANDING' },
-                        isRead: false
-                    }))
-                });
-            }
         } catch (e) {
             console.error('WebSocket/Notification support broadcast failed', e);
         }
@@ -665,7 +668,7 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
     /**
      * Admin action: close a chat or block a user from it.
      */
-    async adminAction(chatId: string, action: 'close' | 'block' | 'join' | 'deleteChat' | 'deleteMessage' | 'evidence', payload?: any) {
+    async adminAction(adminId: string, chatId: string, action: 'close' | 'block' | 'join' | 'deleteChat' | 'deleteMessage' | 'evidence', payload?: any) {
         const chat = await this.prisma.orderChat.findUnique({ 
             where: { id: chatId },
             include: {
@@ -675,6 +678,21 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
             }
         });
         if (!chat) throw new NotFoundException('Chat not found');
+
+        // Audit Log (2026 Admin Chat Oversight)
+        await this.auditLogsService.logAction({
+            entity: 'CHAT',
+            action: `ADMIN_${action.toUpperCase()}`,
+            actorType: 'ADMIN',
+            actorId: adminId,
+            reason: payload?.reason || 'Administrative intervention',
+            metadata: { 
+                chatId, 
+                action, 
+                payload,
+                orderId: chat.orderId
+            }
+        });
 
         switch (action) {
             case 'close':
@@ -799,6 +817,19 @@ Welcome
             openingMessage, 
             'ADMIN'
         );
+
+        // 2.1 Notify Target User about the new support session
+        await this.notificationsService.create({
+            recipientId: targetUserId,
+            recipientRole: targetRole,
+            type: 'support',
+            titleAr: 'بدء جلسة دعم إداري 🎧',
+            titleEn: 'Admin Support Session Started 🎧',
+            messageAr: `قام الأدمن ${adminName} ببدء محادثة دعم معك بخصوص: ${reason}`,
+            messageEn: `Admin ${adminName} has started a support conversation with you regarding: ${reason}`,
+            link: `support-chat/${chat.id}`,
+            metadata: { chatId: chat.id, adminId }
+        });
 
         // 3. Log to AuditLog (2026 Audit Standard)
         await this.auditLogsService.logAction({

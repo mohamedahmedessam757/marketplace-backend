@@ -127,6 +127,6 @@ export class ChatController {
         if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
             throw new ForbiddenException('Forbidden: Admin only');
         }
-        return this.chatService.adminAction(chatId, body.action, body.payload);
+        return this.chatService.adminAction(req.user.id, chatId, body.action, body.payload);
     }
 }

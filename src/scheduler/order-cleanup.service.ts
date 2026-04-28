@@ -81,9 +81,7 @@ export class OrderCleanupService {
 
                 // Notify Vendor (if applicable)
                 if (order.storeId) {
-                    await this.notificationsService.create({
-                        recipientId: order.storeId,
-                        recipientRole: 'MERCHANT',
+                    await this.notificationsService.notifyMerchantByStoreId(order.storeId, {
                         titleAr: 'انتهاء مهلة الاسترجاع',
                         titleEn: 'Return window expired',
                         messageAr: `تم اكتمال الطلب #${order.orderNumber} وانتهت فترة الاسترجاع المسموحة له.`,
@@ -143,8 +141,7 @@ export class OrderCleanupService {
                     // Notify Merchant about penalty
                     for (const offer of order.offers) {
                         if (offer.storeId) {
-                            await this.notificationsService.create({
-                                recipientId: offer.storeId, recipientRole: 'MERCHANT',
+                            await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
                                 titleAr: 'مخالفة: إلغاء طلب لتأخر التجهيز', titleEn: 'Violation: Cancelled for Delay',
                                 messageAr: `تم إلغاء الطلب #${order.orderNumber} وتسجيل مخالفة تأخير لعدم التزامكم بالمهلة القصوى (7 أيام).`,
                                 messageEn: `Order #${order.orderNumber} was cancelled and a violation recorded due to failure to prepare within the 7-day limit.`,
@@ -158,8 +155,7 @@ export class OrderCleanupService {
                     this.logger.warn(`Sending 48h urgent warning for order ${order.orderNumber}`);
                     for (const offer of order.offers) {
                         if (offer.storeId) {
-                            await this.notificationsService.create({
-                                recipientId: offer.storeId, recipientRole: 'MERCHANT',
+                            await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
                                 titleAr: '⚠️ إشعار عاجل: تبقت 5 أيام على الإلغاء', titleEn: '⚠️ Urgent: 5 Days Until Cancellation',
                                 messageAr: `مرت 48 ساعة على دفع الطلب #${order.orderNumber}. يرجى البدء بالتجهيز والتوثيق فوراً لتجنب الإلغاء التلقائي والمخالفات.`,
                                 messageEn: `48 hours have passed since payment for Order #${order.orderNumber}. Please start preparation and verification immediately to avoid auto-cancellation and penalties.`,
@@ -293,9 +289,7 @@ export class OrderCleanupService {
                 // Notify Merchants
                 for (const offer of order.offers) {
                     if (offer.storeId) {
-                        await this.notificationsService.create({
-                            recipientId: offer.storeId,
-                            recipientRole: 'MERCHANT',
+                        await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
                             titleAr: 'إلغاء الطلب المعتمد: لم يكتمل الدفع',
                             titleEn: 'Order Cancelled: Unpaid',
                             messageAr: `تم إلغاء الطلب (#${order.orderNumber}) من قبل النظام لتجاوز العميل مهلة السداد (24 ساعة).`,
@@ -362,9 +356,7 @@ export class OrderCleanupService {
                     // Notifications to Merchants
                     for (const offer of order.offers) {
                         if (offer.storeId) {
-                            await this.notificationsService.create({
-                                recipientId: offer.storeId,
-                                recipientRole: 'MERCHANT',
+                            await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
                                 titleAr: 'تحذير عاجل: لقد تأخرت في التجهيز',
                                 titleEn: 'Urgent: Delayed Preparation SLA',
                                 messageAr: `تجاوز الطلب #${order.orderNumber} مهلة 48 ساعة للتجهيز. أمامك 24 ساعة فقط لتسليمه لشركة الشحن لتجنب تسجيل مخالفة للنظام وإلغاء الطلب!`,
@@ -426,9 +418,7 @@ export class OrderCleanupService {
 
                 for (const offer of order.offers) {
                     if (offer.storeId) {
-                        await this.notificationsService.create({
-                            recipientId: offer.storeId,
-                            recipientRole: 'MERCHANT',
+                        await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
                             titleAr: 'مخالفة نظام: تم إلغاء الطلب لتأخر التجهيز',
                             titleEn: 'System Violation: Cancelled for Delay',
                             messageAr: `تم مصادرة وإلغاء الطلب #${order.orderNumber} وتسجيل الاستهتار بالوقت في ملف المخالفات الخاص بالمتجر نظراً لعدم التزامكم بتجهيزه بعد إنتهاء الـ 48 ساعة الأولى والمهلة الثانية الإضافية 24 ساعة.`,
@@ -522,8 +512,7 @@ export class OrderCleanupService {
 
                 // Notify Merchant
                 if (order.storeId) {
-                    await this.notificationsService.create({
-                        recipientId: order.storeId, recipientRole: 'MERCHANT',
+                    await this.notificationsService.notifyMerchantByStoreId(order.storeId, {
                         titleAr: 'إلغاء الطلب: انتهاء مهلة التصحيح', titleEn: 'Order Cancelled: Correction Timeout',
                         messageAr: `تم إلغاء الطلب #${order.orderNumber} لعدم رفعك التوثيق المصحح خلال 48 ساعة. سيتم إرجاع المبلغ للعميل وتطبيق مخالفة.`,
                         messageEn: `Order #${order.orderNumber} cancelled because corrected verification was not provided within 48h.`,
