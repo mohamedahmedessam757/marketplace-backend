@@ -62,6 +62,28 @@ export class UsersController {
     return this.usersService.adminUpdateNotes(id, body.notes);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Patch('admin/customers/:id/restrictions')
+  async updateCustomerRestrictions(
+    @Request() req,
+    @Param('id') id: string, 
+    @Body() body: any
+  ) {
+    return this.usersService.adminUpdateRestrictions(id, req.user.id, body);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Post('admin/customers/:id/clear-restrictions')
+  async clearCustomerRestrictions(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: any
+  ) {
+    return this.usersService.adminClearRestrictions(id, req.user.id, body);
+  }
+
   // --- Profile Endpoints ---
 
   @UseGuards(JwtAuthGuard)

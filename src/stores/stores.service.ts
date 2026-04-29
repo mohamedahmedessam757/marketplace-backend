@@ -17,7 +17,18 @@ export class StoresService {
         let store = await this.prisma.store.findFirst({
             where: { ownerId: userId },
             include: {
-                owner: { select: { name: true, email: true, phone: true } },
+                owner: { 
+                    select: { 
+                        id: true,
+                        name: true, 
+                        email: true, 
+                        phone: true,
+                        withdrawalsFrozen: true,
+                        withdrawalFreezeNote: true,
+                        withdrawalFreezeSignature: true,
+                        restrictionAlertMessage: true
+                    } 
+                },
                 documents: true,
                 contractAcceptances: {
                     orderBy: { acceptedAt: 'desc' },
@@ -44,7 +55,18 @@ export class StoresService {
                     status: StoreStatus.PENDING_DOCUMENTS
                 },
                 include: {
-                    owner: { select: { name: true, email: true, phone: true } },
+                    owner: { 
+                        select: { 
+                            id: true,
+                            name: true, 
+                            email: true, 
+                            phone: true,
+                            withdrawalsFrozen: true,
+                            withdrawalFreezeNote: true,
+                            withdrawalFreezeSignature: true,
+                            restrictionAlertMessage: true
+                        } 
+                    },
                     documents: true,
                     contractAcceptances: {
                         orderBy: { acceptedAt: 'desc' },
@@ -65,7 +87,18 @@ export class StoresService {
                 updatedAt: new Date()
             },
             include: {
-                owner: { select: { name: true, email: true, phone: true } },
+                owner: { 
+                    select: { 
+                        id: true,
+                        name: true, 
+                        email: true, 
+                        phone: true,
+                        withdrawalsFrozen: true,
+                        withdrawalFreezeNote: true,
+                        withdrawalFreezeSignature: true,
+                        restrictionAlertMessage: true
+                    } 
+                },
                 documents: true
             }
         });
@@ -198,6 +231,10 @@ export class StoresService {
                         name: true, 
                         phone: true, 
                         avatar: true,
+                        withdrawalsFrozen: true,
+                        withdrawalFreezeNote: true,
+                        withdrawalFreezeSignature: true,
+                        restrictionAlertMessage: true,
                         walletTransactions: {
                             orderBy: { createdAt: 'desc' },
                             take: 50,
@@ -672,5 +709,163 @@ export class StoresService {
             weeklyEarnings,
             activeOrdersCount
         };
+    }
+
+    async adminUpdateRestrictions(id: string, adminId: string, data: {
+        offerLimit?: number;
+        withdrawalsFrozen?: boolean;
+        withdrawalFreezeNote?: string;
+        adminSignatureImage?: string; // Maps to signature field in DB
+        visibilityRestricted?: boolean;
+        visibilityNote?: string;
+        visibilitySignature?: string;
+        visibilityRate?: number;
+    }) {
+        const store = await this.prisma.store.findUnique({ 
+            where: { id },
+            include: { owner: true }
+        });
+        if (!store) throw new NotFoundException('Store not found');
+
+        const updated = await this.prisma.store.update({
+            where: { id },
+            data: {
+                offerLimit: data.offerLimit ?? store.offerLimit,
+                visibilityRestricted: data.visibilityRestricted ?? store.visibilityRestricted,
+                visibilityNote: data.visibilityNote ?? store.visibilityNote,
+                visibilitySignature: data.visibilitySignature ?? store.visibilitySignature,
+                visibilityRate: data.visibilityRate ?? store.visibilityRate,
+                owner: {
+                    update: {
+                        withdrawalsFrozen: data.withdrawalsFrozen ?? undefined,
+                        withdrawalFreezeNote: data.withdrawalFreezeNote ?? undefined,
+                        withdrawalFreezeSignature: data.adminSignatureImage ?? undefined
+                    }
+                },
+                updatedAt: new Date()
+            },
+            include: { owner: true }
+        });
+
+        // --- Task 12.1: Log Action ---
+        await this.auditLogs.logAction({
+            action: 'STORE_RESTRICTIONS_UPDATE',
+            entity: 'STORE',
+            actorType: 'ADMIN',
+            actorId: adminId,
+            reason: 'Administrative store restriction update',
+            metadata: { storeId: id, ...data }
+        });
+
+        // --- Restriction Notifications ---
+        if (data.withdrawalsFrozen) {
+            this.notificationsService.create({
+                recipientId: store.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: '🔒 تنبيه أمني: تجميد المدفوعات',
+                titleEn: '🔒 Security Alert: Payouts Frozen',
+                messageAr: `تم تعليق عمليات سحب الأرباح مؤقتاً لضمان سلامة العمليات المالية. السبب: ${data.withdrawalFreezeNote || 'مراجعة أمنية'}. يرجى مراجعة الإدارة.`,
+                messageEn: `Payout features have been temporarily suspended to ensure financial security. Reason: ${data.withdrawalFreezeNote || 'Security Review'}. Please contact support.`,
+                type: 'SYSTEM',
+                link: '/dashboard/merchant/wallet'
+            }).catch(() => {});
+        } else if (data.visibilityRestricted) {
+             this.notificationsService.create({
+                recipientId: store.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: '🚫 قيد إداري: تقييد الظهور',
+                titleEn: '🚫 Admin Alert: Visibility Restricted',
+                messageAr: `تم تقييد ظهور متجرك وعروضك للمشترين مؤقتاً لمراجعة الامتثال والمعايير.`,
+                messageEn: `Your store visibility has been restricted to review compliance and standards.`,
+                type: 'SYSTEM',
+                link: '/dashboard/merchant/home'
+            }).catch(() => {});
+        }
+
+        // --- Restored Notifications ---
+        const s = store as any;
+        if (data.withdrawalsFrozen === false && s.owner?.withdrawalsFrozen === true) {
+            this.notificationsService.create({
+                recipientId: store.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: '✅ تم استعادة صلاحيات السحب',
+                titleEn: '✅ Payouts Restored',
+                messageAr: 'تم تفعيل عمليات السحب لحسابك مرة أخرى بنجاح. يمكنك الآن تحويل أرباحك إلى حسابك البنكي.',
+                messageEn: 'Withdrawal capabilities have been successfully restored. You can now transfer your profits to your bank account.',
+                type: 'SYSTEM',
+                link: '/dashboard/merchant/wallet'
+            }).catch(() => {});
+        } else if (data.visibilityRestricted === false && store.visibilityRestricted === true) {
+            this.notificationsService.create({
+                recipientId: store.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: '✨ تم استعادة ظهور المتجر',
+                titleEn: '✨ Store Visibility Restored',
+                messageAr: 'تهانينا! تم رفع قيود الظهور عن متجرك. عروضك الآن تظهر للمشترين بكامل طاقتها.',
+                messageEn: 'Congratulations! Visibility restrictions have been removed. Your offers are now fully visible to buyers.',
+                type: 'SYSTEM',
+                link: '/dashboard/merchant/home'
+            }).catch(() => {});
+        }
+
+        return updated;
+    }
+
+    async adminResetOperationalRestrictions(id: string, adminId: string, signatureData?: any) {
+        const store = await this.prisma.store.findUnique({ where: { id } });
+        if (!store) throw new NotFoundException('Store not found');
+
+        const updated = await this.prisma.store.update({
+            where: { id },
+            data: {
+                offerLimit: -1,
+                visibilityRestricted: false,
+                visibilityRate: 100,
+                visibilityNote: '',
+                visibilitySignature: signatureData?.adminSignatureImage || null
+            },
+            include: {
+                owner: {
+                    select: {
+                        id: true,
+                        email: true,
+                        phone: true,
+                        withdrawalsFrozen: true,
+                        withdrawalFreezeNote: true
+                    }
+                }
+            }
+        });
+
+        // Audit Log for 2026 Compliance
+        await this.prisma.auditLog.create({
+            data: {
+                action: 'CLEAR_OPERATIONAL_RESTRICTIONS',
+                entity: 'STORE',
+                actorType: 'ADMIN',
+                actorId: adminId,
+                metadata: {
+                    storeId: id,
+                    previousOfferLimit: store.offerLimit,
+                    previousVisibility: store.visibilityRestricted,
+                    signatureImage: signatureData?.adminSignatureImage,
+                    signatureType: signatureData?.adminSignatureType
+                }
+            }
+        });
+
+        // Real-time Notification to Merchant
+        this.notificationsService.create({
+            recipientId: store.ownerId,
+            recipientRole: 'MERCHANT',
+            titleAr: 'تم فك القيود التشغيلية',
+            titleEn: 'Operational Restrictions Cleared',
+            messageAr: 'تمت إزالة كافة القيود التشغيلية عن متجرك من قبل الإدارة. يمكنك الآن العمل بكامل الصلاحيات.',
+            messageEn: 'All operational restrictions have been cleared by administration. You can now operate with full permissions.',
+            type: 'SECURITY',
+            link: '/dashboard/merchant/profile'
+        }).catch(() => {});
+
+        return updated;
     }
 }

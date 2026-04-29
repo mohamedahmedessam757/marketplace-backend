@@ -601,5 +601,139 @@ export class UsersService {
       }
     });
   }
+
+  async adminUpdateRestrictions(id: string, adminId: string, data: { 
+    withdrawalsFrozen?: boolean;
+    withdrawalFreezeNote?: string;
+    withdrawalFreezeSignature?: string;
+    orderLimit?: number;
+    restrictionAlertMessage?: string;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id } });
+      if (!user) throw new ConflictException('User not found');
+
+      const updated = await tx.user.update({
+        where: { id },
+        data: {
+          withdrawalsFrozen: data.withdrawalsFrozen ?? user.withdrawalsFrozen,
+          withdrawalFreezeNote: data.withdrawalFreezeNote ?? user.withdrawalFreezeNote,
+          withdrawalFreezeSignature: data.withdrawalFreezeSignature ?? user.withdrawalFreezeSignature,
+          orderLimit: data.orderLimit ?? user.orderLimit,
+          restrictionAlertMessage: data.restrictionAlertMessage ?? user.restrictionAlertMessage,
+          updatedAt: new Date()
+        }
+      });
+
+      // Audit Log
+      await this.auditLogs.logAction({
+        action: 'USER_RESTRICTIONS_UPDATE',
+        entity: 'USER',
+        actorType: ActorType.ADMIN,
+        actorId: adminId,
+        newState: JSON.stringify(data),
+        reason: 'Administrative restriction update',
+        metadata: { userId: id, ...data }
+      }, tx);
+
+      // 3. Notify User of changes
+      if (data.withdrawalsFrozen !== undefined && data.withdrawalsFrozen !== user.withdrawalsFrozen) {
+        this.notificationsService.create({
+          recipientId: id,
+          recipientRole: user.role,
+          titleAr: data.withdrawalsFrozen ? '🔒 تنبيه أمني: تجميد السحب' : '✅ تم استعادة صلاحيات السحب',
+          titleEn: data.withdrawalsFrozen ? '🔒 Security Alert: Withdrawals Frozen' : '✅ Withdrawal Access Restored',
+          messageAr: data.withdrawalsFrozen 
+            ? `تم تعليق ميزة سحب الأموال مؤقتاً لضمان سلامة حسابك. السبب: ${data.withdrawalFreezeNote || 'مراجعة أمنية'}. يرجى مراجعة الدعم الفني.`
+            : 'تم رفع القيد عن عمليات السحب لحسابك بنجاح. يمكنك الآن تحويل أرباحك ومكافآتك بشكل طبيعي.',
+          messageEn: data.withdrawalsFrozen 
+            ? `Withdrawal features have been temporarily suspended to ensure account security. Reason: ${data.withdrawalFreezeNote || 'Security Review'}. Please contact support.`
+            : 'The restriction on withdrawals has been successfully removed. You can now transfer your profits and rewards normally.',
+          type: 'SECURITY',
+          link: '/dashboard/wallet'
+        }).catch(() => {});
+      }
+
+      if (data.orderLimit !== undefined && data.orderLimit !== user.orderLimit) {
+        this.notificationsService.create({
+          recipientId: id,
+          recipientRole: user.role,
+          titleAr: '⚖️ تحديث في سياسة الطلبات',
+          titleEn: '⚖️ Order Policy Update',
+          messageAr: data.orderLimit === -1 
+            ? 'تم رفع كافة القيود عن عدد الطلبات المسموح بها لحسابك.'
+            : `تم تحديث الحد الأقصى للطلبات المسموح بها لحسابك إلى (${data.orderLimit}) طلبات.`,
+          messageEn: data.orderLimit === -1
+            ? 'All limits on the number of allowed orders have been removed from your account.'
+            : `The maximum number of allowed orders for your account has been updated to (${data.orderLimit}).`,
+          type: 'SYSTEM',
+          link: '/dashboard'
+        }).catch(() => {});
+      }
+
+      if (data.restrictionAlertMessage && data.restrictionAlertMessage !== user.restrictionAlertMessage) {
+        this.notificationsService.create({
+          recipientId: id,
+          recipientRole: user.role,
+          titleAr: '📢 تنبيه إداري جديد',
+          titleEn: '📢 New Administrative Alert',
+          messageAr: data.restrictionAlertMessage,
+          messageEn: data.restrictionAlertMessage,
+          type: 'SYSTEM',
+          link: '/dashboard'
+        }).catch(() => {});
+      }
+
+      return updated;
+    });
+  }
+
+  async adminClearRestrictions(id: string, adminId: string, signatureData?: any) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id } });
+      if (!user) throw new ConflictException('User not found');
+
+      const updated = await tx.user.update({
+        where: { id },
+        data: {
+          withdrawalsFrozen: false,
+          withdrawalFreezeNote: '',
+          withdrawalFreezeSignature: signatureData?.adminSignatureImage || null,
+          orderLimit: -1,
+          restrictionAlertMessage: '',
+          updatedAt: new Date()
+        }
+      });
+
+      // Audit Log
+      await this.auditLogs.logAction({
+        action: 'USER_RESTRICTIONS_CLEAR',
+        entity: 'USER',
+        actorType: ActorType.ADMIN,
+        actorId: adminId,
+        newState: 'ALL_CLEARED',
+        reason: 'Administrative restriction reset',
+        metadata: { 
+          userId: id,
+          signatureImage: signatureData?.adminSignatureImage,
+          signatureType: signatureData?.adminSignatureType
+        }
+      }, tx);
+
+      // 3. Notify User
+      this.notificationsService.create({
+        recipientId: id,
+        recipientRole: user.role,
+        titleAr: '🎉 تم استعادة الوصول الكامل',
+        titleEn: '🎉 Full Access Restored',
+        messageAr: 'تهانينا! لقد تم إزالة كافة القيود الإدارية عن حسابك بنجاح. يمكنك الآن استخدام كافة ميزات المنصة والاستمتاع بكامل صلاحياتك التشغيلية.',
+        messageEn: 'Congratulations! All administrative restrictions have been successfully removed from your account. You now have full access to all platform features and operational privileges.',
+        type: 'SECURITY',
+        link: '/dashboard'
+      }).catch(() => {});
+
+      return updated;
+    });
+  }
 }
 

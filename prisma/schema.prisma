@@ -188,6 +188,14 @@ model User {
   caseMessages       CaseMessage[]
   adminActivityLogs  AdminActivityLog[]
 
+  // Advanced Restrictions (2026)
+  withdrawalsFrozen        Boolean   @default(false) @map("withdrawals_frozen")
+  withdrawalFreezeNote     String?   @map("withdrawal_freeze_note") @db.Text
+  withdrawalFreezeSignature String?  @map("withdrawal_freeze_signature") @db.Text
+  orderLimit               Int       @default(-1) @map("order_limit")
+  dailyOrderCount          Int       @default(0) @map("daily_order_count")
+  restrictionAlertMessage  String?   @map("restriction_alert_message") @db.Text
+
   @@map("users")
 }
 
@@ -285,6 +293,14 @@ model Store {
   penaltyActions    PenaltyAction[]
   returns           ReturnRequest[]
   disputes          Dispute[]
+
+  // Advanced Restrictions (2026)
+  offerLimit           Int       @default(-1) @map("offer_limit")
+  dailyOfferCount      Int       @default(0) @map("daily_offer_count")
+  visibilityRestricted Boolean   @default(false) @map("visibility_restricted")
+  visibilityNote       String?   @map("visibility_note") @db.Text
+  visibilitySignature  String?   @map("visibility_signature") @db.Text
+  visibilityRate       Int       @default(100) @map("visibility_rate")
 
   @@index([status])
   @@index([suspendedUntil])

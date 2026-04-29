@@ -80,4 +80,26 @@ export class StoresController {
     ) {
         return this.storesService.updateDocumentStatus(req.user.id, id, docType, body.status, body.reason);
     }
+
+    @Patch(':id/restrictions')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    updateRestrictions(
+        @Request() req,
+        @Param('id') id: string,
+        @Body() body: any
+    ) {
+        return this.storesService.adminUpdateRestrictions(id, req.user.id, body);
+    }
+
+    @Post(':id/clear-restrictions')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    resetRestrictions(
+        @Request() req,
+        @Param('id') id: string,
+        @Body() body: any
+    ) {
+        return this.storesService.adminResetOperationalRestrictions(id, req.user.id, body);
+    }
 }

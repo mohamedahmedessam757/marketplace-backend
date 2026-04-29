@@ -25,11 +25,29 @@ export class OrdersService {
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
         // [Verified] Type safety confirmed: 'parts' relation exists in Prisma Client
+        
+        // --- 2026 Governance Enforcement: Order Limit ---
+        const customer = await this.prisma.user.findUnique({
+            where: { id: customerId },
+            select: { orderLimit: true, dailyOrderCount: true, restrictionAlertMessage: true }
+        });
+
+        if (customer && customer.orderLimit !== -1 && customer.dailyOrderCount >= customer.orderLimit) {
+            throw new ForbiddenException(customer.restrictionAlertMessage || `You have reached your daily limit of ${customer.orderLimit} orders. Please try again tomorrow.`);
+        }
+        // ------------------------------------------------
+
         // 1. Generate Order Number
         const orderNumber = await this.generateOrderNumber();
 
-        // 2. Transaction: Create Order + Parts + Audit Log
+        // 2. Transaction: Create Order + Parts + Audit Log + Update Count
         const result = await this.prisma.$transaction(async (tx) => {
+            // Increment daily count
+            await tx.user.update({
+                where: { id: customerId },
+                data: { dailyOrderCount: { increment: 1 } }
+            });
+
             // Helper: Get primary part for legacy fields compatibility
             // Ensure parts exists and has at least one item, otherwise default to empty/null logic
             const primaryPart = (createOrderDto.parts && createOrderDto.parts.length > 0) ? createOrderDto.parts[0] : null;
@@ -176,13 +194,25 @@ export class OrdersService {
         else if (user.role === 'VENDOR') {
             const store = await this.prisma.store.findFirst({
                 where: { ownerId: user.id },
-                select: { id: true, selectedMakes: true, selectedModels: true }
+                select: { id: true, selectedMakes: true, selectedModels: true, visibilityRestricted: true, visibilityRate: true }
             });
 
             if (store) {
                 const storeId = store.id;
                 const hasMakes = store.selectedMakes && store.selectedMakes.length > 0;
                 const hasModels = store.selectedModels && store.selectedModels.length > 0;
+
+                // --- 2026 Governance Enforcement: Visibility Restriction ---
+                const allowedOrderEnds: string[] = [];
+                if (store.visibilityRestricted && store.visibilityRate < 100) {
+                    for (let i = 0; i < store.visibilityRate; i++) {
+                        allowedOrderEnds.push(i.toString().padStart(2, '0'));
+                    }
+                }
+                const visibilityFilter: Prisma.OrderWhereInput = allowedOrderEnds.length > 0 ? {
+                    OR: allowedOrderEnds.map(end => ({ orderNumber: { endsWith: end } }))
+                } : {};
+                // ------------------------------------------------------------
 
                 where.OR = [
                     {
@@ -197,7 +227,8 @@ export class OrdersService {
                                 OR: store.selectedModels.map(model => ({
                                     vehicleModel: { equals: model, mode: 'insensitive' }
                                 }))
-                            } : {}
+                            } : {},
+                            visibilityFilter // Apply visibility restriction here
                         ]
                     },
                     { storeId: storeId },

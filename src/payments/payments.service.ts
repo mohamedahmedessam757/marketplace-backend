@@ -1019,7 +1019,11 @@ export class PaymentsService {
                     referralCount: true,
                     referralCode: true,
                     customerBalance: true,
-                    name: true
+                    name: true,
+                    withdrawalsFrozen: true,
+                    withdrawalFreezeNote: true,
+                    orderLimit: true,
+                    restrictionAlertMessage: true
                 }
             }),
             // 1. Total Purchases (All Successful Payments)
@@ -1378,7 +1382,11 @@ export class PaymentsService {
                 tierBenefits: currentTierData.benefits,
                 nextTierBenefits: nextTierData?.benefits || [],
                 stripeOnboarded: store.owner.stripeOnboarded,
-                stripeAccountId: store.owner.stripeAccountId
+                stripeAccountId: store.owner.stripeAccountId,
+                withdrawalsFrozen: store.owner.withdrawalsFrozen,
+                withdrawalFreezeNote: store.owner.withdrawalFreezeNote,
+                orderLimit: store.owner.orderLimit,
+                restrictionAlertMessage: store.owner.restrictionAlertMessage
             },
             notifications,
             transactions: walletActions // Wallet actions has exactly all sales, cancellations, and referrals
@@ -1629,10 +1637,20 @@ export class PaymentsService {
 
     async requestWithdrawal(userId: string, amount: number, payoutMethod: string = 'BANK_TRANSFER') {
         const store = await this.prisma.store.findUnique({
-            where: { ownerId: userId }
+            where: { ownerId: userId },
+            include: { owner: true }
         });
 
         if (!store) throw new NotFoundException('Store not found');
+
+        // --- 2026 Governance Enforcement: Withdrawal Freeze ---
+        if (store.owner.withdrawalsFrozen) {
+            throw new ForbiddenException(store.owner.restrictionAlertMessage || 'Your withdrawals have been frozen by administration.');
+        }
+        if (store.owner.withdrawalsFrozenUntil && new Date(store.owner.withdrawalsFrozenUntil) > new Date()) {
+            throw new ForbiddenException(`Your withdrawals are temporarily frozen until ${new Date(store.owner.withdrawalsFrozenUntil).toLocaleString()}`);
+        }
+        // ------------------------------------------------------
 
         // Validate payout method prerequisites
         if (payoutMethod === 'STRIPE' && !store.stripeOnboarded) {
@@ -1692,6 +1710,15 @@ export class PaymentsService {
         });
 
         if (!user) throw new NotFoundException('User not found');
+
+        // --- 2026 Governance Enforcement: Withdrawal Freeze ---
+        if (user.withdrawalsFrozen) {
+            throw new ForbiddenException(user.restrictionAlertMessage || 'Your withdrawals have been frozen by administration.');
+        }
+        if (user.withdrawalsFrozenUntil && new Date(user.withdrawalsFrozenUntil) > new Date()) {
+            throw new ForbiddenException(`Your withdrawals are temporarily frozen until ${new Date(user.withdrawalsFrozenUntil).toLocaleString()}`);
+        }
+        // ------------------------------------------------------
 
         // Validate payout method prerequisites
         if (payoutMethod === 'STRIPE' && !user.stripeOnboarded) {

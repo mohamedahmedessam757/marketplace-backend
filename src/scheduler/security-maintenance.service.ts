@@ -69,4 +69,32 @@ export class SecurityMaintenanceService {
             this.logger.error('Failed to process expired withdrawal freezes:', error.stack);
         }
     }
+
+    /**
+     * Daily Governance Reset (2026 Policy)
+     * Resets order and offer counters for all users and stores at midnight.
+     */
+    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+    async handleDailyGovernanceReset() {
+        this.logger.log('Starting daily governance counters reset...');
+
+        try {
+            const [users, stores] = await Promise.all([
+                // Reset daily order count for all users
+                this.prisma.user.updateMany({
+                    where: { dailyOrderCount: { gt: 0 } },
+                    data: { dailyOrderCount: 0 }
+                }),
+                // Reset daily offer count for all stores
+                this.prisma.store.updateMany({
+                    where: { dailyOfferCount: { gt: 0 } },
+                    data: { dailyOfferCount: 0 }
+                })
+            ]);
+
+            this.logger.log(`Daily reset complete. Users affected: ${users.count}, Stores affected: ${stores.count}`);
+        } catch (error) {
+            this.logger.error('Failed to perform daily governance reset:', error.stack);
+        }
+    }
 }

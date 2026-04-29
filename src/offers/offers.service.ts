@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { StoresService } from '../stores/stores.service';
@@ -21,6 +21,18 @@ export class OffersService {
         if (!store) {
             throw new NotFoundException('You need a Store to submit offers.');
         }
+
+        // --- 2026 Governance Enforcement: Offer Limit ---
+        // Fetch the latest count and limit from DB to ensure accuracy
+        const storeCheck = await this.prisma.store.findUnique({
+            where: { id: store.id },
+            select: { offerLimit: true, dailyOfferCount: true }
+        });
+
+        if (storeCheck && storeCheck.offerLimit !== -1 && storeCheck.dailyOfferCount >= storeCheck.offerLimit) {
+            throw new ForbiddenException(`You have reached your daily limit of ${storeCheck.offerLimit} offers. Please try again tomorrow.`);
+        }
+        // ------------------------------------------------
 
         // 1.5 GUARD: Extreme Validation Check
         const orderInfo = await this.prisma.order.findUnique({
@@ -91,24 +103,38 @@ export class OffersService {
             offerData.orderPartId = createOfferDto.orderPartId;
         }
 
-        // 4. Create Offer
+        // 4. Create Offer & Update Daily Count
         let offer;
         try {
-            offer = await this.prisma.offer.create({
-                data: offerData,
-                include: {
-                    store: { select: { name: true, storeCode: true } },
-                }
+            offer = await this.prisma.$transaction(async (tx) => {
+                // Increment daily count
+                await tx.store.update({
+                    where: { id: store.id },
+                    data: { dailyOfferCount: { increment: 1 } }
+                });
+
+                return await tx.offer.create({
+                    data: offerData,
+                    include: {
+                        store: { select: { name: true, storeCode: true } },
+                    }
+                });
             });
         } catch (prismaError: any) {
             // If orderPartId column doesn't exist, retry without it
             if (prismaError?.code === 'P2009' || prismaError?.message?.includes('order_part_id')) {
                 delete offerData.orderPartId;
-                offer = await this.prisma.offer.create({
-                    data: offerData,
-                    include: {
-                        store: { select: { name: true, storeCode: true } },
-                    }
+                offer = await this.prisma.$transaction(async (tx) => {
+                    await tx.store.update({
+                        where: { id: store.id },
+                        data: { dailyOfferCount: { increment: 1 } }
+                    });
+                    return await tx.offer.create({
+                        data: offerData,
+                        include: {
+                            store: { select: { name: true, storeCode: true } },
+                        }
+                    });
                 });
             } else {
                 throw prismaError;
