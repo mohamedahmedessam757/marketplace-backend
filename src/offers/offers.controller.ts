@@ -26,6 +26,13 @@ export class OffersController {
         return this.offersService.update(req.user.id, id, updateOfferDto);
     }
 
+    @Post(':id/withdraw')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.VENDOR)
+    withdraw(@Request() req, @Param('id') id: string) {
+        return this.offersService.withdraw(req.user.id, id);
+    }
+
     @Delete(':id')
     @UseGuards(RolesGuard)
     @Roles(UserRole.VENDOR)

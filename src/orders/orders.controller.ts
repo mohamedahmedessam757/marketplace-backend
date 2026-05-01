@@ -58,8 +58,8 @@ export class OrdersController {
     }
 
     @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.ordersService.findOne(id);
+    findOne(@Request() req, @Param('id') id: string) {
+        return this.ordersService.findOneWithContext(id, req.user);
     }
 
     @Patch(':id/transition')

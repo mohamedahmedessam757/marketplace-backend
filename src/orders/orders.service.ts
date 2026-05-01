@@ -75,7 +75,10 @@ export class OrdersService {
 
                     customerId,
                     orderNumber,
-                    status: OrderStatus.AWAITING_OFFERS,
+                    status: OrderStatus.COLLECTING_OFFERS,
+                    revealOffersAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                    offersStopAt: new Date(Date.now() + 23.75 * 60 * 60 * 1000), // 23h 45m
+                    selectionDeadlineAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
 
                     // New Relation: Create all parts
                     // @ts-ignore: IDE stale type definition
@@ -103,7 +106,7 @@ export class OrdersService {
                 actorType: ActorType.CUSTOMER,
                 actorId: customerId,
                 actorName: 'Customer', // In real app, fetch name
-                newState: OrderStatus.AWAITING_OFFERS,
+                newState: OrderStatus.COLLECTING_OFFERS,
                 metadata: {
                     car: `${createOrderDto.vehicleMake} ${createOrderDto.vehicleModel} ${createOrderDto.vehicleYear}`,
                     partsCount: createOrderDto.parts ? createOrderDto.parts.length : 0,
@@ -216,7 +219,7 @@ export class OrdersService {
 
                 where.OR = [
                     {
-                        status: OrderStatus.AWAITING_OFFERS,
+                        status: { in: [OrderStatus.AWAITING_OFFERS, OrderStatus.COLLECTING_OFFERS] },
                         AND: [
                             hasMakes ? {
                                 OR: store.selectedMakes.map(make => ({
@@ -289,6 +292,7 @@ export class OrdersService {
                     customer: { select: { id: true, name: true, email: true, avatar: true } },
                     review: true,
                     offers: {
+                        orderBy: { createdAt: 'asc' },
                         include: {
                             store: { select: { id: true, name: true, storeCode: true, logo: true } }
                         }
@@ -302,6 +306,27 @@ export class OrdersService {
             }),
             this.prisma.order.count({ where })
         ]);
+        
+        // --- 2026 Governance: Visibility Filtering ---
+        const now = new Date();
+        items.forEach(order => {
+            // 1. Hide ALL offers from CUSTOMER if reveal time not reached
+            if (user.role === 'CUSTOMER' && order.revealOffersAt && order.revealOffersAt > now) {
+                order.offers = [];
+                // @ts-ignore
+                if (order._count) order._count.offers = 0;
+            }
+            
+            // 2. Hide OTHER merchants' offers from VENDOR during bidding phase
+            if (user.role === 'VENDOR' && (order.status === OrderStatus.COLLECTING_OFFERS || order.status === OrderStatus.AWAITING_SELECTION)) {
+                const myStoreId = user.storeId;
+                if (myStoreId) {
+                    order.offers = order.offers.filter(o => o.storeId === myStoreId);
+                    // @ts-ignore
+                    if (order._count) order._count.offers = order.offers.length;
+                }
+            }
+        });
 
         return {
             items,
@@ -313,12 +338,6 @@ export class OrdersService {
     }
 
     async findOne(id: string) {
-        // Validation: Ensure ID is a valid UUID
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(id)) {
-            throw new NotFoundException(`Invalid Order ID format: ${id}`);
-        }
-
         const order = await this.prisma.order.findUnique({
             where: { id },
             include: {
@@ -328,6 +347,7 @@ export class OrdersService {
                 review: true,
                 shipments: { orderBy: { createdAt: 'desc' } },
                 offers: {
+                    orderBy: { createdAt: 'asc' },
                     include: {
                         store: { select: { id: true, name: true, storeCode: true, logo: true } }
                     }
@@ -344,6 +364,32 @@ export class OrdersService {
             },
         });
         if (!order) throw new NotFoundException(`Order #${id} not found`);
+        return order;
+    }
+
+    /**
+     * Enhanced findOne with user role context for visibility filtering (2026 Blind Auction)
+     */
+    async findOneWithContext(id: string, user: any) {
+        const order = await this.findOne(id);
+
+        const now = new Date();
+        
+        // 1. Hide ALL offers from CUSTOMER if reveal time not reached
+        if (user.role === 'CUSTOMER' && order.revealOffersAt && order.revealOffersAt > now) {
+            order.offers = [];
+            if (order._count) order._count.offers = 0;
+        }
+
+        // 2. Hide OTHER merchants' offers from VENDOR during bidding phase
+        if (user.role === 'VENDOR' && (order.status === OrderStatus.COLLECTING_OFFERS || order.status === OrderStatus.AWAITING_SELECTION)) {
+            const myStoreId = user.storeId;
+            if (myStoreId) {
+                order.offers = order.offers.filter(o => o.storeId === myStoreId);
+                if (order._count) order._count.offers = order.offers.length;
+            }
+        }
+        
         return order;
     }
 

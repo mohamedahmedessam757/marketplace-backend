@@ -39,6 +39,8 @@ enum StoreStatus {
 }
 
 enum OrderStatus {
+  COLLECTING_OFFERS
+  AWAITING_SELECTION
   AWAITING_OFFERS
   AWAITING_PAYMENT
   PREPARATION
@@ -302,6 +304,11 @@ model Store {
   visibilitySignature  String?   @map("visibility_signature") @db.Text
   visibilityRate       Int       @default(100) @map("visibility_rate")
 
+  // Governance Stats (2026)
+  totalOffersSent      Int       @default(0) @map("total_offers_sent")
+  editCount            Int       @default(0) @map("edit_count")
+  withdrawalCount      Int       @default(0) @map("withdrawal_count")
+
   @@index([status])
   @@index([suspendedUntil])
   @@map("stores")
@@ -330,7 +337,7 @@ model Order {
   orderNumber String      @unique @map("order_number")
   customerId  String      @map("customer_id") @db.Uuid
   storeId     String?     @map("store_id") @db.Uuid
-  status      OrderStatus @default(AWAITING_OFFERS)
+  status      OrderStatus @default(COLLECTING_OFFERS)
 
   // Vehicle Details
   vehicleMake  String  @map("vehicle_make")
@@ -354,6 +361,9 @@ model Order {
   totalAmount Decimal? @map("total_amount") @db.Decimal(14, 2)
 
   // Timestamps
+  revealOffersAt               DateTime? @map("reveal_offers_at") @db.Timestamptz
+  offersStopAt                 DateTime? @map("offers_stop_at") @db.Timestamptz
+  selectionDeadlineAt          DateTime? @map("selection_deadline_at") @db.Timestamptz
   offersDeadlineAt             DateTime? @map("offers_deadline_at") @db.Timestamptz
   paymentDeadlineAt            DateTime? @map("payment_deadline_at") @db.Timestamptz
   delayedPreparationDeadlineAt DateTime? @map("delayed_prep_deadline_at") @db.Timestamptz
@@ -468,7 +478,9 @@ model Offer {
   partType         String? @map("part_type")
   notes            String?
   offerImage       String? @map("offer_image")
-  status           String  @default("pending") // pending | accepted | rejected
+  status           String  @default("pending") // pending | accepted | rejected | withdrawn
+  canEditUntil     DateTime? @map("can_edit_until") @db.Timestamptz
+  isWithdrawn      Boolean @default(false) @map("is_withdrawn")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz

@@ -11,6 +11,7 @@ import { ViolationDecayService } from './violation-decay.service';
 import { SecurityMaintenanceService } from './security-maintenance.service';
 import { WarrantyExpirationService } from './warranty-expiration.service';
 import { WithdrawalReminderService } from './withdrawal-reminder.service';
+import { MerchantGovernanceService } from './merchant-governance.service';
 
 @Module({
     imports: [
@@ -27,7 +28,8 @@ import { WithdrawalReminderService } from './withdrawal-reminder.service';
         ViolationDecayService,
         SecurityMaintenanceService,
         WarrantyExpirationService,
-        WithdrawalReminderService
+        WithdrawalReminderService,
+        MerchantGovernanceService
     ],
 })
 export class SchedulerModule { }

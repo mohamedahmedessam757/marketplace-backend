@@ -4,7 +4,7 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { StoresService } from '../stores/stores.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { ActorType } from '@prisma/client';
+import { ActorType, OrderStatus } from '@prisma/client';
 
 @Injectable()
 export class OffersService {
@@ -37,23 +37,28 @@ export class OffersService {
         // 1.5 GUARD: Extreme Validation Check
         const orderInfo = await this.prisma.order.findUnique({
             where: { id: createOfferDto.orderId },
-            select: { id: true, status: true, createdAt: true, customerId: true, orderNumber: true }
+            select: { id: true, status: true, createdAt: true, customerId: true, orderNumber: true, offersStopAt: true }
         });
 
         if (!orderInfo) {
             throw new NotFoundException('Order not found');
         }
 
-        if (orderInfo.status !== 'AWAITING_OFFERS') {
-            throw new BadRequestException('Bidding is closed for this order. Status is no longer AWAITING_OFFERS.');
+        if (orderInfo.status !== OrderStatus.COLLECTING_OFFERS && orderInfo.status !== OrderStatus.AWAITING_OFFERS) {
+            throw new BadRequestException(`Bidding is closed. Order status is ${orderInfo.status}.`);
+        }
+        
+        const now = new Date();
+        if (orderInfo.offersStopAt && now > orderInfo.offersStopAt) {
+            throw new BadRequestException('Bidding time has strictly expired for this order (reveal phase approaching).');
         }
 
-        const now = new Date().getTime();
-        const createdTime = new Date(orderInfo.createdAt).getTime();
-        const diffHours = (now - createdTime) / (1000 * 60 * 60);
-
-        if (diffHours >= 24) {
-            throw new BadRequestException('Bidding time (24h) has strictly expired for this order.');
+        // --- 2026 Governance: Check if merchant already has a withdrawn offer for this order ---
+        const previousWithdrawn = await this.prisma.offer.findFirst({
+            where: { orderId: orderInfo.id, storeId: store.id, isWithdrawn: true }
+        });
+        if (previousWithdrawn) {
+            throw new BadRequestException('You have previously withdrawn an offer for this order and cannot submit another one.');
         }
 
         // 2. Validate max 10 offers per part (if part-level offer)
@@ -96,6 +101,7 @@ export class OffersService {
             notes: createOfferDto.notes,
             offerImage: createOfferDto.offerImage,
             shippingCost: createOfferDto.shippingCost ?? 0,
+            canEditUntil: new Date(Date.now() + 15 * 60 * 1000), // 15 Minute window
         };
 
         // Only include orderPartId if provided (avoids DB error if column doesn't exist yet)
@@ -107,10 +113,13 @@ export class OffersService {
         let offer;
         try {
             offer = await this.prisma.$transaction(async (tx) => {
-                // Increment daily count
+                // Increment daily count and total governance count
                 await tx.store.update({
                     where: { id: store.id },
-                    data: { dailyOfferCount: { increment: 1 } }
+                    data: { 
+                        dailyOfferCount: { increment: 1 },
+                        totalOffersSent: { increment: 1 }
+                    }
                 });
 
                 return await tx.offer.create({
@@ -127,7 +136,10 @@ export class OffersService {
                 offer = await this.prisma.$transaction(async (tx) => {
                     await tx.store.update({
                         where: { id: store.id },
-                        data: { dailyOfferCount: { increment: 1 } }
+                        data: { 
+                            dailyOfferCount: { increment: 1 },
+                            totalOffersSent: { increment: 1 }
+                        }
                     });
                     return await tx.offer.create({
                         data: offerData,
@@ -161,18 +173,10 @@ export class OffersService {
         // 6. Update Order Status to AWAITING_OFFERS (if not already)
         // Actually, status logic might be handled by OrdersService, but here we just ensure flow.
 
-        // 6. Notify Customer (Fire and Forget)
+        // 6. Notify Customer (SUPPRESSED FOR 2026)
         if (orderInfo && orderInfo.customerId) {
-            this.notificationsService.create({
-                recipientId: orderInfo.customerId,
-                recipientRole: 'CUSTOMER',
-                titleAr: 'عرض سعر جديد!',
-                titleEn: 'New Offer Received!',
-                messageAr: `قام متجر "${store.name}" بتقديم عرض جديد لطلبك رقم ${orderInfo.orderNumber}`,
-                messageEn: `Store "${store.name}" submitted a new offer for your order #${orderInfo.orderNumber}`,
-                type: 'OFFER',
-                link: `/dashboard/orders/${orderInfo.id}`
-            }).catch(e => console.error('Failed to notify customer of new offer', e));
+            // Suppressed for 2026 Blind Auction
+            console.log('Customer notification suppressed for Blind Auction phase');
 
             // 7. Notify Admin about New Offer (Marketplace Oversight)
             this.notificationsService.notifyAdmins({
@@ -183,6 +187,18 @@ export class OffersService {
                 type: 'OFFER',
                 link: `/admin/orders/${orderInfo.id}`,
                 metadata: { orderId: orderInfo.id, offerId: offer.id }
+            }).catch(() => {});
+
+            // 8. Notify Merchant about their 15-minute edit window (Governance Info)
+            this.notificationsService.create({
+                recipientId: userId,
+                recipientRole: 'VENDOR',
+                titleAr: 'تم إرسال عرضك بنجاح ✅',
+                titleEn: 'Offer Submitted Successfully ✅',
+                messageAr: 'لديك 15 دقيقة للتعديل على العرض بحرية. بعد ذلك، سيتم قفل العرض ولن تتمكن إلا من سحبه نهائياً مع تسجيل مخالفة.',
+                messageEn: 'You have a 15-minute window to edit your offer freely. After that, it will be locked and you can only withdraw it (counts as a violation).',
+                type: 'system_alert',
+                link: `/dashboard/merchant/orders/${orderInfo.id}`
             }).catch(() => {});
         }
 
@@ -216,7 +232,11 @@ export class OffersService {
         if (!store) return [];
 
         return this.prisma.offer.findMany({
-            where: { orderId, storeId: store.id },
+            where: { 
+                orderId, 
+                storeId: store.id,
+                isWithdrawn: false // Exclude withdrawn offers from active view
+            },
             include: {
                 store: { select: { id: true, name: true, storeCode: true } }
             },
@@ -236,7 +256,7 @@ export class OffersService {
         // Find the offer and verify ownership
         const existing = await this.prisma.offer.findUnique({
             where: { id: offerId },
-            select: { id: true, storeId: true, orderId: true }
+            select: { id: true, storeId: true, orderId: true, canEditUntil: true, isWithdrawn: true }
         });
 
         if (!existing) {
@@ -247,20 +267,27 @@ export class OffersService {
             throw new BadRequestException('You can only edit your own offers.');
         }
 
+        if (existing.isWithdrawn) {
+            throw new BadRequestException('This offer has been withdrawn and cannot be edited.');
+        }
+
         // Verify order is still open for bidding
         const order = await this.prisma.order.findUnique({
             where: { id: existing.orderId },
-            select: { status: true, createdAt: true }
+            select: { status: true, createdAt: true, offersStopAt: true }
         });
 
-        if (!order || order.status !== 'AWAITING_OFFERS') {
+        if (!order || (order.status !== OrderStatus.COLLECTING_OFFERS && order.status !== OrderStatus.AWAITING_OFFERS)) {
             throw new BadRequestException('Cannot edit offer — bidding is closed.');
         }
 
-        const now = new Date().getTime();
-        const createdTime = new Date(order.createdAt).getTime();
-        if ((now - createdTime) / (1000 * 60 * 60) >= 24) {
-            throw new BadRequestException('Cannot edit offer — 24h bidding window expired.');
+        const now = new Date();
+        if (existing.canEditUntil && now > existing.canEditUntil) {
+            throw new BadRequestException('The 15-minute edit window for this offer has expired. You can only withdraw it now.');
+        }
+
+        if (order.offersStopAt && now > order.offersStopAt) {
+            throw new BadRequestException('Cannot edit offer — 24h bidding phase is ending.');
         }
 
         // Build update data — only include fields that were provided
@@ -277,12 +304,20 @@ export class OffersService {
         if (updateDto.offerImage !== undefined) data.offerImage = updateDto.offerImage;
         data.updatedAt = new Date();
 
-        const updated = await this.prisma.offer.update({
-            where: { id: offerId },
-            data,
-            include: {
-                store: { select: { id: true, name: true } }
-            }
+        const updated = await this.prisma.$transaction(async (tx) => {
+            // Increment edit count for governance tracking
+            await tx.store.update({
+                where: { id: store.id },
+                data: { editCount: { increment: 1 } }
+            });
+
+            return await tx.offer.update({
+                where: { id: offerId },
+                data,
+                include: {
+                    store: { select: { id: true, name: true } }
+                }
+            });
         });
 
         // Audit Log (2026 Change Tracking)
@@ -302,7 +337,54 @@ export class OffersService {
     }
 
     /**
-     * Cancel an offer by the vendor who created it.
+     * Permanent Withdrawal of an offer (Marketplace Governance 2026)
+     */
+    async withdraw(userId: string, offerId: string) {
+        const store = await this.storesService.findMyStore(userId);
+        if (!store) throw new NotFoundException('Store not found.');
+
+        const existing = await this.prisma.offer.findUnique({
+            where: { id: offerId },
+            select: { id: true, storeId: true, orderId: true, isWithdrawn: true }
+        });
+
+        if (!existing) throw new NotFoundException('Offer not found.');
+        if (existing.storeId !== store.id) throw new ForbiddenException('Not your offer.');
+        if (existing.isWithdrawn) throw new BadRequestException('Already withdrawn.');
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            await tx.store.update({
+                where: { id: store.id },
+                data: { withdrawalCount: { increment: 1 } }
+            });
+
+            return await tx.offer.update({
+                where: { id: offerId },
+                data: { 
+                    status: 'withdrawn',
+                    isWithdrawn: true,
+                    updatedAt: new Date()
+                },
+                include: { store: { select: { name: true, ownerId: true } } }
+            });
+        });
+
+        await this.auditLogs.logAction({
+            orderId: existing.orderId,
+            action: 'WITHDRAW_OFFER',
+            entity: 'Offer',
+            actorType: ActorType.VENDOR,
+            actorId: userId,
+            actorName: result.store?.name || 'Vendor',
+            newState: 'withdrawn',
+            metadata: { offerId }
+        });
+
+        return result;
+    }
+
+    /**
+     * Legacy cancel method (adapted to use withdraw if appropriate)
      */
     async cancelByVendor(userId: string, offerId: string) {
         const store = await this.storesService.findMyStore(userId);
@@ -325,9 +407,16 @@ export class OffersService {
             throw new BadRequestException('You can only cancel your own offers.');
         }
 
-        if (!existing.order || existing.order.status !== 'AWAITING_OFFERS') {
+        if (!existing.order || (existing.order.status !== OrderStatus.COLLECTING_OFFERS && existing.order.status !== OrderStatus.AWAITING_OFFERS)) {
             throw new BadRequestException('Cannot cancel offer — bidding is closed or order has progressed.');
         }
+
+        // --- 2026 Governance Rule: Free Cancel only within 15m ---
+        const canEditUntil = existing.canEditUntil ? new Date(existing.canEditUntil) : null;
+        if (!canEditUntil || new Date() > canEditUntil) {
+            throw new BadRequestException('Free edit window has expired. You must use the "Withdraw" process (counts as violation).');
+        }
+        // ------------------------------------------------------
 
         // Audit Log (2026 Cancellation Tracking)
         await this.auditLogs.logAction({
@@ -344,8 +433,9 @@ export class OffersService {
 
         await this.prisma.offer.delete({ where: { id: offerId } });
 
-        // Notify Customer (Optional but good UX)
-        if (existing.order?.customerId) {
+        // Notify Customer (Suppressed for 2026 Blind Auction)
+        const isBlindAuction = ['COLLECTING_OFFERS', 'AWAITING_OFFERS'].includes(existing.order?.status || '');
+        if (existing.order?.customerId && !isBlindAuction) {
             this.notificationsService.create({
                 recipientId: existing.order.customerId,
                 recipientRole: 'CUSTOMER',
@@ -406,9 +496,9 @@ export class OffersService {
         });
 
         // Notify Merchant
-        if (offer.store?.userId) {
+        if (offer.store?.ownerId) {
             await this.notificationsService.create({
-                recipientId: offer.store.userId,
+                recipientId: offer.store.ownerId,
                 recipientRole: 'VENDOR',
                 titleAr: 'تعديل إداري على عرضك',
                 titleEn: 'Admin Update on Your Offer',
@@ -458,9 +548,9 @@ export class OffersService {
         await this.prisma.offer.delete({ where: { id: offerId } });
 
         // Notify Merchant
-        if (offer.store?.userId) {
+        if (offer.store?.ownerId) {
             await this.notificationsService.create({
-                recipientId: offer.store.userId,
+                recipientId: offer.store.ownerId,
                 recipientRole: 'VENDOR',
                 titleAr: 'تم حذف عرضك من قبل الإدارة',
                 titleEn: 'Offer Deleted by Admin',

@@ -21,7 +21,8 @@ export class OrderCleanupService {
     @Cron(CronExpression.EVERY_MINUTE)
     async handleCron() {
         this.logger.debug('Running Order Cleanup Job...');
-        await this.expireAwaitingOffers();
+        await this.handleCollectingOffersReveal();
+        await this.expireAwaitingSelection();
         await this.expireAwaitingPayment();
         await this.handleNonMatchingToCorrection();
         await this.handleCorrectionPeriodExpiry();
@@ -180,15 +181,73 @@ export class OrderCleanupService {
         }
     }
 
-    private async expireAwaitingOffers() {
-        // Find orders in AWAITING_OFFERS created more than 24 hours ago
-        const expiryDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    private async handleCollectingOffersReveal() {
+        const now = new Date();
+        
+        // Find orders in COLLECTING_OFFERS where the reveal time has arrived
+        const readyToReveal = await this.prisma.order.findMany({
+            where: {
+                status: OrderStatus.COLLECTING_OFFERS,
+                revealOffersAt: {
+                    lte: now,
+                },
+            },
+            include: {
+                _count: { select: { offers: true } }
+            }
+        });
 
+        for (const order of readyToReveal) {
+            try {
+                this.logger.log(`Revealing offers for order ${order.orderNumber} (ID: ${order.id}). Transitioning to AWAITING_SELECTION.`);
+                
+                await this.ordersService.transitionStatus(
+                    order.id,
+                    OrderStatus.AWAITING_SELECTION,
+                    { type: ActorType.SYSTEM, id: 'system-scheduler', name: 'System Scheduler' },
+                    'System: Reveal time reached. Transitioning to Selection phase.'
+                );
+
+                // Notify Customer that offers are now visible
+                if (order._count.offers > 0) {
+                    await this.notificationsService.create({
+                        recipientId: order.customerId,
+                        recipientRole: 'CUSTOMER',
+                        titleAr: 'حان وقت اختيار العروض! 🛒',
+                        titleEn: 'Time to Select Offers! 🛒',
+                        messageAr: `تم انتهاء فترة جمع العروض لطلبك رقم #${order.orderNumber}. يمكنك الآن مراجعة ${order._count.offers} عرض واختيار الأنسب لك.`,
+                        messageEn: `The collection period for your order #${order.orderNumber} has ended. You can now review ${order._count.offers} offers and select the best one.`,
+                        type: 'OFFER',
+                        link: `/dashboard/orders/${order.id}`
+                    });
+                } else {
+                    // No offers case: Inform customer and maybe suggest re-listing
+                    await this.notificationsService.create({
+                        recipientId: order.customerId,
+                        recipientRole: 'CUSTOMER',
+                        titleAr: 'انتهت مهلة جمع العروض',
+                        titleEn: 'Collection Period Ended',
+                        messageAr: `نعتذر منك، لم يتم استلام أي عروض للطلب رقم #${order.orderNumber} خلال الـ 24 ساعة الماضية.`,
+                        messageEn: `We apologize, no offers were received for order #${order.orderNumber} during the last 24 hours.`,
+                        type: 'system_alert',
+                        link: `/dashboard/orders/${order.id}`
+                    });
+                }
+            } catch (error) {
+                this.logger.error(`Failed to reveal offers for order ${order.id}: ${error.message}`);
+            }
+        }
+    }
+
+    private async expireAwaitingSelection() {
+        const now = new Date();
+
+        // Find orders in AWAITING_SELECTION where the customer selection deadline has passed
         const expiredOrders = await this.prisma.order.findMany({
             where: {
-                status: OrderStatus.AWAITING_OFFERS,
-                createdAt: {
-                    lt: expiryDate,
+                status: OrderStatus.AWAITING_SELECTION,
+                selectionDeadlineAt: {
+                    lt: now,
                 },
             },
             include: {
@@ -201,31 +260,27 @@ export class OrderCleanupService {
         for (const order of expiredOrders) {
             try {
                 const hasOffers = order._count.offers > 0;
-                this.logger.log(`Expiring order ${order.orderNumber} (ID: ${order.id}) [hasOffers: ${hasOffers}]`);
+                this.logger.log(`Expiring order selection period ${order.orderNumber} (ID: ${order.id}) [hasOffers: ${hasOffers}]`);
                 
                 await this.ordersService.transitionStatus(
                     order.id,
                     OrderStatus.CANCELLED,
                     { type: ActorType.SYSTEM, id: 'system-scheduler', name: 'System Scheduler' },
-                    'System: Order expired after 24 hours waiting for offers',
+                    'System: Selection period expired (48h total elapsed). Customer failed to choose an offer.',
                 );
 
-                // Real-time Expiry Notification via WebSockets / Postgres Changes
+                // Notification
                 await this.notificationsService.create({
                     recipientId: order.customerId,
                     recipientRole: 'CUSTOMER',
-                    titleAr: hasOffers ? 'عذراً، طلبك لم يتلق عروض الكافية' : 'نعتذر منك لعدم توفر عروض حاليا',
-                    titleEn: hasOffers ? 'Order Expired' : 'No Offers Available',
-                    messageAr: hasOffers 
-                        ? `في هذا الطلب رقم (#${order.orderNumber})، انتهت مدة استلام العروض (24 ساعة). يمكنك دائماً إنشاء طلب جديد.` 
-                        : `نعتذر منك لعدم توفر عروض حاليا على الطلب رقم (#${order.orderNumber}) يمكنك اعادة أرسال الطلب خلال أيام العمل من الاثنين الى الخميس`,
-                    messageEn: hasOffers 
-                        ? `In order (#${order.orderNumber}), the time to receive offers has ended (24h). Please feel free to create a new request.` 
-                        : `We apologize that there are no offers currently available for order (#${order.orderNumber}). You can resubmit during working days (Mon-Thu).`,
+                    titleAr: 'انتهت مهلة اختيار العرض',
+                    titleEn: 'Selection Period Expired',
+                    messageAr: `انتهت المهلة المتاحة لاختيار عرض للطلب رقم (#${order.orderNumber}). تم إغلاق الطلب تلقائياً.`,
+                    messageEn: `The deadline to select an offer for order (#${order.orderNumber}) has expired. The order has been closed automatically.`,
                     type: 'system_alert'
                 });
             } catch (error) {
-                this.logger.error(`Failed to expire order ${order.id}: ${error.message}`);
+                this.logger.error(`Failed to expire order selection ${order.id}: ${error.message}`);
             }
         }
     }
