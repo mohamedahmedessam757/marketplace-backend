@@ -47,4 +47,8 @@ export class UpdateOfferDto {
     @IsOptional()
     @IsString()
     offerImage?: string;
+
+    @IsOptional()
+    @IsNumber()
+    cylinders?: number;
 }

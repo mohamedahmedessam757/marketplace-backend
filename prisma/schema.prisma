@@ -478,6 +478,7 @@ model Offer {
   partType         String? @map("part_type")
   notes            String?
   offerImage       String? @map("offer_image")
+  cylinders        Int?    @map("cylinders")
   status           String  @default("pending") // pending | accepted | rejected | withdrawn
   canEditUntil     DateTime? @map("can_edit_until") @db.Timestamptz
   isWithdrawn      Boolean @default(false) @map("is_withdrawn")

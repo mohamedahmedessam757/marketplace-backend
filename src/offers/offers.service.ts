@@ -100,6 +100,7 @@ export class OffersService {
             partType: createOfferDto.partType,
             notes: createOfferDto.notes,
             offerImage: createOfferDto.offerImage,
+            cylinders: createOfferDto.cylinders,
             shippingCost: createOfferDto.shippingCost ?? 0,
             canEditUntil: new Date(Date.now() + 15 * 60 * 1000), // 15 Minute window
         };
@@ -302,6 +303,7 @@ export class OffersService {
         if (updateDto.partType !== undefined) data.partType = updateDto.partType;
         if (updateDto.notes !== undefined) data.notes = updateDto.notes;
         if (updateDto.offerImage !== undefined) data.offerImage = updateDto.offerImage;
+        if (updateDto.cylinders !== undefined) data.cylinders = updateDto.cylinders;
         data.updatedAt = new Date();
 
         const updated = await this.prisma.$transaction(async (tx) => {

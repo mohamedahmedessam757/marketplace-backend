@@ -41,6 +41,10 @@ export class CreateOfferDto {
 
     @IsNumber()
     @IsOptional()
+    cylinders?: number;
+
+    @IsNumber()
+    @IsOptional()
     shippingCost?: number;
 }
 
