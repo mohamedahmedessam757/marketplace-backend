@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChatGateway } from './chat.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { OrderStatus } from '@prisma/client';
 
 @Injectable()
 export class ChatService {
@@ -45,13 +46,28 @@ export class ChatService {
         }
 
         // Rule: 24h Expiry check
-        // If order creation > 24h && NO accepted offer => Chat Expired
-        // Actually the rule says: "If 24h passed and customer didn't choose, chat closed."
+        // [2026 Update] Chat stays open during AWAITING_SELECTION until selectionDeadlineAt
         const now = new Date();
         const orderCreated = new Date(order.createdAt);
         const diffHours = (now.getTime() - orderCreated.getTime()) / (1000 * 60 * 60);
 
-        if (diffHours > 24 && !order.acceptedOfferId) {
+        let isExpired = false;
+        if (!order.acceptedOfferId) {
+            if (order.status === OrderStatus.AWAITING_SELECTION) {
+                // If in selection phase, check the specific deadline
+                if (order.selectionDeadlineAt && now > new Date(order.selectionDeadlineAt)) {
+                    isExpired = true;
+                } else if (!order.selectionDeadlineAt && diffHours > 48) {
+                    // Fallback for selection phase: 48h from creation (24h collecting + 24h selection)
+                    isExpired = true;
+                }
+            } else if (diffHours > 24) {
+                // Default 24h expiry for initial phases (AWAITING_OFFERS, etc.)
+                isExpired = true;
+            }
+        }
+
+        if (isExpired) {
             const existing = await this.prisma.orderChat.findUnique({
                 where: { orderId_vendorId_type: { orderId, vendorId, type: 'order' } }
             });

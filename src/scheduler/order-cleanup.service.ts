@@ -24,6 +24,8 @@ export class OrderCleanupService {
         await this.handleCollectingOffersReveal();
         await this.expireAwaitingSelection();
         await this.expireAwaitingPayment();
+        await this.handlePreparationDelays();
+        await this.handleCriticalPreparationFailures();
         await this.handleNonMatchingToCorrection();
         await this.handleCorrectionPeriodExpiry();
     }
@@ -208,7 +210,7 @@ export class OrderCleanupService {
                     'System: Reveal time reached. Transitioning to Selection phase.'
                 );
 
-                // Notify Customer that offers are now visible
+                // [2026] Centralized Detail: Inform Customer about the Reveal
                 if (order._count.offers > 0) {
                     await this.notificationsService.create({
                         recipientId: order.customerId,
@@ -221,7 +223,6 @@ export class OrderCleanupService {
                         link: `/dashboard/orders/${order.id}`
                     });
                 } else {
-                    // No offers case: Inform customer and maybe suggest re-listing
                     await this.notificationsService.create({
                         recipientId: order.customerId,
                         recipientRole: 'CUSTOMER',
@@ -285,7 +286,6 @@ export class OrderCleanupService {
         }
     }
 
-    @Cron(CronExpression.EVERY_MINUTE)
     async expireAwaitingPayment() {
         const now = new Date();
         const legacyExpiryDate = new Date();
@@ -360,7 +360,6 @@ export class OrderCleanupService {
         }
     }
 
-    @Cron(CronExpression.EVERY_MINUTE)
     async handlePreparationDelays() {
         const orders = await this.prisma.order.findMany({
             where: { status: OrderStatus.PREPARATION },
@@ -443,7 +442,6 @@ export class OrderCleanupService {
         }
     }
 
-    @Cron(CronExpression.EVERY_MINUTE)
     async handleCriticalPreparationFailures() {
         const now = new Date();
 

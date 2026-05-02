@@ -26,7 +26,8 @@ export class StoresService {
                         withdrawalsFrozen: true,
                         withdrawalFreezeNote: true,
                         withdrawalFreezeSignature: true,
-                        restrictionAlertMessage: true
+                        restrictionAlertMessage: true,
+                        violationScore: true
                     } 
                 },
                 documents: true,
@@ -64,7 +65,8 @@ export class StoresService {
                             withdrawalsFrozen: true,
                             withdrawalFreezeNote: true,
                             withdrawalFreezeSignature: true,
-                            restrictionAlertMessage: true
+                            restrictionAlertMessage: true,
+                            violationScore: true
                         } 
                     },
                     documents: true,
@@ -96,7 +98,8 @@ export class StoresService {
                         withdrawalsFrozen: true,
                         withdrawalFreezeNote: true,
                         withdrawalFreezeSignature: true,
-                        restrictionAlertMessage: true
+                        restrictionAlertMessage: true,
+                        violationScore: true
                     } 
                 },
                 documents: true
@@ -704,7 +707,12 @@ export class StoresService {
                 responseSpeed: 1.5, // Mock realistic average for M1
                 prepSpeed: 24, // Mock realistic average for M1
                 acceptanceRate,
-                rating: Number(store.rating) || 0.0
+                rating: Number(store.rating) || 0.0,
+                // 2026 Governance Metrics
+                totalOffersSent: store.totalOffersSent,
+                editCount: store.editCount,
+                withdrawalCount: store.withdrawalCount,
+                violationScore: store.owner?.violationScore || 0
             },
             weeklyEarnings,
             activeOrdersCount

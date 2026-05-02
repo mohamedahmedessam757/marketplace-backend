@@ -53,6 +53,7 @@ export class DashboardService {
             latePrepCount,
             expiringLicensesCount,
             expiredLicensesCount,
+            stalledVerificationCount,
             lastOrders
         ] = await Promise.all([
             this.prisma.order.count({
@@ -106,8 +107,9 @@ export class DashboardService {
                 where: { createdAt: { gte: startDate, lte: endDate } },
                 _count: { id: true }
             }),
-            this.prisma.order.count({ where: { status: OrderStatus.AWAITING_OFFERS, createdAt: { lt: oneDayAgo } } }),
-            this.prisma.order.count({ where: { status: OrderStatus.PREPARATION, updatedAt: { lt: twoDaysAgo } } }),
+            this.prisma.order.count({ where: { status: { in: [OrderStatus.AWAITING_OFFERS, OrderStatus.COLLECTING_OFFERS, OrderStatus.AWAITING_SELECTION] }, createdAt: { lt: oneDayAgo } } }),
+            this.prisma.order.count({ where: { status: { in: [OrderStatus.PREPARATION, OrderStatus.DELAYED_PREPARATION] }, updatedAt: { lt: twoDaysAgo } } }),
+            this.prisma.order.count({ where: { status: OrderStatus.VERIFICATION, updatedAt: { lt: oneDayAgo } } }), // Stalled Verification
             this.prisma.store.count({ where: { licenseExpiry: { lte: thirtyDaysFromNow, gte: now } } }),
             this.prisma.store.count({ where: { licenseExpiry: { lt: now } } }),
             
@@ -196,6 +198,7 @@ export class DashboardService {
         const alerts = [
             lateResponseCount > 0 ? { type: 'warning', code: 'LATE_RESPONSE', count: lateResponseCount, priority: 'high' } : null,
             latePrepCount > 0 ? { type: 'error', code: 'LATE_PREP', count: latePrepCount, priority: 'high' } : null,
+            stalledVerificationCount > 0 ? { type: 'error', code: 'STALLED_VERIFICATION', count: stalledVerificationCount, priority: 'medium' } : null,
             expiringLicensesCount > 0 ? { type: 'warning', code: 'LICENSE_EXPIRING', count: expiringLicensesCount, priority: 'medium' } : null,
             expiredLicensesCount > 0 ? { type: 'error', code: 'LICENSE_EXPIRED', count: expiredLicensesCount, priority: 'critical' } : null,
             openDisputes > 0 ? { type: 'error', code: 'DISPUTES_OPEN', count: openDisputes, priority: 'high' } : null

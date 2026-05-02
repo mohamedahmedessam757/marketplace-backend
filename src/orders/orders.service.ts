@@ -78,7 +78,7 @@ export class OrdersService {
                     status: OrderStatus.COLLECTING_OFFERS,
                     revealOffersAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
                     offersStopAt: new Date(Date.now() + 23.75 * 60 * 60 * 1000), // 23h 45m
-                    selectionDeadlineAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+                    selectionDeadlineAt: null, // Set dynamically upon reveal
 
                     // New Relation: Create all parts
                     // @ts-ignore: IDE stale type definition
@@ -182,6 +182,7 @@ export class OrdersService {
 
         return result;
     }
+
 
     async findAll(user: any, query: FindAllOrdersDto = {}) {
         const { page = 1, limit = 20, status, search } = query;
@@ -288,17 +289,24 @@ export class OrdersService {
                 take,
                 orderBy: { createdAt: 'desc' },
                 include: {
-                    parts: true,
+                    parts: { select: { id: true, name: true, quantity: true } },
                     customer: { select: { id: true, name: true, email: true, avatar: true } },
-                    review: true,
+                    review: { select: { id: true, rating: true } },
                     offers: {
+                        where: { status: { not: 'rejected' } },
                         orderBy: { createdAt: 'asc' },
                         include: {
                             store: { select: { id: true, name: true, storeCode: true, logo: true } }
                         }
                     },
-                    verificationDocuments: { orderBy: { createdAt: 'desc' } },
-                    shipments: { orderBy: { createdAt: 'desc' } },
+                    verificationDocuments: {
+                        select: { id: true, adminStatus: true, createdAt: true },
+                        orderBy: { createdAt: 'desc' }
+                    },
+                    shipments: {
+                        select: { id: true, status: true, carrierName: true, trackingNumber: true, createdAt: true },
+                        orderBy: { createdAt: 'desc' }
+                    },
                     _count: {
                         select: { offers: true }
                     }
@@ -309,9 +317,9 @@ export class OrdersService {
         
         // --- 2026 Governance: Visibility Filtering ---
         const now = new Date();
-        items.forEach(order => {
-            // 1. Hide ALL offers from CUSTOMER if reveal time not reached
-            if (user.role === 'CUSTOMER' && order.revealOffersAt && order.revealOffersAt > now) {
+        (items as any[]).forEach(order => {
+            // 1. Hide ALL offers from CUSTOMER if reveal time not reached AND not in selection phase
+            if (user.role === 'CUSTOMER' && order.status !== OrderStatus.AWAITING_SELECTION && order.revealOffersAt && order.revealOffersAt > now) {
                 order.offers = [];
                 // @ts-ignore
                 if (order._count) order._count.offers = 0;
@@ -375,8 +383,8 @@ export class OrdersService {
 
         const now = new Date();
         
-        // 1. Hide ALL offers from CUSTOMER if reveal time not reached
-        if (user.role === 'CUSTOMER' && order.revealOffersAt && order.revealOffersAt > now) {
+        // 1. Hide ALL offers from CUSTOMER if reveal time not reached AND not in selection phase
+        if (user.role === 'CUSTOMER' && order.status !== OrderStatus.AWAITING_SELECTION && order.revealOffersAt && order.revealOffersAt > now) {
             order.offers = [];
             if (order._count) order._count.offers = 0;
         }
@@ -431,6 +439,7 @@ export class OrdersService {
                     updatedAt: new Date(),
                     warranty_active_at: isTransitioningToWarranty ? new Date() : undefined,
                     warranty_end_at: isTransitioningToWarranty ? finalWarrantyEnd : undefined,
+                    selectionDeadlineAt: newStatus === OrderStatus.AWAITING_SELECTION ? new Date(Date.now() + 24 * 60 * 60 * 1000) : undefined,
                 },
             });
 
@@ -489,6 +498,31 @@ export class OrdersService {
                     link: `/dashboard/orders/${order.id}`,
                     metadata: { orderId: order.id, status: newStatus }
                 });
+            }
+
+            // 3.1.5 Notify All Bidding Merchants about AWAITING_SELECTION (Reveal phase)
+            if (newStatus === OrderStatus.AWAITING_SELECTION) {
+                const biddingMerchants = await this.prisma.offer.findMany({
+                    where: { orderId: order.id },
+                    select: { store: { select: { ownerId: true } } },
+                    distinct: ['storeId']
+                });
+
+                for (const bidder of biddingMerchants) {
+                    if (bidder.store?.ownerId) {
+                        await this.notifications.create({
+                            recipientId: bidder.store.ownerId,
+                            recipientRole: 'MERCHANT',
+                            titleAr: `تم كشف العروض للطلب #${order.orderNumber}`,
+                            titleEn: `Offers Revealed for Order #${order.orderNumber}`,
+                            messageAr: `انتهت فترة جمع العروض. طلب العميل متاح الآن للاختيار، وعرضك قيد المراجعة.`,
+                            messageEn: `The collection period has ended. The order is now open for selection, and your offer is under review.`,
+                            type: 'ORDER',
+                            link: `/merchant/orders/${order.id}`,
+                            metadata: { orderId: order.id, status: newStatus }
+                        }).catch(() => {});
+                    }
+                }
             }
 
             // 3.2 Notify Merchant (if order is assigned to one via acceptedOffer)
@@ -554,6 +588,38 @@ export class OrdersService {
                 link: `/admin/orders/${order.id}`,
                 metadata: { orderId: order.id, status: newStatus, actor: actor.type }
             });
+
+            // --- 2026 Selection Context: Chat System Message ---
+            if (newStatus === OrderStatus.AWAITING_SELECTION) {
+                try {
+                    // Find all chats for this order
+                    const orderChats = await this.prisma.orderChat.findMany({
+                        where: { orderId: order.id, type: 'order' }
+                    });
+
+                    for (const chat of orderChats) {
+                        const msgAr = '🚨 تم كشف العروض! حان وقت الاختيار. لديك 24 ساعة لاختيار العرض المناسب قبل إغلاق الطلب تلقائياً.';
+                        const msgEn = '🚨 Offers Revealed! It is time to choose. You have 24 hours to select the best offer before the order is auto-cancelled.';
+                        
+                        await this.chatService.sendMessage(
+                            chat.id, 
+                            null, // SYSTEM
+                            msgAr,
+                            'SYSTEM',
+                            undefined, undefined, undefined, undefined,
+                            'Offers Revealed'
+                        );
+
+                        // [2026] Extend Chat Expiry to match Selection Deadline
+                        await this.prisma.orderChat.update({
+                            where: { id: chat.id },
+                            data: { expiryAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }
+                        });
+                    }
+                } catch (chatErr) {
+                    console.error('Failed to update reveal system messages/expiry:', chatErr);
+                }
+            }
         } catch (e) {
             console.error('Failed to send notification', e);
         }
@@ -931,6 +997,55 @@ export class OrdersService {
         }
 
         return { success: true, message: 'Offer rejected successfully', rejection: result[1] };
+    }
+
+    async renewOrder(orderId: string, userId: string) {
+        const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.customerId !== userId) throw new ForbiddenException('Only owner can renew order');
+
+        const newDeadline = new Date();
+        newDeadline.setHours(newDeadline.getHours() + 24);
+
+        const updated = await this.prisma.order.update({
+            where: { id: orderId },
+            data: {
+                status: OrderStatus.AWAITING_OFFERS,
+                offersDeadlineAt: newDeadline,
+            }
+        });
+
+        // Audit Log
+        await this.auditLogs.logAction({
+            orderId,
+            action: 'ORDER_RENEWED',
+            entity: 'Order',
+            actorType: ActorType.CUSTOMER,
+            actorId: userId,
+            actorName: 'Customer',
+            reason: 'Order renewed by customer (24h extension)',
+            metadata: { oldDeadline: order.offersDeadlineAt, newDeadline }
+        });
+
+        return updated;
+    }
+
+    async deleteOrder(orderId: string, userId: string) {
+        const order = await this.prisma.order.findUnique({ 
+            where: { id: orderId },
+            include: { _count: { select: { offers: true } } }
+        });
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.customerId !== userId) throw new ForbiddenException('Only owner can delete order');
+        
+        // Safety check: Don't delete if it has offers or is in advanced state
+        if (order._count.offers > 0 && !['CANCELLED', 'AWAITING_OFFERS'].includes(order.status)) {
+            throw new BadRequestException('Cannot delete order that has active offers or is in progress');
+        }
+
+        return this.prisma.order.delete({
+            where: { id: orderId }
+        });
     }
 
     async saveCheckoutData(orderId: string, customerId: string, data: any) {

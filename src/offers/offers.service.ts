@@ -315,10 +315,14 @@ export class OffersService {
                 where: { id: offerId },
                 data,
                 include: {
-                    store: { select: { id: true, name: true } }
+                    store: { select: { id: true, name: true, ownerId: true } }
                 }
             });
         });
+
+        // --- 2026 Governance: Threshold Check ---
+        this.checkGovernanceThresholds(store.id, updated.store?.name || 'Vendor', updated.store?.ownerId).catch(() => {});
+        // ----------------------------------------
 
         // Audit Log (2026 Change Tracking)
         await this.auditLogs.logAction({
@@ -365,9 +369,13 @@ export class OffersService {
                     isWithdrawn: true,
                     updatedAt: new Date()
                 },
-                include: { store: { select: { name: true, ownerId: true } } }
+                include: { store: { select: { id: true, name: true, ownerId: true } } }
             });
         });
+
+        // --- 2026 Governance: Threshold Check ---
+        this.checkGovernanceThresholds(store.id, result.store?.name || 'Vendor', result.store?.ownerId).catch(() => {});
+        // ----------------------------------------
 
         await this.auditLogs.logAction({
             orderId: existing.orderId,
@@ -574,8 +582,52 @@ export class OffersService {
                 link: `/dashboard/orders/${offer.order.id}`
             }).catch(e => console.error('Failed to notify customer of admin delete', e));
         }
-
         return { message: 'Offer deleted successfully by admin' };
+    }
+
+    /**
+     * Internal 2026 Governance logic: Monitors store modification/withdrawal rates.
+     * Triggers admin alerts and merchant warnings if rate > 5%.
+     */
+    private async checkGovernanceThresholds(storeId: string, storeName: string, ownerId?: string) {
+        try {
+            const store = await this.prisma.store.findUnique({
+                where: { id: storeId },
+                select: { totalOffersSent: true, editCount: true, withdrawalCount: true }
+            });
+
+            if (!store || store.totalOffersSent < 20) return; // Minimum sample size of 20 to avoid early noise
+
+            const modificationRate = (store.editCount + store.withdrawalCount) / store.totalOffersSent;
+
+            if (modificationRate > 0.05) {
+                // 1. Notify Admins about potential governance abuse
+                await this.notificationsService.notifyAdmins({
+                    titleAr: 'تنبيه حوكمة: تجاوز حد التعديلات ⚠️',
+                    titleEn: 'Governance Alert: Modification Threshold Exceeded ⚠️',
+                    messageAr: `المتجر "${storeName}" تجاوز نسبة 5% في تعديل أو سحب العروض (النسبة الحالية: ${(modificationRate * 100).toFixed(1)}%). يرجى مراجعة نشاط المتجر.`,
+                    messageEn: `Store "${storeName}" has exceeded the 5% threshold for offer modifications/withdrawals (Current rate: ${(modificationRate * 100).toFixed(1)}%). Please review store activity.`,
+                    type: 'GOVERNANCE_ALERT',
+                    metadata: { storeId, modificationRate, totalOffers: store.totalOffersSent }
+                });
+
+                // 2. Notify Merchant as a formal warning
+                if (ownerId) {
+                    await this.notificationsService.create({
+                        recipientId: ownerId,
+                        recipientRole: 'VENDOR',
+                        titleAr: 'تحذير حوكمة: تجاوز سقف التعديلات المسموح ⚠️',
+                        titleEn: 'Governance Warning: Modification Threshold Reached ⚠️',
+                        messageAr: `لقد تجاوزت نسبة 5% في تعديل أو سحب العروض. تكرار هذا النمط قد يؤدي لتقييد ظهور عروضك أو تعليق الحساب لمراجعة الجودة.`,
+                        messageEn: `You have reached the 5% threshold for offer modifications/withdrawals. Repeating this pattern may lead to visibility restrictions or account suspension for quality review.`,
+                        type: 'ALERT',
+                        link: '/dashboard/merchant/profile'
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Governance threshold check failed:', error);
+        }
     }
 }
 

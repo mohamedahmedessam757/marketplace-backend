@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, ForbiddenException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, ForbiddenException, Query, Delete } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { TransitionOrderDto } from './dto/transition-order.dto';
@@ -184,5 +184,14 @@ export class OrdersController {
         @Body('customerNote') customerNote?: string
     ) {
         return this.ordersService.confirmDelivery(id, req.user.id, customerNote);
+    }
+    @Delete(':id')
+    delete(@Request() req, @Param('id') id: string) {
+        return this.ordersService.deleteOrder(id, req.user.id);
+    }
+
+    @Patch(':id/renew')
+    renew(@Request() req, @Param('id') id: string) {
+        return this.ordersService.renewOrder(id, req.user.id);
     }
 }
