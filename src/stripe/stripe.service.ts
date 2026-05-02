@@ -81,20 +81,60 @@ export class StripeService {
         return loginLink.url;
     }
 
-    /**
-     * Creates a PaymentIntent (Funds Held in Platform)
-     * For Separate Charges and Transfers.
-     */
-    async createPaymentIntent(amountStr: string, currency: string, metadata: any): Promise<any> {
+    async createPaymentIntent(amountStr: string, currency: string, metadata: any, customerId?: string): Promise<any> {
         const amountCents = Math.round(parseFloat(amountStr) * 100);
         
-        return await this.stripe.paymentIntents.create({
+        const params: any = {
             amount: amountCents,
             currency: currency,
             metadata: metadata,
-            transfer_group: metadata.orderId, // Grouping to link transfers later
-            // We do NOT use application_fee_amount or on_behalf_of here.
+            transfer_group: metadata.orderId,
+            setup_future_usage: 'off_session', // Standard for 2026: Always allow saving for better UX
+        };
+
+        if (customerId) {
+            params.customer = customerId;
+        }
+
+        return await this.stripe.paymentIntents.create(params);
+    }
+
+    /**
+     * Get or Create a Stripe Customer for a user
+     */
+    async getOrCreateCustomer(userId: string, email: string, name?: string): Promise<string> {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { stripeCustomerId: true }
         });
+
+        if (user?.stripeCustomerId) {
+            return user.stripeCustomerId;
+        }
+
+        const customer = await this.stripe.customers.create({
+            email,
+            name,
+            metadata: { userId }
+        });
+
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { stripeCustomerId: customer.id }
+        });
+
+        return customer.id;
+    }
+
+    /**
+     * List saved payment methods for a customer
+     */
+    async listPaymentMethods(customerId: string): Promise<any[]> {
+        const paymentMethods = await this.stripe.paymentMethods.list({
+            customer: customerId,
+            type: 'card',
+        });
+        return paymentMethods.data;
     }
 
     /**

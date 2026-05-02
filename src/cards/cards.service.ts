@@ -1,16 +1,48 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StripeService } from '../stripe/stripe.service';
 import { CreateCardDto } from './dto/create-card.dto';
 
 @Injectable()
 export class CardsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private stripeService: StripeService
+    ) { }
 
     async getUserCards(userId: string) {
-        return this.prisma.userCard.findMany({
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { stripeCustomerId: true }
+        });
+
+        const dbCards = await this.prisma.userCard.findMany({
             where: { userId },
             orderBy: { isDefault: 'desc' },
         });
+
+        // 2026 Sync Logic: If user has a Stripe Customer, sync payment methods
+        if (user?.stripeCustomerId) {
+            try {
+                const stripeMethods = await this.stripeService.listPaymentMethods(user.stripeCustomerId);
+                
+                // Update DB cards if they are missing stripePaymentMethodId but match last4
+                for (const method of stripeMethods) {
+                    const match = dbCards.find(c => !c.stripePaymentMethodId && c.last4 === method.card.last4);
+                    if (match) {
+                        await this.prisma.userCard.update({
+                            where: { id: match.id },
+                            data: { stripePaymentMethodId: method.id }
+                        });
+                        match.stripePaymentMethodId = method.id; // Update in-memory for immediate return
+                    }
+                }
+            } catch (err) {
+                console.error('Stripe sync failed:', err.message);
+            }
+        }
+
+        return dbCards;
     }
 
     async addCard(userId: string, dto: CreateCardDto) {

@@ -217,7 +217,7 @@ export class OffersService {
                         storeCode: true,
                         rating: true,
                         createdAt: true,
-                        _count: { select: { orders: true } }
+                        _count: { select: { orders: true, reviews: true } }
                     }
                 }
             },

@@ -210,7 +210,7 @@ export class PaymentsService {
                     previousState: 'AWAITING_PAYMENT',
                     newState: 'PREPARATION',
                     reason: 'All offers paid successfully',
-                });
+                }, tx);
 
                     orderTransitioned = true;
                 }
@@ -230,7 +230,7 @@ export class PaymentsService {
                         orderTransitioned
                     },
                     newState: 'SUCCESS'
-                });
+                }, tx);
 
                 return {
                     payment,
@@ -240,7 +240,7 @@ export class PaymentsService {
                     orderTransitioned,
                     remainingOffers: allAcceptedOfferIds.length - paidCount,
                 };
-            });
+            }, { timeout: 20000 });
         } catch (error) {
             // Handle Prisma unique constraint violation (race condition safety net)
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -341,7 +341,14 @@ export class PaymentsService {
         // Total amount charged to customer = unitPrice + shippingCost + commission (Full price from OfferCard)
         const totalAmount = unitPrice + shippingCost + commission;
 
-        // 4. Create Stripe PaymentIntent
+        // 4. Handle Stripe Customer (2026 Saved Card Logic)
+        const user = await this.prisma.user.findUnique({
+            where: { id: customerId },
+            select: { email: true, name: true }
+        });
+        const stripeCustomerId = await this.stripeService.getOrCreateCustomer(customerId, user.email, user.name);
+
+        // 5. Create Stripe PaymentIntent
         const intent = await this.stripeService.createPaymentIntent(
             totalAmount.toString(),
             'AED',
@@ -351,7 +358,8 @@ export class PaymentsService {
                 customerId, 
                 orderNumber: order.orderNumber,
                 offerNumber: offer.offerNumber 
-            }
+            },
+            stripeCustomerId
         );
 
         // 5. Record PENDING transaction (Atomic idempotent upsert via Prisma interactive transaction)
@@ -409,8 +417,8 @@ export class PaymentsService {
                     amount: totalAmount,
                     stripeIntentId: intent.id
                 }
-            });
-        });
+            }, tx);
+        }, { timeout: 20000 });
 
         return {
             clientSecret: intent.client_secret,
@@ -709,7 +717,7 @@ export class PaymentsService {
                     previousState: 'AWAITING_PAYMENT',
                     newState: 'PREPARATION',
                     reason: 'All offers paid successfully via Stripe',
-                });
+                }, tx);
             }
 
             // e. Final Notification to customer
@@ -724,7 +732,7 @@ export class PaymentsService {
                 link: 'checkout',
                 metadata: { orderId: payment.orderId, offerId: payment.offerId, amount: payment.totalAmount },
             });
-        });
+        }, { timeout: 20000 });
     }
 
     /**
@@ -759,6 +767,30 @@ export class PaymentsService {
             link: `checkout?orderId=${payment.orderId}`,
             metadata: { orderId: payment.orderId, failureReason: 'STRIPE_FAILURE' }
         });
+    }
+
+    /**
+     * Get the current status of a payment for an offer.
+     * Used by the frontend to verify status before/after Stripe redirection.
+     * (2026 Resilient Sync)
+     */
+    async getPaymentStatus(customerId: string, offerId: string) {
+        const payment = await this.prisma.paymentTransaction.findUnique({
+            where: { offerId },
+            include: { order: true }
+        });
+
+        if (!payment) throw new NotFoundException('Payment record not found');
+        if (payment.customerId !== customerId) throw new ForbiddenException('Not owner of this payment');
+
+        return {
+            status: payment.status,
+            paidAt: payment.paidAt,
+            transactionNumber: payment.transactionNumber,
+            totalAmount: payment.totalAmount,
+            orderId: payment.orderId,
+            orderStatus: payment.order.status
+        };
     }
 
     /**
@@ -1823,7 +1855,7 @@ export class PaymentsService {
         }
 
         // APPROVAL FLOW
-        return this.prisma.$transaction(async (tx) => {
+        return await this.prisma.$transaction(async (tx) => {
             let balanceAfter = 0;
             let stripeId = null;
             let finalStatus = 'COMPLETED';
@@ -1932,7 +1964,7 @@ export class PaymentsService {
                         adminSignature,
                         stripeTransferId: transferId
                     }
-                });
+                }, tx);
             }
 
             // 6. Update Request
@@ -2305,7 +2337,7 @@ export class PaymentsService {
                     adminSignature,
                     stripeTransferId: transferId
                 }
-            });
+            }, tx);
 
             this.notifications.create({
                 recipientId: userId,
@@ -2722,4 +2754,3 @@ export class PaymentsService {
         return labels[status.toLowerCase()]?.[lang] || `Withdrawal ${status}`;
     }
 }
-

@@ -1447,11 +1447,7 @@ export class ReturnsService {
                     data: { status: 'COMPLETED' }
                 });
 
-                // Update Waybill to EXPIRED
-                await (tx as any).shippingWaybill.updateMany({
-                    where: { orderId: record.orderId, status: 'RETURN_PENDING' },
-                    data: { status: 'EXPIRED' }
-                });
+                // Note: Removed invalid shippingWaybill updateMany (field 'status' does not exist)
             });
 
             // Notify Customer

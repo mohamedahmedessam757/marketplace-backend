@@ -83,10 +83,15 @@ export class EscrowService {
         const order = await this.prisma.order.findUnique({
              where: { id: orderId }
         });
-        if (!order) throw new BadRequestException('Order missing');
+        if (!order) throw new BadRequestException(`Order missing for ID: ${orderId}`);
+
+        if (!order.storeId) {
+            this.logger.error(`Order #${order.orderNumber} (ID: ${order.id}) has no storeId. Cannot release escrow.`);
+            throw new BadRequestException(`Order has no associated storeId`);
+        }
 
         const store = await this.prisma.store.findUnique({ where: { id: order.storeId } });
-        if (!store) throw new BadRequestException('Store missing');
+        if (!store) throw new BadRequestException(`Store missing for ID: ${order.storeId}`);
 
         if (!store.stripeAccountId) {
             throw new BadRequestException('Store has no connected Stripe account. Cannot release funds to Stripe.');

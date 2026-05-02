@@ -43,6 +43,7 @@ enum OrderStatus {
   AWAITING_SELECTION
   AWAITING_OFFERS
   AWAITING_PAYMENT
+  PARTIALLY_PAID
   PREPARATION
   PREPARED
   VERIFICATION
@@ -155,6 +156,7 @@ model User {
   bankDetailsVerified Boolean @default(false) @map("bank_details_verified")
   stripeAccountId     String? @map("stripe_account_id")
   stripeOnboarded     Boolean @default(false) @map("stripe_onboarded")
+  stripeCustomerId    String? @map("stripe_customer_id")
 
   // Loyalty & Referral System
   customerBalance Decimal     @default(0) @map("customer_balance") @db.Decimal(14, 2)
@@ -644,6 +646,7 @@ model ReturnRequest {
   shippingPaymentStatus String?   @default("PENDING") @map("shipping_payment_status")
   shippingPaymentMethod String?   @map("shipping_payment_method")
   shippingStripeId      String?   @map("shipping_stripe_id")
+  isAttachmentsEnabled  Boolean   @default(true) @map("is_attachments_enabled")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -689,6 +692,7 @@ model Dispute {
   shippingPaymentStatus String?   @default("PENDING") @map("shipping_payment_status")
   shippingPaymentMethod String?   @map("shipping_payment_method")
   shippingStripeId      String?   @map("shipping_stripe_id")
+  isAttachmentsEnabled  Boolean   @default(true) @map("is_attachments_enabled")
 
   verdictNotes    String?   @map("verdict_notes")
   adminApproval       String?   @map("admin_approval")
@@ -754,6 +758,7 @@ model OrderChat {
   // Administrative Control (2026 Enhancement)
   isDeletedByAdmin Boolean   @default(false) @map("is_deleted_by_admin")
   adminJoinedAt    DateTime? @map("admin_joined_at") @db.Timestamptz
+  isAttachmentsEnabled Boolean   @default(true) @map("is_attachments_enabled")
 
   messages OrderChatMessage[]
 
@@ -1043,6 +1048,7 @@ model UserCard {
   expiryYear     Int      @map("expiry_year")
   cardHolderName String?  @map("card_holder_name")
   isDefault      Boolean  @default(false) @map("is_default")
+  stripePaymentMethodId String? @map("stripe_payment_method_id")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

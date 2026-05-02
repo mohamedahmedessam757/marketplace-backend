@@ -22,6 +22,11 @@ export class PaymentsController {
         return this.paymentsService.createPaymentIntent(req.user.id, dto);
     }
 
+    @Get('status/:offerId')
+    getPaymentStatus(@Request() req, @Param('offerId') offerId: string) {
+        return this.paymentsService.getPaymentStatus(req.user.id, offerId);
+    }
+
     @Post('shipping-intent')
     createShippingPaymentIntent(@Request() req, @Body() body: { caseId: string; caseType: 'return' | 'dispute' }) {
         return this.paymentsService.createShippingPaymentIntent(req.user.id, body.caseId, body.caseType);
