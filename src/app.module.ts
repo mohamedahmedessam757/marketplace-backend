@@ -26,6 +26,7 @@ import { LoyaltyModule } from './loyalty/loyalty.module';
 import { StripeModule } from './stripe/stripe.module';
 import { ViolationsModule } from './violations/violations.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { VehicleCatalogModule } from './vehicle-catalog/vehicle-catalog.module';
 import { APP_GUARD } from '@nestjs/core';
 import { MaintenanceGuard } from './platform-settings/maintenance.guard';
 
@@ -59,6 +60,7 @@ import { MaintenanceGuard } from './platform-settings/maintenance.guard';
         StripeModule,
         ViolationsModule,
         PlatformSettingsModule,
+        VehicleCatalogModule,
     ],
     controllers: [AppController],
     providers: [

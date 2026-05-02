@@ -1330,6 +1330,38 @@ model PlatformSettings {
 }
 
 // -----------------------------------------------------
+// Vehicle Catalog System (2026 Enhanced)
+// -----------------------------------------------------
+
+model VehicleMake {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique
+  nameAr    String   @map("name_ar")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  models    VehicleModel[]
+
+  @@map("vehicle_makes")
+}
+
+model VehicleModel {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  makeId    String   @map("make_id") @db.Uuid
+  name      String
+  nameAr    String   @map("name_ar")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  make      VehicleMake @relation(fields: [makeId], references: [id], onDelete: Cascade)
+
+  @@unique([makeId, name])
+  @@map("vehicle_models")
+}
+
+// -----------------------------------------------------
 // Violations & Penalties System (2026 Standard)
 // -----------------------------------------------------
 
