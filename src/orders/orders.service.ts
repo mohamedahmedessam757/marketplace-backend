@@ -10,6 +10,7 @@ import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 import { ChatService } from '../chat/chat.service';
 import { ShipmentsService } from '../shipments/shipments.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class OrdersService {
@@ -20,7 +21,8 @@ export class OrdersService {
         private notifications: NotificationsService,
         private chatService: ChatService, // Injected
         private shipmentsService: ShipmentsService,
-        private loyaltyService: LoyaltyService
+        private loyaltyService: LoyaltyService,
+        private usersService: UsersService,
     ) { }
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -220,7 +222,15 @@ export class OrdersService {
 
                 where.OR = [
                     {
-                        status: { in: [OrderStatus.AWAITING_OFFERS, OrderStatus.COLLECTING_OFFERS] },
+                        status: { in: [OrderStatus.AWAITING_OFFERS, OrderStatus.COLLECTING_OFFERS, OrderStatus.AWAITING_SELECTION, OrderStatus.AWAITING_PAYMENT] },
+                        // For AWAITING_PAYMENT/SELECTION, only show if some parts STILL need offers
+                        parts: {
+                            some: {
+                                offers: {
+                                    none: { status: 'accepted' }
+                                }
+                            }
+                        },
                         AND: [
                             hasMakes ? {
                                 OR: store.selectedMakes.map(make => ({
@@ -443,6 +453,30 @@ export class OrdersService {
                 },
             });
 
+            // --- 2026 Risk Management: Update Customer Return Stats ---
+            // If the order is newly DELIVERED, increment totalDeliveredOrders
+            if (newStatus === OrderStatus.DELIVERED && order.status !== OrderStatus.DELIVERED) {
+                await this.usersService.updateCustomerReturnStats(order.customerId, false, tx);
+            }
+            
+            // If the order transitions to a NEGATIVE outcome after being delivered/completed
+            const isNegativeOutcome = ([
+                OrderStatus.RETURN_REQUESTED, 
+                OrderStatus.RETURNED, 
+                OrderStatus.DISPUTED
+            ] as OrderStatus[]).includes(newStatus);
+
+            const wasDeliveredOrCompleted = ([
+                OrderStatus.DELIVERED, 
+                OrderStatus.COMPLETED, 
+                OrderStatus.WARRANTY_ACTIVE
+            ] as OrderStatus[]).includes(order.status);
+
+            if (isNegativeOutcome && wasDeliveredOrCompleted) {
+                await this.usersService.updateCustomerReturnStats(order.customerId, true, tx);
+            }
+            // -----------------------------------------------------------
+
             await this.auditLogs.logAction({
                 orderId: order.id,
                 action: 'STATUS_CHANGE',
@@ -457,7 +491,7 @@ export class OrdersService {
             }, tx);
 
             return updatedOrder;
-        });
+        }, { timeout: 15000 });
 
         // 3. Notification: Notify Customer & Merchant (Async)
         try {
@@ -693,7 +727,7 @@ export class OrdersService {
             }, tx);
 
             return updatedOrder;
-        });
+        }, { timeout: 15000 });
 
         // 3. Close other chats (Exclusivity Rule)
         try {
@@ -788,27 +822,14 @@ export class OrdersService {
                 data: { status: 'rejected' }
             });
 
-            // Determine if ALL order parts now have accepted offers or are completed
-            // If so, transition to AWAITING_PAYMENT, otherwise keep AWAITING_OFFERS
-            const allOffers = await tx.offer.findMany({
-                where: { orderId }
+            // --- 2026 Selection Logic: Transition to payment if at least one part is accepted ---
+            const acceptedPartsCount = await tx.offer.count({
+                where: { orderId, status: 'accepted' }
             });
-            const parts = await tx.orderPart.findMany({ where: { orderId } });
-
-            let allResolved = true;
-            for (const part of parts) {
-                const partOffers = allOffers.filter(o => o.orderPartId === part.id);
-                const hasPending = partOffers.some(o => o.status === 'pending');
-                const hasAccepted = partOffers.some(o => o.status === 'accepted');
-                // If a part has pending offers and no accepted offers, it's not resolved
-                if (hasPending && !hasAccepted) {
-                    allResolved = false;
-                    break;
-                }
-            }
+            const hasAnyAccepted = acceptedPartsCount > 0;
 
             let updatedOrder = order;
-            if (allResolved && order.status === OrderStatus.AWAITING_OFFERS) {
+            if (hasAnyAccepted && [OrderStatus.AWAITING_OFFERS, OrderStatus.COLLECTING_OFFERS, OrderStatus.AWAITING_SELECTION].includes(order.status as any)) {
                 const now = new Date();
                 const paymentDeadline = new Date(now.getTime() + 24 * 60 * 60 * 1000);
                 
@@ -836,7 +857,7 @@ export class OrdersService {
             }, tx);
 
             return { acceptedOffer, losingOffers, updatedOrder };
-        });
+        }, { timeout: 15000 });
 
         const { acceptedOffer, losingOffers } = result;
 
@@ -968,19 +989,20 @@ export class OrdersService {
         }
 
         // 3. Update the offer status to 'rejected' and create the rejection record in a transaction
-        const result = await this.prisma.$transaction([
-            this.prisma.offer.update({
+        const result = await this.prisma.$transaction(async (tx) => {
+            const updatedOffer = await tx.offer.update({
                 where: { id: offerId },
                 data: { status: 'rejected' }
-            }),
-            this.prisma.offerRejection.create({
+            });
+            const rejection = await tx.offerRejection.create({
                 data: {
                     offerId,
                     reason,
                     customReason
                 }
-            })
-        ]);
+            });
+            return [updatedOffer, rejection];
+        }, { timeout: 15000 });
 
         // 4. Optionally notify the merchant about the specific rejection reason
         if (offer.store?.ownerId) {
@@ -1089,7 +1111,7 @@ export class OrdersService {
 
             // Optional: update the order level shipping tracking metadata here if needed
             return { success: true, count: addresses.length };
-        });
+        }, { timeout: 15000 });
     }
 
     private async generateOrderNumber(): Promise<string> {

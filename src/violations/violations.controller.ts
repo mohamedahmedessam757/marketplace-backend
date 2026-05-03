@@ -12,7 +12,8 @@ import {
   UpdateViolationTypeDto, 
   CreatePenaltyThresholdDto, 
   UpdatePenaltyThresholdDto, 
-  ReviewPenaltyDto 
+  ReviewPenaltyDto,
+  ResolveRiskAlertDto 
 } from './dto';
 
 @Controller('violations')
@@ -137,5 +138,21 @@ export class ViolationsController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   reviewPenalty(@Request() req, @Param('id') id: string, @Body() dto: ReviewPenaltyDto) {
     return this.violationsService.reviewPenaltyAction(id, req.user.id, dto);
+  }
+
+  // --- CUSTOMER RISK GOVERNANCE (2026) ---
+
+  @Get('admin/risk-alerts')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  getRiskAlerts(@Query('status') status?: string) {
+    return this.violationsService.getRiskAlerts(status);
+  }
+
+  @Patch('admin/risk-alerts/:id/resolve')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  resolveRiskAlert(@Request() req, @Param('id') id: string, @Body() dto: ResolveRiskAlertDto) {
+    return this.violationsService.resolveRiskAlert(id, dto, req.user.id);
   }
 }

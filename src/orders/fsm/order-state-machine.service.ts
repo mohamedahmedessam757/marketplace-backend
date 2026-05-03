@@ -5,7 +5,7 @@ import { OrderStatus } from '@prisma/client';
 export class OrderStateMachine {
     // TRANSITION_RULES matching Frontend useOrderStore.ts EXACTLY
     private readonly TRANSITION_RULES: Record<OrderStatus, OrderStatus[]> = {
-        [OrderStatus.COLLECTING_OFFERS]: [OrderStatus.AWAITING_SELECTION, OrderStatus.CANCELLED],
+        [OrderStatus.COLLECTING_OFFERS]: [OrderStatus.AWAITING_SELECTION, OrderStatus.AWAITING_PAYMENT, OrderStatus.CANCELLED],
         [OrderStatus.AWAITING_SELECTION]: [OrderStatus.AWAITING_PAYMENT, OrderStatus.CANCELLED],
         [OrderStatus.AWAITING_OFFERS]: [OrderStatus.AWAITING_PAYMENT, OrderStatus.CANCELLED],
         [OrderStatus.AWAITING_PAYMENT]: [OrderStatus.PARTIALLY_PAID, OrderStatus.PREPARATION, OrderStatus.CANCELLED],

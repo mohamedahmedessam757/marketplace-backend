@@ -10,7 +10,8 @@ import {
   UpdateViolationTypeDto, 
   CreatePenaltyThresholdDto, 
   UpdatePenaltyThresholdDto, 
-  ReviewPenaltyDto 
+  ReviewPenaltyDto,
+  ResolveRiskAlertDto 
 } from './dto';
 import { ViolationTargetType, ViolationStatus, AppealStatus, PenaltyActionStatus, PenaltyActionType } from '@prisma/client';
 
@@ -94,11 +95,12 @@ export class ViolationsService {
 
   // --- ISSUING VIOLATIONS ---
 
-  async issueViolation(dto: IssueViolationDto, issuerId: string) {
+  async issueViolation(dto: IssueViolationDto, issuerId: string, tx?: any) {
     const { typeId, targetUserId, targetStoreId, targetType, customPoints, customFineAmount, customDecayDays } = dto;
+    const db = tx || this.prisma;
 
     // 1. Fetch Violation Type
-    const vType = await this.prisma.violationType.findUnique({
+    const vType = await db.violationType.findUnique({
       where: { id: typeId },
     });
     if (!vType) throw new NotFoundException('Violation type not found');
@@ -109,9 +111,9 @@ export class ViolationsService {
     const decayAt = new Date();
     decayAt.setDate(decayAt.getDate() + decayDays);
 
-    return this.prisma.$transaction(async (tx) => {
+    const logic = async (itx: any) => {
       // 2. Create Violation Record
-      const violation = await tx.violation.create({
+      const violation = await itx.violation.create({
         data: {
           typeId,
           targetUserId,
@@ -128,7 +130,7 @@ export class ViolationsService {
       });
 
       // 3. Update User Score
-      const user = await tx.user.findUnique({
+      const user = await itx.user.findUnique({
         where: { id: targetUserId },
         select: { violationScore: true, customerBalance: true },
       });
@@ -137,13 +139,13 @@ export class ViolationsService {
       const previousScore = user.violationScore;
       const newScore = previousScore + points;
 
-      await tx.user.update({
+      await itx.user.update({
         where: { id: targetUserId },
         data: { violationScore: newScore },
       });
 
       // 4. Log Score Change
-      await tx.violationScoreLog.create({
+      await itx.violationScoreLog.create({
         data: {
           targetUserId,
           targetType,
@@ -158,17 +160,15 @@ export class ViolationsService {
       // 5. Deduct Fine automatically (if applicable)
       if (fineAmount > 0) {
         if (targetType === 'MERCHANT' && targetStoreId) {
-          const store = await tx.store.findUnique({
-            where: { id: targetStoreId },
-          });
+          const store = await itx.store.findUnique({ where: { id: targetStoreId } });
           if (store) {
             const newBalance = Number(store.balance) - fineAmount;
-            await tx.store.update({
+            await itx.store.update({
               where: { id: targetStoreId },
               data: { balance: newBalance },
             });
 
-            await tx.walletTransaction.create({
+            await itx.walletTransaction.create({
               data: {
                 userId: targetUserId,
                 role: 'VENDOR',
@@ -184,12 +184,12 @@ export class ViolationsService {
           }
         } else if (targetType === 'CUSTOMER') {
           const newBalance = Number(user.customerBalance) - fineAmount;
-          await tx.user.update({
+          await itx.user.update({
             where: { id: targetUserId },
             data: { customerBalance: newBalance },
           });
 
-          await tx.walletTransaction.create({
+          await itx.walletTransaction.create({
             data: {
               userId: targetUserId,
               role: 'CUSTOMER',
@@ -204,10 +204,10 @@ export class ViolationsService {
           });
         }
 
-        // Update Platform Wallet (Add to fees balance)
-        const platformWallet = await tx.platformWallet.findFirst();
+        // 5.1 Update Platform Wallet (Add to fees balance)
+        const platformWallet = await itx.platformWallet.findFirst();
         if (platformWallet) {
-          await tx.platformWallet.update({
+          await itx.platformWallet.update({
             where: { id: platformWallet.id },
             data: { 
               feesBalance: Number(platformWallet.feesBalance) + fineAmount,
@@ -217,7 +217,7 @@ export class ViolationsService {
         }
       }
 
-      // 6. Audit Log
+      // 6. Audit Log (2026 Admin Traceability)
       await this.auditLogs.logAction({
         action: 'CREATE',
         entity: 'VIOLATION',
@@ -225,7 +225,7 @@ export class ViolationsService {
         actorType: 'ADMIN',
         reason: `Issued violation ${violation.id} to user ${targetUserId}`,
         metadata: { violationId: violation.id, points, fineAmount },
-      }, tx);
+      }, itx);
 
       // 7. Notification (Bilingual)
       await this.notifications.create({
@@ -250,9 +250,92 @@ export class ViolationsService {
       });
 
       // 8. Check for Penalties
-      await this.checkAndTriggerPenalty(targetUserId, targetType, newScore, targetStoreId, tx);
+      await this.checkAndTriggerPenalty(targetUserId, targetType, newScore, targetStoreId, itx);
 
       return violation;
+    };
+
+    return tx ? logic(tx) : this.prisma.$transaction(logic);
+  }
+
+  // --- CUSTOMER RISK ALERTS (2026) ---
+
+  async getRiskAlerts(status?: string) {
+    return this.prisma.customerRiskAlert.findMany({
+      where: status ? { status } : {},
+      include: {
+        user: {
+          select: { 
+            id: true, 
+            name: true, 
+            email: true, 
+            phone: true, 
+            avatar: true,
+            totalDeliveredOrders: true,
+            totalReturnDisputeOrders: true,
+            cachedReturnRate: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async resolveRiskAlert(alertId: string, dto: ResolveRiskAlertDto, adminId: string) {
+    const alert = await this.prisma.customerRiskAlert.findUnique({
+      where: { id: alertId },
+      include: { user: true }
+    });
+
+    if (!alert) throw new NotFoundException('Risk alert not found');
+    if (alert.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException('Alert has already been resolved');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Update Alert Status
+      const updatedAlert = await tx.customerRiskAlert.update({
+        where: { id: alertId },
+        data: {
+          status: dto.resolution,
+          adminNotes: dto.adminNotes,
+          reviewedBy: adminId,
+          reviewedAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+
+      // 2. If resolution is VIOLATION_ISSUED, trigger the violation issuance
+      if (dto.resolution === 'VIOLATION_ISSUED') {
+        const vType = await tx.violationType.findFirst({
+          where: { nameEn: 'Exceeded Allowed Return Rate' }
+        });
+
+        if (!vType) {
+          throw new BadRequestException('Violation type "Exceeded Allowed Return Rate" not found in database.');
+        }
+
+        await this.issueViolation({
+          typeId: vType.id,
+          targetUserId: alert.userId,
+          targetType: 'CUSTOMER',
+          adminNotes: `Administrative resolution of Risk Alert: ${dto.adminNotes || 'High return rate confirmed.'}`
+        }, adminId, tx);
+      } else {
+        // If DISMISSED, notify user
+        await this.notifications.create({
+          recipientId: alert.userId,
+          recipientRole: 'CUSTOMER',
+          type: 'SYSTEM',
+          titleAr: '✅ تحديث بخصوص مراجعة الحساب',
+          titleEn: '✅ Account Review Update',
+          messageAr: 'تمت مراجعة نشاط حسابك، وحسابك الآن في وضع سليم. شكراً لالتزامك.',
+          messageEn: 'Your account review was successful, and your account is in good standing.',
+          link: '/dashboard'
+        });
+      }
+
+      return updatedAlert;
     });
   }
 

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class ReturnsService {
@@ -10,7 +11,8 @@ export class ReturnsService {
         private prisma: PrismaService,
         private uploadsService: UploadsService,
         private notificationsService: NotificationsService,
-        private auditLogs: AuditLogsService
+        private auditLogs: AuditLogsService,
+        private usersService: UsersService,
     ) { }
 
     // --- Case Messaging (Phase 4) ---
@@ -265,6 +267,13 @@ export class ReturnsService {
                 data: { status: shouldAutoApprove ? 'RETURN_APPROVED' : 'RETURN_REQUESTED' }
             });
 
+            // --- 2026 Risk Management: Update Customer Return Stats ---
+            const wasDelivered = ['DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE'].includes(order.status);
+            if (wasDelivered) {
+                await this.usersService.updateCustomerReturnStats(userId, true, tx);
+            }
+            // -----------------------------------------------------------
+
             // If auto-approved, generate waybill immediately
             if (shouldAutoApprove) {
                 const store = acceptedOffer?.storeId 
@@ -391,6 +400,13 @@ export class ReturnsService {
                 where: { id: orderId },
                 data: { status: 'DISPUTED' }
             });
+
+            // --- 2026 Risk Management: Update Customer Return Stats ---
+            const wasDelivered = ['DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE'].includes(order.status);
+            if (wasDelivered) {
+                await this.usersService.updateCustomerReturnStats(userId, true, tx);
+            }
+            // -----------------------------------------------------------
 
             return disputeRecord;
         });

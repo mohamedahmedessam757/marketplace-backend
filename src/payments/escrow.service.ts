@@ -50,7 +50,7 @@ export class EscrowService {
             actorType: ActorType.SYSTEM,
             actorId: 'PAYMENT_PROCESSOR',
             metadata: { paymentId, amounts }
-        });
+        }, tx);
 
         // 2. Increase Merchant's pending balance
         await prisma.store.update({
@@ -76,22 +76,22 @@ export class EscrowService {
         if (!escrow) throw new NotFoundException('No HELD escrow transaction found for this order');
 
         const payment = await this.prisma.paymentTransaction.findFirst({
-            where: { id: escrow.paymentId }
+            where: { id: escrow.paymentId },
+            include: { offer: { include: { store: true } } }
         });
-        if (!payment) throw new BadRequestException('Payment transaction missing');
+        if (!payment || !payment.offer) throw new BadRequestException('Payment or Offer missing for escrow');
 
         const order = await this.prisma.order.findUnique({
              where: { id: orderId }
         });
         if (!order) throw new BadRequestException(`Order missing for ID: ${orderId}`);
 
-        if (!order.storeId) {
-            this.logger.error(`Order #${order.orderNumber} (ID: ${order.id}) has no storeId. Cannot release escrow.`);
-            throw new BadRequestException(`Order has no associated storeId`);
+        // 2026 Resilient Lookup: Use Store from the Offer (Multi-part support)
+        const store = payment.offer.store;
+        if (!store) {
+            this.logger.error(`Offer #${payment.offer.offerNumber} has no associated store. Cannot release escrow.`);
+            throw new BadRequestException(`Store missing for offer`);
         }
-
-        const store = await this.prisma.store.findUnique({ where: { id: order.storeId } });
-        if (!store) throw new BadRequestException(`Store missing for ID: ${order.storeId}`);
 
         if (!store.stripeAccountId) {
             throw new BadRequestException('Store has no connected Stripe account. Cannot release funds to Stripe.');
@@ -124,7 +124,7 @@ export class EscrowService {
 
             // 2. Move Merchant pending to available
             await tx.store.update({
-                where: { id: order.storeId },
+                where: { id: store.id },
                 data: {
                     pendingBalance: { decrement: Number(escrow.merchantAmount) },
                     balance: { increment: Number(escrow.merchantAmount) } // This is their actual available balance
@@ -150,7 +150,7 @@ export class EscrowService {
             });
             
             // 5. Merchant Wallet Transaction Log
-            const currentStore = await tx.store.findUnique({ where: { id: order.storeId } });
+            const currentStore = await tx.store.findUnique({ where: { id: store.id } });
             const newBalance = Number(currentStore?.balance || 0);
 
             await tx.walletTransaction.create({

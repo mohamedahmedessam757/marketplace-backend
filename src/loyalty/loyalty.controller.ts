@@ -11,4 +11,9 @@ export class LoyaltyController {
   async getMyLoyalty(@Request() req) {
     return this.loyaltyService.getLoyaltyData(req.user.id);
   }
+
+  @Get('public-stats')
+  async getPublicStats() {
+    return this.loyaltyService.getPublicStats();
+  }
 }

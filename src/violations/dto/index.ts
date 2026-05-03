@@ -6,3 +6,4 @@ export * from './review-appeal.dto';
 export * from './create-penalty-threshold.dto';
 export * from './update-penalty-threshold.dto';
 export * from './review-penalty.dto';
+export * from './resolve-risk-alert.dto';

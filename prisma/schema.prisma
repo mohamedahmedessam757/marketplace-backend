@@ -192,6 +192,13 @@ model User {
   caseMessages       CaseMessage[]
   adminActivityLogs  AdminActivityLog[]
 
+  // Customer Return Risk Tracking (2026)
+  totalDeliveredOrders     Int                @default(0) @map("total_delivered_orders")
+  totalReturnDisputeOrders Int                @default(0) @map("total_return_dispute_orders")
+  cachedReturnRate         Decimal            @default(0) @map("cached_return_rate") @db.Decimal(5, 4)
+  riskAlerts               CustomerRiskAlert[] @relation("TargetUser")
+  reviewedRiskAlerts       CustomerRiskAlert[] @relation("RiskReviewer")
+
   // Advanced Restrictions (2026)
   withdrawalsFrozen        Boolean   @default(false) @map("withdrawals_frozen")
   withdrawalFreezeNote     String?   @map("withdrawal_freeze_note") @db.Text
@@ -1566,4 +1573,25 @@ model AdminActivityLog {
     @@index([adminId])
     @@index([createdAt])
     @@map("admin_activity_logs")
+}
+
+model CustomerRiskAlert {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  returnRate     Decimal  @map("return_rate") @db.Decimal(5, 4)
+  deliveredCount Int      @map("delivered_count")
+  negativeCount  Int      @map("negative_count")
+  status         String   @default("PENDING_REVIEW") // PENDING_REVIEW, DISMISSED, VIOLATION_ISSUED
+  adminNotes     String?  @map("admin_notes") @db.Text
+  reviewedBy     String?  @map("reviewed_by") @db.Uuid
+  reviewedAt     DateTime? @map("reviewed_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  user     User  @relation("TargetUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("RiskReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+  @@index([userId])
+  @@map("customer_risk_alerts")
 }

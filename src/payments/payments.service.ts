@@ -50,8 +50,10 @@ export class PaymentsService {
 
         if (!order) throw new NotFoundException('Order not found');
         if (order.customerId !== customerId) throw new ForbiddenException('Not owner of this order');
-        if (order.status !== 'AWAITING_PAYMENT') {
-            throw new BadRequestException('Order is not in AWAITING_PAYMENT status');
+        
+        const validPaymentStatuses = ['AWAITING_PAYMENT', 'AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'PARTIALLY_PAID'];
+        if (!validPaymentStatuses.includes(order.status)) {
+            throw new BadRequestException(`Order is not in a valid payment status (Current: ${order.status})`);
         }
 
         // 2. Find the specific accepted offer AND validate it belongs to this order
@@ -315,8 +317,9 @@ export class PaymentsService {
 
         if (!order) throw new NotFoundException('Order not found');
         if (order.customerId !== customerId) throw new ForbiddenException('Not owner of this order');
-        if (order.status !== 'AWAITING_PAYMENT') {
-            throw new BadRequestException('Order is not in AWAITING_PAYMENT status');
+        const validPaymentStatuses = ['AWAITING_PAYMENT', 'AWAITING_OFFERS', 'COLLECTING_OFFERS', 'AWAITING_SELECTION', 'PARTIALLY_PAID'];
+        if (!validPaymentStatuses.includes(order.status)) {
+            throw new BadRequestException(`Order is not in a valid payment status (Current: ${order.status})`);
         }
 
         const offer = order.offers[0];
@@ -583,7 +586,7 @@ export class PaymentsService {
         }
 
         // 2. Atomic Database Transaction
-        return await this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             // Re-check status inside transaction to prevent race conditions
             const txPayment = await tx.paymentTransaction.findUnique({
                 where: { id: payment.id }
@@ -596,12 +599,11 @@ export class PaymentsService {
             }
 
             // a. Mark Payment SUCCESS
-            await tx.paymentTransaction.update({
+            const updatedPayment = await tx.paymentTransaction.update({
                 where: { id: payment.id },
                 data: { 
                     status: 'SUCCESS', 
                     paidAt: new Date(),
-                    // Update gateway fee if available in intent data (placeholder for now)
                     gatewayFee: 0 
                 }
             });
@@ -666,7 +668,8 @@ export class PaymentsService {
 
             // d. Check if ALL accepted offers are now paid
             const allAcceptedOffers = await tx.offer.findMany({
-                where: { orderId: payment.orderId, status: 'accepted' }
+                where: { orderId: payment.orderId, status: 'accepted' },
+                select: { id: true }
             });
             
             const paidCount = await tx.paymentTransaction.count({
@@ -676,6 +679,7 @@ export class PaymentsService {
                 }
             });
 
+            let orderTransitioned = false;
             if (paidCount >= allAcceptedOffers.length) {
                 // Transition order to PREPARATION
                 await tx.order.update({
@@ -683,30 +687,6 @@ export class PaymentsService {
                     data: { status: 'PREPARATION' }
                 });
 
-                // Notify Merchant to Start Preparation
-                this.notifications.create({
-                    recipientId: payment.offer.store.ownerId,
-                    recipientRole: 'MERCHANT',
-                    titleAr: 'طلب جديد جاهز للتجهيز! 📦',
-                    titleEn: 'New Order Ready for Preparation! 📦',
-                    messageAr: `تم دفع قيمة الطلب #${payment.order.orderNumber}. يرجى البدء في تجهيز القطع للشحن.`,
-                    messageEn: `Payment for Order #${payment.order.orderNumber} confirmed. Please start preparing parts for shipment.`,
-                    type: 'ORDER',
-                    link: `/merchant/orders/${payment.orderId}`
-                }).catch(() => {});
-
-                // Notify Admin about Payment Success
-                this.notifications.notifyAdmins({
-                    titleAr: 'تم سداد طلب بنجاح 💸',
-                    titleEn: 'Order Payment Successful 💸',
-                    messageAr: `تم سداد مبلغ ${payment.totalAmount} درهم للطلب #${payment.order.orderNumber}.`,
-                    messageEn: `Payment of AED ${payment.totalAmount} confirmed for Order #${payment.order.orderNumber}.`,
-                    type: 'PAYMENT',
-                    link: `/admin/orders/${payment.orderId}`,
-                    metadata: { orderId: payment.orderId, amount: payment.totalAmount }
-                }).catch(() => {});
-
-                // Audit log
                 // Audit log (2026 System Tracking)
                 await this.auditLogs.logAction({
                     orderId: payment.orderId,
@@ -718,21 +698,66 @@ export class PaymentsService {
                     newState: 'PREPARATION',
                     reason: 'All offers paid successfully via Stripe',
                 }, tx);
+
+                orderTransitioned = true;
             }
 
-            // e. Final Notification to customer
-            await this.notifications.create({
-                recipientId: payment.customerId,
+            return {
+                payment: updatedPayment,
+                invoiceNumber,
+                orderTransitioned,
+                storeOwnerId: payment.offer.store.ownerId,
+                totalAmount: Number(payment.totalAmount),
+                offerNumber: payment.offer.offerNumber,
+                orderNumber: payment.order.orderNumber,
+                customerId: payment.customerId,
+                orderId: payment.orderId,
+                unitPrice,
+                shippingCost
+            };
+        }, { timeout: 60000 });
+
+        // 3. Post-Transaction Notifications (Outside the DB lock for performance)
+        if (result) {
+            const { payment, invoiceNumber, orderTransitioned, storeOwnerId, totalAmount, offerNumber, orderNumber, customerId, orderId, unitPrice, shippingCost } = result as any;
+
+            // Notify Merchant
+            if (orderTransitioned) {
+                this.notifications.create({
+                    recipientId: storeOwnerId,
+                    recipientRole: 'VENDOR',
+                    titleAr: 'طلب جديد جاهز للتجهيز! 📦',
+                    titleEn: 'New Order Ready for Preparation! 📦',
+                    messageAr: `تم دفع قيمة الطلب #${orderNumber}. يرجى البدء في تجهيز القطع للشحن.`,
+                    messageEn: `Payment for Order #${orderNumber} confirmed. Please start preparing parts for shipment.`,
+                    type: 'ORDER',
+                    link: `/merchant/orders/${orderId}`
+                }).catch(() => {});
+
+                this.notifications.notifyAdmins({
+                    titleAr: 'تم سداد طلب بنجاح 💸',
+                    titleEn: 'Order Payment Successful 💸',
+                    messageAr: `تم سداد مبلغ ${totalAmount} درهم للطلب #${orderNumber}.`,
+                    messageEn: `Payment of AED ${totalAmount} confirmed for Order #${orderNumber}.`,
+                    type: 'PAYMENT',
+                    link: `/admin/orders/${orderId}`,
+                    metadata: { orderId, amount: totalAmount }
+                }).catch(() => {});
+            }
+
+            // Final Notification to customer
+            this.notifications.create({
+                recipientId: customerId,
                 recipientRole: 'CUSTOMER',
                 type: 'payment',
                 titleAr: 'تم الدفع بنجاح! 🎉',
                 titleEn: 'Payment Successful! 🎉',
-                messageAr: `تم دفع ${payment.totalAmount} درهم بنجاح للعرض #${payment.offer.offerNumber}. نحن الآن نجهز طلبك.`,
-                messageEn: `Payment of AED ${payment.totalAmount} successful for offer #${payment.offer.offerNumber}. Preparation started.`,
+                messageAr: `تم دفع ${totalAmount} درهم بنجاح للعرض #${offerNumber}. نحن الآن نجهز طلبك.`,
+                messageEn: `Payment of AED ${totalAmount} successful for offer #${offerNumber}. Preparation started.`,
                 link: 'checkout',
-                metadata: { orderId: payment.orderId, offerId: payment.offerId, amount: payment.totalAmount },
-            });
-        }, { timeout: 20000 });
+                metadata: { orderId, offerId: payment.offerId, amount: totalAmount },
+            }).catch(() => {});
+        }
     }
 
     /**

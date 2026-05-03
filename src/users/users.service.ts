@@ -735,5 +735,108 @@ export class UsersService {
       return updated;
     });
   }
+
+  /**
+   * Updates customer return/dispute statistics (2026 Risk Management)
+   * This method increments counters and recalculates the cached return rate.
+   */
+  async updateCustomerReturnStats(userId: string, isNegativeOutcome: boolean, tx?: any) {
+    const prisma = tx || this.prisma;
+    
+    // Fetch current stats to ensure atomic-like precision in logic
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        totalDeliveredOrders: true, 
+        totalReturnDisputeOrders: true 
+      }
+    });
+
+    if (!user) return;
+
+    let totalDelivered = user.totalDeliveredOrders;
+    let totalNegative = user.totalReturnDisputeOrders;
+
+    if (isNegativeOutcome) {
+      totalNegative += 1;
+    } else {
+      totalDelivered += 1;
+    }
+
+    // Rate is calculated as (Returns+Disputes) / (Delivered Orders)
+    // An order must be delivered to be eligible for the 'negative' count in this metric
+    const rate = totalDelivered > 0 ? (totalNegative / totalDelivered) : 0;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        totalDeliveredOrders: totalDelivered,
+        totalReturnDisputeOrders: totalNegative,
+        cachedReturnRate: rate
+      }
+    });
+
+    // --- 2026 Risk Trigger Logic ---
+    // Threshold: > 15% return/dispute rate
+    if (rate > 0.15) {
+      await this.triggerRiskAlert(userId, rate, totalDelivered, totalNegative, prisma);
+    }
+    // -------------------------------
+
+    return updatedUser;
+  }
+
+  /**
+   * Evaluates if a user should be flagged for high return rates (2026 Governance)
+   * This logic is atomic and idempotent to prevent spamming notifications.
+   */
+  private async triggerRiskAlert(userId: string, rate: number, delivered: number, negative: number, tx: any) {
+    // 1. Check for existing PENDING_REVIEW alerts to avoid duplication of administrative workload
+    const existingAlert = await tx.customerRiskAlert.findFirst({
+      where: {
+        userId,
+        status: 'PENDING_REVIEW'
+      }
+    });
+
+    if (existingAlert) return;
+
+    // 2. Create the System Alert record
+    const alert = await tx.customerRiskAlert.create({
+      data: {
+        userId,
+        returnRate: rate,
+        deliveredCount: delivered,
+        negativeCount: negative,
+        status: 'PENDING_REVIEW'
+      }
+    });
+
+    // 3. Notify Admins (Standard 2026 Security/Alerting)
+    await this.notificationsService.notifyAdmins({
+      type: 'SECURITY',
+      titleAr: 'تنبيه: معدل مرتجعات مرتفع لعميل ⚠️',
+      titleEn: 'Alert: High Customer Return Rate ⚠️',
+      messageAr: `العميل تجاوز عتبة الـ 15% (المعدل الحالي: ${(rate * 100).toFixed(1)}%). إجمالي الطلبات: ${delivered}، المرتجعات/النزاعات: ${negative}.`,
+      messageEn: `Customer exceeded the 15% threshold (Current rate: ${(rate * 100).toFixed(1)}%). Total orders: ${delivered}, Returns/Disputes: ${negative}.`,
+      link: '/admin/risk-management', 
+      metadata: { userId, alertId: alert.id, rate }
+    });
+
+    // 4. Notify Customer (Proactive Account Reliability Communication)
+    // This is handled via the notifications service to ensure delivery across multiple channels
+    await this.notificationsService.create({
+      recipientId: userId,
+      recipientRole: 'CUSTOMER',
+      type: 'SYSTEM',
+      titleAr: 'تنبيه بخصوص موثوقية الحساب ⚖️',
+      titleEn: 'Account Reliability Alert ⚖️',
+      messageAr: 'نود لفت انتباهكم إلى ارتفاع نسبة المرتجعات في حسابكم. الحفاظ على سجل إيجابي يضمن لكم تجربة تسوق أفضل واستمرارية كامل الصلاحيات.',
+      messageEn: 'We noticed an increase in return/dispute rates on your account. Maintaining a positive record ensures a better shopping experience and full account privileges.',
+      link: '/dashboard/reliability'
+    }).catch(err => console.error('[Risk Alert] Failed to notify customer:', err));
+
+    return alert;
+  }
 }
 
