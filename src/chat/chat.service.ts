@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChatGateway } from './chat.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, ActorType } from '@prisma/client';
 
 @Injectable()
 export class ChatService {
@@ -379,7 +379,7 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
                 // Try multiple valid models starting from newest 2026 models
-                const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-pro"];
+                const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro", "gemini-flash-latest"];
                 const prompt = `You are a universal translator for an auto parts marketplace. 
                 If the following text is in Arabic, translate it to English. 
                 If it is in English, translate it to Arabic. 
@@ -681,6 +681,7 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
         });
     }
 
+
     /**
      * Admin action: close a chat or block a user from it.
      */
@@ -802,52 +803,72 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
         }
     }
 
-    async initAdminSupportChat(adminId: string, adminName: string, targetUserId: string, targetRole: 'CUSTOMER' | 'VENDOR', reason: string, orderId?: string) {
-        // 1. Create the support chat
-        const isCustomer = targetRole === 'CUSTOMER';
-        
-        const chat = await this.prisma.orderChat.create({
-            data: {
-                order: orderId ? { connect: { id: orderId } } : undefined,
-                customer: isCustomer ? { connect: { id: targetUserId } } : undefined,
-                vendor: !isCustomer ? { connect: { id: targetUserId } } : undefined,
+    async initAdminSupportChat(adminId: string, adminName: string, targetUserId: string, targetRole: 'CUSTOMER' | 'VENDOR', reason: string, orderId?: string, payload?: {
+        employeeName: string;
+        signature: string;
+        signatureType: 'DRAWN' | 'TYPED';
+    }) {
+        // 1. Resolve logical IDs (targetUserId might be an owner ID for vendors)
+        let vendorId: string | undefined;
+        let customerId: string | undefined;
+
+        if (targetRole === 'VENDOR') {
+            const store = await this.prisma.store.findUnique({ where: { ownerId: targetUserId } });
+            if (!store) {
+                // Try direct ID if ownerId search fails (might be passing storeId directly)
+                const storeById = await this.prisma.store.findUnique({ where: { id: targetUserId } });
+                if (!storeById) throw new NotFoundException('Vendor store not found');
+                vendorId = storeById.id;
+            } else {
+                vendorId = store.id;
+            }
+        } else {
+            customerId = targetUserId;
+        }
+
+        // 2. Check for existing OPEN support chat with this participant
+        let chat = await this.prisma.orderChat.findFirst({
+            where: {
                 type: 'support',
-                status: 'OPEN',
-                expiryAt: null,
-                adminInitReason: reason,
-                category: this.extractCategory(reason)
+                vendorId: vendorId || null,
+                customerId: customerId || null,
+                status: 'OPEN'
             }
         });
 
-        // 2. Send FIRST REAL MESSAGE from Admin (Not a SYSTEM message)
-        // This ensures the user gets a notification and sees who is talking.
-        const openingMessage = `
-مرحباً بك
----
-Welcome
-        `.trim();
+        if (!chat) {
+            // Create a new support session
+            chat = await this.prisma.orderChat.create({
+                data: {
+                    order: orderId ? { connect: { id: orderId } } : undefined,
+                    customer: customerId ? { connect: { id: customerId } } : undefined,
+                    vendor: vendorId ? { connect: { id: vendorId } } : undefined,
+                    type: 'support',
+                    status: 'OPEN',
+                    expiryAt: null,
+                    adminInitReason: reason,
+                    category: this.extractCategory(reason),
+                    source: 'ADMIN_DASHBOARD'
+                }
+            });
+        }
 
-        await this.sendMessage(
-            chat.id, 
-            adminId, 
-            openingMessage, 
-            'ADMIN'
-        );
-
-        // 2.1 Notify Target User about the new support session
+        // 3. Notify Target User about the new support session (Silenced per Admin requirement)
+        /*
         await this.notificationsService.create({
             recipientId: targetUserId,
             recipientRole: targetRole,
             type: 'support',
-            titleAr: 'بدء جلسة دعم إداري 🎧',
-            titleEn: 'Admin Support Session Started 🎧',
-            messageAr: `قام الأدمن ${adminName} ببدء محادثة دعم معك بخصوص: ${reason}`,
-            messageEn: `Admin ${adminName} has started a support conversation with you regarding: ${reason}`,
+            titleAr: 'تواصل إداري جديد 🎧',
+            titleEn: 'New Administrative Contact 🎧',
+            messageAr: `بدأت الإدارة محادثة دعم معك بخصوص: ${reason}`,
+            messageEn: `Administration started a support conversation regarding: ${reason}`,
             link: `support-chat/${chat.id}`,
             metadata: { chatId: chat.id, adminId }
         });
+        */
 
-        // 3. Log to AuditLog (2026 Audit Standard)
+        // 4. Log to AuditLog (2026 Audit Standard §12.4)
         await this.auditLogsService.logAction({
             action: 'ADMIN_INITIATED_SUPPORT',
             entity: 'OrderChat',
@@ -859,9 +880,16 @@ Welcome
             metadata: {
                 targetUserId,
                 targetRole,
-                chatId: chat.id
+                chatId: chat.id,
+                employeeName: payload?.employeeName,
+                signatureType: payload?.signatureType,
+                hasSignature: !!payload?.signature
             }
         });
+
+        // 5. Send a system message to populate the chat list (Silenced notifications, but provides context)
+        const systemText = reason;
+        await this.sendMessage(chat.id, null, systemText, 'SYSTEM');
 
         return chat;
     }

@@ -46,7 +46,15 @@ export class ChatController {
 
     @Post('admin-init-support')
     async adminInitSupportChat(
-        @Body() body: { targetUserId: string; targetRole: 'CUSTOMER' | 'VENDOR'; reason: string; orderId?: string },
+        @Body() body: { 
+            targetUserId: string; 
+            targetRole: 'CUSTOMER' | 'VENDOR'; 
+            reason: string; 
+            employeeName: string;
+            signature: string;
+            signatureType: 'DRAWN' | 'TYPED';
+            orderId?: string; 
+        },
         @Request() req
     ) {
         if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
@@ -58,7 +66,12 @@ export class ChatController {
             body.targetUserId,
             body.targetRole,
             body.reason,
-            body.orderId
+            body.orderId,
+            {
+                employeeName: body.employeeName,
+                signature: body.signature,
+                signatureType: body.signatureType
+            }
         );
     }
 
