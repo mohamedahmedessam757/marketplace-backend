@@ -135,9 +135,31 @@ export class ExcelService {
         res.end();
     }
 
-    async exportWaybill(orderId: string, user: any, res: Response) {
+    async exportWaybill(orderId: string, user: any, res: Response, shipmentId?: string) {
+        const where: any = { orderId };
+        
+        if (shipmentId) {
+            const offersInShipment = await this.prisma.offer.findMany({
+                where: { cartShipmentId: shipmentId },
+                select: { id: true, orderPartId: true }
+            });
+            
+            const partIds = offersInShipment.map(o => o.orderPartId).filter(Boolean) as string[];
+            
+            if (partIds.length > 0) {
+                where.partId = { in: partIds };
+            } else {
+                // Fallback to shipment's single waybill if no granular parts found
+                const shipment = await this.prisma.shipment.findUnique({
+                    where: { id: shipmentId },
+                    select: { waybillId: true }
+                });
+                if (shipment?.waybillId) where.id = shipment.waybillId;
+            }
+        }
+
         const waybills = await this.prisma.shippingWaybill.findMany({
-            where: { orderId },
+            where,
             include: { order: true, store: true }
         });
 

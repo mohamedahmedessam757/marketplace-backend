@@ -123,33 +123,54 @@ export class OrderCleanupService {
                 const paidAt = firstPayment?.paidAt || order.updatedAt;
                 const diffHours = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
 
-                // 1. Check 7 Days passed -> AUTO-CANCEL (Merchant failed to prepare)
+                // 1. Check 7 Days passed -> AUTO-SHIP (Consolidation) or AUTO-CANCEL (Single Merchant Inaction)
                 if (diffHours >= 7 * 24) {
-                    this.logger.error(`Auto-cancelling assembly cart for order ${order.orderNumber} due to merchant inaction`);
-                    await this.ordersService.transitionStatus(
-                        order.id, OrderStatus.CANCELLED,
-                        { type: ActorType.SYSTEM, id: 'system-scheduler', name: 'System Scheduler' },
-                        'System: Auto-cancelled from Assembly Cart after 7 days without preparation'
-                    );
+                    if (order.requestType === 'multiple') {
+                        this.logger.log(`Auto-shipping assembly cart for order ${order.orderNumber} due to 7-day timeout`);
+                        
+                        const pendingOfferIds = order.offers
+                            .filter(o => !o.shippedFromCart)
+                            .map(o => o.id);
 
-                    // Notify Customer about refund
-                    await this.notificationsService.create({
-                        recipientId: order.customerId, recipientRole: 'CUSTOMER',
-                        titleAr: 'تم إلغاء طلبك لعدم استجابة التاجر', titleEn: 'Order Cancelled: Merchant Inaction',
-                        messageAr: `نعتذر منك، تم إلغاء الطلب #${order.orderNumber} تلقائياً لعدم قيام التاجر بتجهيزه خلال مهلة 7 أيام. سيتم البدء بإجراءات استرداد المبلغ.`,
-                        messageEn: `We apologize. Order #${order.orderNumber} was auto-cancelled as the merchant failed to prepare it within 7 days. Refund process initiated.`,
-                        type: 'system_alert', link: `/dashboard/orders`
-                    });
-
-                    // Notify Merchant about penalty
-                    for (const offer of order.offers) {
-                        if (offer.storeId) {
-                            await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
-                                titleAr: 'مخالفة: إلغاء طلب لتأخر التجهيز', titleEn: 'Violation: Cancelled for Delay',
-                                messageAr: `تم إلغاء الطلب #${order.orderNumber} وتسجيل مخالفة تأخير لعدم التزامكم بالمهلة القصوى (7 أيام).`,
-                                messageEn: `Order #${order.orderNumber} was cancelled and a violation recorded due to failure to prepare within the 7-day limit.`,
-                                type: 'system_alert', link: `/merchant/orders`
+                        if (pendingOfferIds.length > 0) {
+                            // Force shipment of remaining items
+                            await this.ordersService.requestShipping(order.customerId, [], pendingOfferIds);
+                            
+                            // Notify Customer
+                            await this.notificationsService.create({
+                                recipientId: order.customerId, recipientRole: 'CUSTOMER',
+                                titleAr: 'شحن تلقائي لسلة التجميع 📦', titleEn: 'Auto-Ship: Assembly Cart 📦',
+                                messageAr: `لقد مضى 7 أيام على تجميع طلبك رقم #${order.orderNumber}. تم شحن القطع المتاحة حالياً إليك تلقائياً لضمان وصولها في الوقت المحدد.`,
+                                messageEn: `7 days have passed for your assembly cart #${order.orderNumber}. Available items have been auto-shipped to ensure timely delivery.`,
+                                type: 'system_alert', link: `/dashboard/orders`
                             });
+                        }
+                    } else {
+                        // Single order auto-cancel (standard behavior)
+                        this.logger.error(`Auto-cancelling single order ${order.orderNumber} due to merchant inaction (7 days)`);
+                        await this.ordersService.transitionStatus(
+                            order.id, OrderStatus.CANCELLED,
+                            { type: ActorType.SYSTEM, id: 'system-scheduler', name: 'System Scheduler' },
+                            'System: Auto-cancelled after 7 days without preparation'
+                        );
+
+                        await this.notificationsService.create({
+                            recipientId: order.customerId, recipientRole: 'CUSTOMER',
+                            titleAr: 'تم إلغاء طلبك لعدم استجابة التاجر', titleEn: 'Order Cancelled: Merchant Inaction',
+                            messageAr: `نعتذر منك، تم إلغاء الطلب #${order.orderNumber} تلقائياً لعدم قيام التاجر بتجهيزه خلال مهلة 7 أيام. سيتم البدء بإجراءات استرداد المبلغ.`,
+                            messageEn: `We apologize. Order #${order.orderNumber} was auto-cancelled as the merchant failed to prepare it within 7 days. Refund process initiated.`,
+                            type: 'system_alert', link: `/dashboard/orders`
+                        });
+
+                        for (const offer of order.offers) {
+                            if (offer.storeId) {
+                                await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
+                                    titleAr: 'مخالفة: إلغاء طلب لتأخر التجهيز', titleEn: 'Violation: Cancelled for Delay',
+                                    messageAr: `تم إلغاء الطلب #${order.orderNumber} وتسجيل مخالفة تأخير لعدم التزامكم بالمهلة القصوى (7 أيام).`,
+                                    messageEn: `Order #${order.orderNumber} was cancelled and a violation recorded due to failure to prepare within the 7-day limit.`,
+                                    type: 'system_alert', link: `/merchant/orders`
+                                });
+                            }
                         }
                     }
                 }
@@ -167,7 +188,7 @@ export class OrderCleanupService {
                         }
                     }
                 }
-                // (Keep existing 5/6 day reminders for customer as they are helpful)
+                // 3. 6 Day reminder for customer
                 else if (diffHours >= 6 * 24 && diffHours < (6 * 24) + 1) {
                     await this.notificationsService.create({
                         recipientId: order.customerId, recipientRole: 'CUSTOMER',
@@ -429,7 +450,7 @@ export class OrderCleanupService {
                             recipientRole: 'ADMIN',
                             titleAr: 'تأخير تاجر عن تجهيز طلب',
                             titleEn: 'Store Preparation Delayed',
-                            messageAr: `الطلب המعتمד رقم #${order.orderNumber} متأخر في التجهيز لمرور 48 ساعة كاملة. وتم منح التاجر إشعار مهلة حمراء لـ 24 ساعة للإجراء المخالفة التلقائية.`,
+                            messageAr: `الطلب המعتمد رقم #${order.orderNumber} متأخر في التجهيز لمرور 48 ساعة كاملة. وتم منح التاجر إشعار مهلة حمراء لـ 24 ساعة للإجراء المخالفة التلقائية.`,
                             messageEn: `Order #${order.orderNumber} exceeded the 48h preparation barrier. Merchant was granted a 24h red grace period before auto penalty.`,
                             type: 'system_alert',
                             link: `/admin/orders`

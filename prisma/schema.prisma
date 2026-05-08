@@ -53,6 +53,7 @@ enum OrderStatus {
   CORRECTION_PERIOD
   CORRECTION_SUBMITTED
   DELAYED_PREPARATION
+  PARTIALLY_SHIPPED
   SHIPPED
   DELIVERED
   COMPLETED
@@ -497,6 +498,11 @@ model Offer {
   canEditUntil     DateTime? @map("can_edit_until") @db.Timestamptz
   isWithdrawn      Boolean @default(false) @map("is_withdrawn")
 
+  // Partial Shipping from Assembly Cart (2026)
+  shippedFromCart   Boolean   @default(false) @map("shipped_from_cart")
+  shippedFromCartAt DateTime? @map("shipped_from_cart_at") @db.Timestamptz
+  cartShipmentId   String?   @map("cart_shipment_id") @db.Uuid
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
@@ -506,6 +512,9 @@ model Offer {
 
   // Relation back to Order if accepted
   acceptedByOrder Order? @relation("AcceptedOffer")
+
+  // Partial shipping: link to the shipment created when this offer was shipped from cart
+  cartShipment Shipment? @relation("CartShipmentOffers", fields: [cartShipmentId], references: [id])
 
   rejection OfferRejection?
   payments  PaymentTransaction[]
@@ -653,6 +662,16 @@ model ReturnRequest {
   shippingRefund  Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
   stripeFee       Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
 
+  // 2026 Financial Fee Enforcement
+  gatewayFeePct     Decimal?  @default(3.00) @map("gateway_fee_pct") @db.Decimal(5, 2)
+  refundFeePct      Decimal?  @default(1.50) @map("refund_fee_pct") @db.Decimal(5, 2)
+  gatewayFeeAmount  Decimal?  @default(0) @map("gateway_fee_amount") @db.Decimal(14, 2)
+  refundFeeAmount   Decimal?  @default(0) @map("refund_fee_amount") @db.Decimal(14, 2)
+  shippingRoundtrip Decimal?  @default(0) @map("shipping_roundtrip") @db.Decimal(14, 2)
+  penaltyAmount     Decimal?  @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  penaltyType       String?   @map("penalty_type")
+  netRefundAmount   Decimal?  @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
+
   // Shipping Payment Tracking (Phase 1)
   shippingPayee         String?   @map("shipping_payee")
   shippingPaymentStatus String?   @default("PENDING") @map("shipping_payment_status")
@@ -698,6 +717,16 @@ model Dispute {
   refundAmount    Decimal?  @map("refund_amount") @db.Decimal(14, 2)
   shippingRefund  Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
   stripeFee       Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
+
+  // 2026 Financial Fee Enforcement
+  gatewayFeePct     Decimal?  @default(3.00) @map("gateway_fee_pct") @db.Decimal(5, 2)
+  refundFeePct      Decimal?  @default(1.50) @map("refund_fee_pct") @db.Decimal(5, 2)
+  gatewayFeeAmount  Decimal?  @default(0) @map("gateway_fee_amount") @db.Decimal(14, 2)
+  refundFeeAmount   Decimal?  @default(0) @map("refund_fee_amount") @db.Decimal(14, 2)
+  shippingRoundtrip Decimal?  @default(0) @map("shipping_roundtrip") @db.Decimal(14, 2)
+  penaltyAmount     Decimal?  @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  penaltyType       String?   @map("penalty_type")
+  netRefundAmount   Decimal?  @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
 
   // Shipping Payment Tracking (Phase 1)
   shippingPayee         String?   @map("shipping_payee")
@@ -1247,6 +1276,7 @@ model Shipment {
   waybill    ShippingWaybill?    @relation(fields: [waybillId], references: [id])
   updater    User?               @relation(fields: [updatedBy], references: [id])
   statusLogs ShipmentStatusLog[]
+  cartOffers Offer[]             @relation("CartShipmentOffers")
 
   @@index([orderId])
   @@index([status])

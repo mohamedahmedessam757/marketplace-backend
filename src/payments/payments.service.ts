@@ -1083,9 +1083,13 @@ export class PaymentsService {
                     restrictionAlertMessage: true
                 }
             }),
-            // 1. Total Purchases (All Successful Payments)
+            // 1. Total Purchases (Audit-Grade: Only COMPLETED Orders)
             this.prisma.paymentTransaction.aggregate({
-                where: { customerId: userId, status: 'SUCCESS' },
+                where: { 
+                    customerId: userId, 
+                    status: 'SUCCESS',
+                    order: { status: 'COMPLETED' }
+                },
                 _sum: { totalAmount: true }
             }),
             // 2. Monthly Rewards (Profits earned this month)
@@ -1161,28 +1165,56 @@ export class PaymentsService {
     }
 
     async getCustomerTransactions(userId: string) {
-        const payments = await this.prisma.paymentTransaction.findMany({
-            where: { customerId: userId, status: { not: 'FAILED' } },
-            orderBy: { createdAt: 'desc' },
-            include: { 
-                order: {
-                    select: {
-                        id: true,
-                        orderNumber: true,
-                        status: true
+        const [payments, walletTxs] = await Promise.all([
+            // 1. Fetch standard payment transactions
+            this.prisma.paymentTransaction.findMany({
+                where: { customerId: userId, status: { not: 'FAILED' } },
+                include: { 
+                    order: {
+                        select: {
+                            id: true,
+                            orderNumber: true,
+                            status: true
+                        }
                     }
                 }
-            }
-        });
+            }),
+            // 2. Fetch wallet-specific transactions (Loyalty, Referrals, Refunds, Withdrawals)
+            this.prisma.walletTransaction.findMany({
+                where: { userId: userId },
+                orderBy: { createdAt: 'desc' }
+            })
+        ]);
 
-        // Ensure backward compatibility with the UI and statement report
-        // by injecting the exact fields the frontend expects exclusively for payments.
-        return payments.map(p => ({
-            ...p,
-            amount: Number(p.totalAmount),
-            type: 'DEBIT',
-            transactionType: 'PAYMENT'
-        }));
+        // 3. Normalize and merge for a unified 2026 ledger
+        const unifiedLedger = [
+            ...payments.map(p => ({
+                id: p.id,
+                amount: Number(p.totalAmount),
+                type: 'DEBIT',
+                transactionType: 'PAYMENT',
+                status: p.status,
+                createdAt: p.createdAt,
+                description: `Payment for Order #${p.order?.orderNumber || 'N/A'}`,
+                order: p.order,
+                metadata: { offerId: p.offerId, transactionNumber: p.transactionNumber }
+            })),
+            ...walletTxs.map(w => ({
+                id: w.id,
+                amount: Number(w.amount),
+                type: w.type,
+                transactionType: w.transactionType,
+                status: 'SUCCESS', // Wallet actions are immediate in this system
+                createdAt: w.createdAt,
+                description: w.description,
+                metadata: w.metadata
+            }))
+        ];
+
+        // 4. Sort by date descending (Real-time Audit Trail)
+        return unifiedLedger.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
     }
 
     async getMerchantWalletDashboard(userId: string, filters?: { startDate?: string; endDate?: string }) {
@@ -2105,8 +2137,6 @@ export class PaymentsService {
             pendingWithdrawalsAgg,
             frozenFundsAgg,
             transactions,
-            userLiquidityAgg,
-            storeLiquidityAgg,
             totalRefundsAgg,
             gatewayFeesAgg,
             pendingLiabilitiesAgg
@@ -2154,20 +2184,17 @@ export class PaymentsService {
                 take: filters?.limit ? Number(filters.limit) : 100,
                 skip: filters?.page && filters?.limit ? (Number(filters.page) - 1) * Number(filters.limit) : 0
             }),
-            // 9. Overall Liquidity (User + Store Balances)
-            this.prisma.user.aggregate({ _sum: { customerBalance: true } }),
-            this.prisma.store.aggregate({ _sum: { balance: true } }),
-            // 10. Total Refunds
+            // 9. Total Refunds
             this.prisma.paymentTransaction.aggregate({
                 where: { status: 'REFUNDED', ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
                 _sum: { refundedAmount: true }
             }),
-            // 11. Gateway Fees
+            // 10. Gateway Fees
             this.prisma.paymentTransaction.aggregate({
                 where: { ...(hasDateFilter ? { createdAt: dateFilter } : {}) },
                 _sum: { gatewayFee: true }
             }),
-            // 12. Pending Liabilities (Loyalty Points)
+            // 11. Pending Liabilities (Loyalty Points)
             this.prisma.user.aggregate({ _sum: { loyaltyPoints: true } })
         ]);
 
@@ -2246,12 +2273,12 @@ export class PaymentsService {
             kpis: {
                 totalSales: Number(totalSalesAgg._sum.totalAmount || 0),
                 netCommission: totalCommission - (totalReferral + totalGatewayFees),
+                netPlatformPosition: totalCommission - (totalReferral + Number(totalRefundsAgg._sum.refundedAmount || 0) + totalGatewayFees),
                 shippingProfit: Number(shippingAgg._sum.shippingCost || 0),
                 referralEarnings: totalReferral,
                 pendingWithdrawals: Number(pendingWithdrawalsAgg._sum.amount || 0),
                 pendingWithdrawalsCount: pendingWithdrawalsAgg._count.id,
                 frozenFunds: Number(frozenFundsAgg._sum.merchantAmount || 0),
-                overallLiquidity: Number(userLiquidityAgg?._sum?.customerBalance || 0) + Number(storeLiquidityAgg?._sum?.balance || 0),
                 totalRefunds: Number(totalRefundsAgg?._sum?.refundedAmount || 0),
                 gatewayFees: totalGatewayFees,
                 pendingLiabilities: Number(pendingLiabilitiesAgg?._sum?.loyaltyPoints || 0),

@@ -12,10 +12,12 @@ import { WarrantySchedulerService } from './warranty-scheduler.service';
 
 import { ExcelService } from './excel.service';
 
+import { ShippingAutomationService } from './shipping-automation.service';
+
 @Module({
     imports: [PrismaModule, NotificationsModule, ChatModule, ShipmentsModule, LoyaltyModule, UsersModule],
     controllers: [OrdersController],
-    providers: [OrdersService, OrderStateMachine, WarrantySchedulerService, ExcelService],
+    providers: [OrdersService, OrderStateMachine, WarrantySchedulerService, ExcelService, ShippingAutomationService],
     exports: [OrderStateMachine, OrdersService, ExcelService], // Export for Scheduler and others
 })
 export class OrdersModule { }

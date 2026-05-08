@@ -7,9 +7,10 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { UsersModule } from '../users/users.module';
 
 import { ReturnsCronService } from './returns.cron';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
-    imports: [UploadsModule, NotificationsModule, AuditLogsModule, UsersModule],
+    imports: [UploadsModule, NotificationsModule, AuditLogsModule, UsersModule, PaymentsModule],
     controllers: [ReturnsController],
     providers: [ReturnsService, ReturnsCronService],
 })

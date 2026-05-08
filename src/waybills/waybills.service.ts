@@ -233,6 +233,11 @@ export class WaybillsService {
             include: {
                 issuer: {
                     select: { id: true, name: true, role: true }
+                },
+                shipments: {
+                    include: {
+                        cartOffers: true
+                    }
                 }
             } as any,
             orderBy: { createdAt: 'asc' } as any

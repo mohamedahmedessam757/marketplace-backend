@@ -4,6 +4,8 @@ import { UploadsService } from '../uploads/uploads.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { UsersService } from '../users/users.service';
+import { EscrowService } from '../payments/escrow.service';
+import { ActorType } from '@prisma/client';
 
 @Injectable()
 export class ReturnsService {
@@ -13,6 +15,7 @@ export class ReturnsService {
         private notificationsService: NotificationsService,
         private auditLogs: AuditLogsService,
         private usersService: UsersService,
+        private escrowService: EscrowService,
     ) { }
 
     // --- Case Messaging (Phase 4) ---
@@ -996,19 +999,170 @@ export class ReturnsService {
                 updateData.shippingRefund = extra.shippingRefund;
                 updateData.stripeFee = extra.stripeFee || 0;
 
-                // Phase 1: Shipping Payment Tracking Obligation
+                // 2026 Phase 3: Financial Fee Enforcement Logic (Spec §15)
+                if (verdict === 'REFUND') {
+                    const gatewayFeePct = Number(extra?.gatewayFeePct || 3.00);
+                    const refundFeePct = Number(extra?.refundFeePct || 1.50);
+                    const shippingRoundtrip = Number(extra?.shippingRoundtrip || 0);
+                    const faultLower = String(extra.faultParty || '').toUpperCase();
+                    const isMerchantFault = ['STORE', 'MERCHANT', 'VENDOR'].includes(faultLower);
+                    
+                    const orderAmount = Number(caseRecord.order?.price || 0);
+                    const gatewayFeeAmount = (orderAmount * gatewayFeePct) / 100;
+                    const refundFeeAmount = (orderAmount * refundFeePct) / 100;
+
+                    // 1. Calculate the 'Net Pool' (Order Amount - 4.5% Fixed Fees)
+                    // These fees are ALWAYS taken from the order pool as per user request.
+                    let netRefundAmount = Math.max(0, orderAmount - gatewayFeeAmount - refundFeeAmount);
+
+                    // 2. Handle Shipping: Charged separately to the GUILTY party
+                    if (shippingRoundtrip > 0) {
+                        if (faultLower === 'CUSTOMER') {
+                            // Customer is guilty: Deduct shipping from their net pool
+                            netRefundAmount = Math.max(0, netRefundAmount - shippingRoundtrip);
+                        } else if (isMerchantFault) {
+                            // Merchant is guilty: Charge shipping to their wallet balance
+                            const merchantBalance = Number(caseRecord.store?.balance || 0);
+                            if (merchantBalance < shippingRoundtrip) {
+                                updateData.shippingPaymentStatus = 'INSUFFICIENT_FUNDS';
+                            }
+                            
+                            // Debit wallet
+                            await tx.store.update({
+                                where: { id: caseRecord.storeId },
+                                data: { balance: { decrement: shippingRoundtrip } }
+                            });
+                            
+                            await tx.walletTransaction.create({
+                                data: {
+                                    userId: caseRecord.store.ownerId,
+                                    role: 'VENDOR',
+                                    type: 'DEBIT',
+                                    transactionType: 'SHIPPING_FEE',
+                                    amount: shippingRoundtrip,
+                                    balanceAfter: Number(caseRecord.store.balance) - shippingRoundtrip,
+                                    description: `Round-trip shipping fee for Case #${caseId.substring(0, 8)}`,
+                                    metadata: { caseId, orderId: caseRecord.orderId }
+                                }
+                            });
+                            
+                            if (updateData.shippingPaymentStatus !== 'INSUFFICIENT_FUNDS') {
+                                updateData.shippingPaymentStatus = 'PAID';
+                            }
+                        }
+                    }
+
+                    updateData.gatewayFeePct = gatewayFeePct;
+                    updateData.refundFeePct = refundFeePct;
+                    updateData.gatewayFeeAmount = gatewayFeeAmount;
+                    updateData.refundFeeAmount = refundFeeAmount;
+                    updateData.shippingRoundtrip = shippingRoundtrip;
+                    updateData.netRefundAmount = netRefundAmount;
+                    
+                    // Fraud Penalty Logic (Spec §15.4)
+                    if (extra?.penaltyType === 'FRAUD') {
+                        updateData.penaltyType = 'FRAUD';
+                        const penaltyAmount = Number(extra?.penaltyAmount || 50000);
+                        updateData.penaltyAmount = penaltyAmount;
+                        
+                        // Execute Seizure & Suspend Store
+                        await tx.store.update({
+                            where: { id: caseRecord.storeId },
+                            data: { 
+                                status: 'SUSPENDED',
+                                frozenBalance: { increment: penaltyAmount }
+                            }
+                        });
+                        
+                        // Suspend Owner & Freeze Withdrawals
+                        await tx.user.update({
+                            where: { id: caseRecord.store.ownerId },
+                            data: { 
+                                status: 'SUSPENDED',
+                                withdrawalsFrozen: true,
+                                withdrawalFreezeNote: `CRITICAL: FRAUD PENALTY ISSUED ON CASE ${caseId}`
+                            }
+                        });
+
+                        // Log Fraud Penalty in Ledger
+                        await tx.walletTransaction.create({
+                            data: {
+                                userId: caseRecord.store.ownerId,
+                                role: 'VENDOR',
+                                type: 'DEBIT',
+                                transactionType: 'FRAUD_PENALTY',
+                                amount: updateData.penaltyAmount,
+                                balanceAfter: Number(caseRecord.store.balance),
+                                description: `CRITICAL: Fraud penalty and account seizure for Case #${caseId.substring(0, 8)}`,
+                                metadata: { caseId, orderId: caseRecord.orderId }
+                            }
+                        });
+                    }
+
+                    // 2026 Phase 4: Financial Ledger Logging (Spec §17)
+                    if (verdict === 'REFUND' && updateData.netRefundAmount > 0) {
+                        // Process Actual Stripe Refund via EscrowService
+                        // The fees (4.5%) are already gone from the netRefundAmount
+                        await this.escrowService.processRefund(
+                            caseRecord.orderId, 
+                            Number(updateData.netRefundAmount), 
+                            notes || 'Administrative Refund',
+                            isMerchantFault ? 'MERCHANT' : 'CUSTOMER',
+                            tx
+                        );
+                    }
+                }
+
+                // RELEASE_FUNDS / DENY: Move funds to merchant balance (Spec §17.2)
+                if (verdict === 'RELEASE_FUNDS' || verdict === 'DENY') {
+                    const escrow = await tx.escrowTransaction.findFirst({
+                        where: { orderId: caseRecord.orderId, status: 'HELD' }
+                    });
+
+                    if (escrow) {
+                        // 1. Mark Escrow as Released
+                        await tx.escrowTransaction.update({
+                            where: { id: escrow.id },
+                            data: {
+                                status: 'RELEASED',
+                                releaseCondition: 'ADMIN_RELEASE',
+                                releasedAt: new Date()
+                            }
+                        });
+
+                        // 2. Move Merchant pending to available balance
+                        await tx.store.update({
+                            where: { id: caseRecord.storeId },
+                            data: {
+                                pendingBalance: { decrement: Number(escrow.merchantAmount) },
+                                balance: { increment: Number(escrow.merchantAmount) }
+                            }
+                        });
+
+                        // 3. Update Platform Wallet (Commission & Fees are now realized)
+                        await tx.platformWallet.updateMany({
+                            data: {
+                                commissionBalance: { increment: Number(escrow.commissionAmount) },
+                                feesBalance: { increment: Number(escrow.gatewayFee) },
+                                totalRevenue: { increment: Number(escrow.commissionAmount) + Number(escrow.gatewayFee) }
+                            }
+                        });
+                    }
+                }
+
+                // Phase 1: Shipping Payment Tracking Obligation (Legacy Compatibility)
                 if (extra.faultParty) {
-                    // Normalize fault party for systematic processing (2026 Resilient Mapper)
                     const faultLower = String(extra.faultParty || '').toUpperCase();
                     const isMerchantFault = ['STORE', 'MERCHANT', 'VENDOR'].includes(faultLower);
                     const payee = isMerchantFault ? 'MERCHANT' : 'CUSTOMER';
                     updateData.shippingPayee = payee;
                     
-                    // If there is a shipping cost, set status to PENDING until paid by the faulty party
-                    if (Number(extra.shippingRefund || 0) > 0) {
-                        updateData.shippingPaymentStatus = 'PENDING';
-                    } else {
-                        updateData.shippingPaymentStatus = 'PAID';
+                    if (!updateData.shippingPaymentStatus) {
+                        if (Number(extra.shippingRefund || 0) > 0) {
+                            updateData.shippingPaymentStatus = 'PENDING';
+                        } else {
+                            updateData.shippingPaymentStatus = 'PAID';
+                        }
                     }
                 }
             }

@@ -51,11 +51,16 @@ export class ShipmentsService {
     ) {}
 
     async create(data: CreateShipmentDto, userId: string) {
+        // Updated for 2026 Partial Shipping: Multiple shipments per order are allowed
+        // Idempotency check now includes waybillId to allow separate shipments for the same order
         const existing = await this.prisma.shipment.findFirst({
-            where: { orderId: data.orderId }
+            where: { 
+                orderId: data.orderId,
+                waybillId: data.waybillId || null
+            }
         });
         if (existing) {
-            // Idempotent: return existing shipment instead of throwing
+            // Idempotent: return existing shipment if the waybill matches
             return existing;
         }
 
@@ -437,4 +442,4 @@ export class ShipmentsService {
             type: 'SHIPMENT_UPDATE', // More specific type for admin
         });
     }
-};
+}

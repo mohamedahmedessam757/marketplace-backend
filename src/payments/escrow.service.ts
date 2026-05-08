@@ -301,16 +301,18 @@ export class EscrowService {
     /**
      * 4. Process Refund (Full/Partial) connected to Stripe
      */
-    async processRefund(orderId: string, refundAmount: number, reason: string, faultParty: 'MERCHANT' | 'CUSTOMER' | 'LOGISTICS'): Promise<void> {
+    async processRefund(orderId: string, refundAmount: number, reason: string, faultParty: 'MERCHANT' | 'CUSTOMER' | 'LOGISTICS', txClient?: Prisma.TransactionClient): Promise<void> {
          // Simplified refund logic. Depending on faultParty, who eats the shipping/gateway fee?
          // Assuming Full Refund here for Escrow.
-         const escrow = await this.prisma.escrowTransaction.findFirst({
+         const prisma = txClient || this.prisma;
+
+         const escrow = await prisma.escrowTransaction.findFirst({
             where: { orderId, status: { in: ['HELD', 'FROZEN'] } } // Only unreleased funds can be straight refunded easily
         });
 
         if (!escrow) throw new BadRequestException('Escrow not found or already released.');
 
-        const payment = await this.prisma.paymentTransaction.findFirst({
+        const payment = await prisma.paymentTransaction.findFirst({
             where: { id: escrow.paymentId }
         });
 
@@ -320,7 +322,7 @@ export class EscrowService {
 
         const refundResponse = await this.stripeService.createRefund(payment.stripePaymentId, refundAmount.toString());
 
-        await this.prisma.$transaction(async (tx) => {
+        const executeUpdates = async (tx: Prisma.TransactionClient) => {
              await tx.escrowTransaction.update({
                  where: { id: escrow.id },
                  data: { status: 'REFUNDED' }
@@ -393,7 +395,7 @@ export class EscrowService {
                  metadata: { orderId, amount: refundAmount, reason }
              });
 
-            // Audit Log (2026 Escrow Refund)
+             // Audit Log (2026 Escrow Refund)
             await this.auditLogs.logAction({
                 orderId,
                 action: 'ESCROW_REFUNDED',
@@ -406,7 +408,13 @@ export class EscrowService {
                     stripeRefundId: refundResponse.id,
                     faultParty
                 }
-            });
-        });
+            }, tx);
+        };
+
+        if (txClient) {
+            await executeUpdates(txClient);
+        } else {
+            await this.prisma.$transaction(executeUpdates);
+        }
     }
 }

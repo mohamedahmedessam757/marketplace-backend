@@ -1124,7 +1124,7 @@ export class OrdersService {
         const orders = await this.prisma.order.findMany({
             where: {
                 customerId,
-                status: OrderStatus.PREPARATION,
+                status: { in: [OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED] },
                 requestType: 'multiple'
             },
             include: {
@@ -1137,7 +1137,10 @@ export class OrdersService {
                     }
                 },
                 offers: {
-                    where: { status: 'accepted' },
+                    where: { 
+                        status: 'accepted',
+                        shippedFromCart: false
+                    },
                     include: { 
                         store: true,
                         payments: { where: { status: 'SUCCESS' } }
@@ -1213,12 +1216,13 @@ export class OrdersService {
         // Find orders in PREPARATION status where this merchant has an accepted offer
         const orders = await this.prisma.order.findMany({
             where: {
-                status: OrderStatus.PREPARATION,
+                status: { in: [OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED] },
                 requestType: 'multiple',
                 offers: {
                     some: {
                         storeId: storeId,
-                        status: 'accepted'
+                        status: 'accepted',
+                        shippedFromCart: false
                     }
                 }
             },
@@ -1226,7 +1230,10 @@ export class OrdersService {
                 parts: true,
                 store: true,
                 offers: {
-                    where: { status: 'accepted' },
+                    where: { 
+                        status: 'accepted',
+                        shippedFromCart: false
+                    },
                     include: { 
                         store: true,
                         payments: { where: { status: 'SUCCESS' } }
@@ -1461,31 +1468,130 @@ export class OrdersService {
         return { success: true, message: 'Admin notes updated', adminNotes: updatedOrder.adminNotes };
     }
 
-    async requestShipping(customerId: string, orderIds: string[]) {
-        if (!orderIds || orderIds.length === 0) return { success: true, count: 0 };
+    async requestShipping(
+        customerId: string, 
+        orderIds?: string[], 
+        offerIds?: string[], 
+        isSystemAutoTrigger = false,
+        adminActor?: { id: string, type: ActorType, name: string }
+    ) {
+        if ((!orderIds || orderIds.length === 0) && (!offerIds || offerIds.length === 0)) {
+            return { success: true, count: 0 };
+        }
 
         let successCount = 0;
         const results = [];
 
-        for (const orderId of orderIds) {
-            try {
-                const order = await this.findOne(orderId);
+        // If orderIds are provided, resolve them to offerIds for backward compatibility
+        const allOfferIds = [...(offerIds || [])];
+        if (orderIds && orderIds.length > 0) {
+            const ordersWithOffers = await this.prisma.order.findMany({
+                where: { id: { in: orderIds }, customerId },
+                include: { offers: { where: { status: 'accepted', shippedFromCart: false } } }
+            });
+            for (const order of ordersWithOffers) {
+                allOfferIds.push(...order.offers.map(o => o.id));
+            }
+        }
 
-                // Must be owner and in PREPARATION state
-                if (order.customerId === customerId && order.status === OrderStatus.PREPARATION) {
+        if (allOfferIds.length === 0) return { success: true, count: 0, results: [], message: 'No pending items found.' };
+
+        // Get details of all requested offers
+        const offers = await this.prisma.offer.findMany({
+            where: { id: { in: allOfferIds }, status: 'accepted', shippedFromCart: false },
+            include: { order: true }
+        });
+
+        // Filter by ownership and state (must be in PREPARATION, PARTIALLY_SHIPPED or VERIFICATION_SUCCESS)
+        const validOffers = offers.filter(o => 
+            o.order.customerId === customerId && 
+            ([OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED, OrderStatus.VERIFICATION_SUCCESS] as OrderStatus[]).includes(o.order.status)
+        );
+        
+        if (validOffers.length === 0) {
+            return { success: false, reason: 'No valid pending items found in your cart or items already shipped.' };
+        }
+
+        // Actor info for logging
+        const actor = isSystemAutoTrigger 
+            ? { id: 'SYSTEM', type: ActorType.ADMIN, name: 'Logistics Automation' }
+            : (adminActor || { id: customerId, type: ActorType.CUSTOMER, name: 'Customer' });
+
+        // Group by orderId to process shipments batch-wise per order
+        const offersByOrder = validOffers.reduce((acc, offer) => {
+            if (!acc[offer.orderId]) acc[offer.orderId] = [];
+            acc[offer.orderId].push(offer);
+            return acc;
+        }, {} as Record<string, typeof validOffers>);
+
+        for (const orderId in offersByOrder) {
+            const batchOffers = offersByOrder[orderId];
+            try {
+                // 1. Create a shipment record for this partial batch
+                const shipment = await this.shipmentsService.create({ orderId }, customerId);
+
+                // 2. Mark specific offers as shipped from cart
+                await this.prisma.offer.updateMany({
+                    where: { id: { in: batchOffers.map(o => o.id) } },
+                    data: {
+                        shippedFromCart: true,
+                        shippedFromCartAt: new Date(),
+                        cartShipmentId: shipment.id
+                    }
+                });
+
+                // 3. Check if ALL accepted offers for this order are now shipped
+                const remainingPending = await this.prisma.offer.count({
+                    where: { 
+                        orderId, 
+                        status: 'accepted', 
+                        shippedFromCart: false 
+                    }
+                });
+
+                if (remainingPending === 0) {
+                    // All items shipped -> transition order to SHIPPED
                     await this.transitionStatus(
                         orderId,
                         OrderStatus.SHIPPED,
-                        { id: customerId, type: ActorType.CUSTOMER, name: 'Customer' },
-                        'Customer requested shipping from assembly cart'
+                        actor,
+                        isSystemAutoTrigger ? 'All items auto-shipped after 7-day period' : 'All items shipped from assembly cart'
                     );
-                    successCount++;
-                    results.push({ orderId, success: true });
                 } else {
-                    results.push({ orderId, success: false, reason: 'Invalid state or ownership' });
+                    // Some items remain -> transition to PARTIALLY_SHIPPED (if not already)
+                    if (batchOffers[0].order.status !== OrderStatus.PARTIALLY_SHIPPED) {
+                        await this.transitionStatus(
+                            orderId,
+                            OrderStatus.PARTIALLY_SHIPPED,
+                            actor,
+                            isSystemAutoTrigger 
+                                ? `System auto-shipped ${batchOffers.length} aging items. ${remainingPending} items remaining.`
+                                : `Partial shipment: ${batchOffers.length} items shipped. ${remainingPending} items remaining.`
+                        );
+                    } else {
+                        // Already partially shipped, just log the additional batch
+                        await this.auditLogs.logAction({
+                            orderId,
+                            action: 'PARTIAL_SHIPPING',
+                            entity: 'Order',
+                            actorId: actor.id,
+                            actorType: actor.type,
+                            actorName: actor.name,
+                            previousState: OrderStatus.PARTIALLY_SHIPPED,
+                            newState: OrderStatus.PARTIALLY_SHIPPED,
+                            metadata: {
+                                batchSize: batchOffers.length,
+                                remaining: remainingPending,
+                                isAuto: isSystemAutoTrigger
+                            }
+                        });
+                    }
                 }
+
+                successCount += batchOffers.length;
+                results.push({ orderId, count: batchOffers.length, success: true });
             } catch (error) {
-                console.error(`Failed to request shipping for order ${orderId}:`, error);
+                console.error(`Failed partial shipping for order ${orderId}:`, error);
                 results.push({ orderId, success: false, reason: error.message });
             }
         }
@@ -1814,6 +1920,75 @@ export class OrdersService {
         }
 
         return updatedOrder;
+    }
+
+    async getAdminShippingCarts() {
+        const orders = await this.prisma.order.findMany({
+            where: {
+                status: { in: [OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED] },
+                requestType: 'multiple'
+            },
+            include: {
+                customer: { select: { id: true, name: true, email: true, phone: true } },
+                parts: true,
+                payments: { where: { status: 'SUCCESS' } },
+                offers: {
+                    where: { status: 'accepted' },
+                    include: { 
+                        store: true,
+                        payments: { where: { status: 'SUCCESS' } }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // Group by customer for better admin oversight
+        const cartsByCustomer = orders.reduce((acc, order) => {
+            if (!acc[order.customerId]) {
+                acc[order.customerId] = {
+                    customerId: order.customerId,
+                    customerName: order.customer.name || 'Anonymous',
+                    customerEmail: order.customer.email,
+                    customerPhone: order.customer.phone,
+                    totalItems: 0,
+                    totalValue: 0,
+                    earliestPayment: new Date(),
+                    offers: [],
+                    orders: []
+                };
+            }
+            
+            const firstPayment = order.payments?.sort((a, b) => 
+                (a.paidAt?.getTime() || 0) - (b.paidAt?.getTime() || 0)
+            )[0];
+            const paidAt = firstPayment?.paidAt || order.updatedAt;
+            
+            if (new Date(paidAt) < new Date(acc[order.customerId].earliestPayment)) {
+                acc[order.customerId].earliestPayment = paidAt;
+            }
+
+            order.offers.forEach(offer => {
+                acc[order.customerId].totalItems += 1;
+                acc[order.customerId].totalValue += (Number(offer.unitPrice) + Number(offer.shippingCost));
+                
+                // Add specific offer info for the preview
+                acc[order.customerId].offers.push({
+                    id: offer.id,
+                    orderNumber: order.orderNumber,
+                    partName: order.parts.find(p => p.id === offer.orderPartId)?.name || order.partName,
+                    storeName: offer.store?.name,
+                    shippedFromCart: offer.shippedFromCart,
+                    price: Number(offer.unitPrice),
+                    status: order.status
+                });
+            });
+
+            acc[order.customerId].orders.push(order.id);
+            return acc;
+        }, {} as Record<string, any>);
+
+        return Object.values(cartsByCustomer);
     }
 
     private calculateWarrantyEndDate(startDate: Date, duration: string): Date {

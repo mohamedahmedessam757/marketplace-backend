@@ -5,13 +5,15 @@ import { TransitionOrderDto } from './dto/transition-order.dto';
 import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { ActorType, UserRole } from '@prisma/client';
 
 import { ExcelService } from './excel.service';
 import { Response } from 'express';
 
 @Controller('orders')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrdersController {
     constructor(
         private readonly ordersService: OrdersService,
@@ -41,6 +43,12 @@ export class OrdersController {
         return this.ordersService.getDeliveredOrders(req.user.id);
     }
 
+    @Get('admin/shipping-carts')
+    @Permissions('shipping-carts', 'view')
+    getAdminShippingCarts(@Request() req) {
+        return this.ordersService.getAdminShippingCarts();
+    }
+
     @Get('assembly-cart')
     getAssemblyCart(@Request() req) {
         return this.ordersService.getAssemblyCart(req.user.id);
@@ -52,8 +60,14 @@ export class OrdersController {
     }
 
     @Post('request-shipping')
-    requestShipping(@Request() req, @Body() data: { orderIds: string[] }) {
-        return this.ordersService.requestShipping(req.user.id, data.orderIds);
+    requestShipping(@Request() req, @Body() data: { orderIds?: string[], offerIds?: string[], customerId?: string }) {
+        const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN';
+        const targetCustomerId = isAdmin && data.customerId ? data.customerId : req.user.id;
+        
+        // Pass admin actor if the requester is an admin
+        const adminActor = isAdmin ? { id: req.user.id, type: ActorType.ADMIN, name: req.user.email } : undefined;
+        
+        return this.ordersService.requestShipping(targetCustomerId, data.orderIds, data.offerIds, false, adminActor);
     }
 
     @Patch(':id/merchant-request-shipping')
@@ -207,7 +221,12 @@ export class OrdersController {
     }
 
     @Get(':id/waybills/export-excel')
-    async exportWaybills(@Request() req, @Param('id') id: string, @Res() res: Response) {
-        return this.excelService.exportWaybill(id, req.user, res);
+    async exportWaybills(
+        @Request() req, 
+        @Param('id') id: string, 
+        @Res() res: Response,
+        @Query('shipmentId') shipmentId?: string
+    ) {
+        return this.excelService.exportWaybill(id, req.user, res, shipmentId);
     }
 }
