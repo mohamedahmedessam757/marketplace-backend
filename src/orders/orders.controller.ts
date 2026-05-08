@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, ForbiddenException, Query, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, ForbiddenException, Query, Delete, Res } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { TransitionOrderDto } from './dto/transition-order.dto';
@@ -7,10 +7,16 @@ import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActorType, UserRole } from '@prisma/client';
 
+import { ExcelService } from './excel.service';
+import { Response } from 'express';
+
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
 export class OrdersController {
-    constructor(private readonly ordersService: OrdersService) { }
+    constructor(
+        private readonly ordersService: OrdersService,
+        private readonly excelService: ExcelService
+    ) { }
 
     @Post()
     create(@Request() req, @Body() createOrderDto: CreateOrderDto) {
@@ -193,5 +199,15 @@ export class OrdersController {
     @Patch(':id/renew')
     renew(@Request() req, @Param('id') id: string) {
         return this.ordersService.renewOrder(id, req.user.id);
+    }
+
+    @Get(':id/export-excel')
+    async exportInvoice(@Request() req, @Param('id') id: string, @Res() res: Response) {
+        return this.excelService.exportInvoice(id, req.user, res);
+    }
+
+    @Get(':id/waybills/export-excel')
+    async exportWaybills(@Request() req, @Param('id') id: string, @Res() res: Response) {
+        return this.excelService.exportWaybill(id, req.user, res);
     }
 }

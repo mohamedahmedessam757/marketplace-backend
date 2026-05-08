@@ -10,10 +10,12 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { UsersModule } from '../users/users.module';
 import { WarrantySchedulerService } from './warranty-scheduler.service';
 
+import { ExcelService } from './excel.service';
+
 @Module({
     imports: [PrismaModule, NotificationsModule, ChatModule, ShipmentsModule, LoyaltyModule, UsersModule],
     controllers: [OrdersController],
-    providers: [OrdersService, OrderStateMachine, WarrantySchedulerService],
-    exports: [OrderStateMachine, OrdersService], // Export for Scheduler
+    providers: [OrdersService, OrderStateMachine, WarrantySchedulerService, ExcelService],
+    exports: [OrderStateMachine, OrdersService, ExcelService], // Export for Scheduler and others
 })
 export class OrdersModule { }

@@ -49,6 +49,38 @@ export class AppController {
         return configSetting?.settingValue || {};
     }
 
+    @Get('system/feature-flags')
+    async getFeatureFlags() {
+        const settings = await this.prisma.platformSettings.findMany({
+            where: {
+                settingKey: {
+                    in: ['CHAT_ATTACHMENTS_ENABLED', 'ALLOW_CUSTOMER_ACCOUNT_DELETION']
+                }
+            }
+        });
+        
+        const getVal = (key: string, defaultVal: boolean) => {
+            const s = settings.find(x => x.settingKey === key);
+            // Handle both primitive boolean and JSON string format
+            if (s) {
+                if (typeof s.settingValue === 'boolean') return s.settingValue;
+                if (typeof s.settingValue === 'string') return s.settingValue.toLowerCase() === 'true';
+                if (typeof s.settingValue === 'object' && s.settingValue !== null) {
+                    // Just in case it's stored as {"value": false}
+                    const obj = s.settingValue as any;
+                    if ('value' in obj) return obj.value;
+                }
+                return Boolean(s.settingValue);
+            }
+            return defaultVal;
+        };
+
+        return {
+            CHAT_ATTACHMENTS_ENABLED: getVal('CHAT_ATTACHMENTS_ENABLED', true),
+            ALLOW_CUSTOMER_ACCOUNT_DELETION: getVal('ALLOW_CUSTOMER_ACCOUNT_DELETION', true)
+        };
+    }
+
     @Put('system/mock-admin-log')
     async mockAdminLog(@Body() body: { email: string, action: string, metadata?: any }, @Req() req: any) {
         // Extract real device info if not provided in metadata

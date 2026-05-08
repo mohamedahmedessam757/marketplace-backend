@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, Query, ForbiddenException } from '@nestjs/common';
 import { ViolationsService } from './violations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole, ViolationTargetType } from '@prisma/client';
 import { 
   IssueViolationDto, 
@@ -56,86 +56,86 @@ export class ViolationsController {
 
   // --- ADMINISTRATIVE ENDPOINTS (ADMIN Only) ---
 
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'view')
   @Get('admin')
   getAllViolations(@Query() filters: any) {
     return this.violationsService.getAllViolations(filters);
   }
 
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   @Post('admin/issue')
   issueViolation(@Request() req, @Body() dto: IssueViolationDto) {
     return this.violationsService.issueViolation(dto, req.user.id);
   }
 
   @Get('admin/types')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'view')
   getViolationTypes(@Query('targetType') targetType?: ViolationTargetType) {
     return this.violationsService.getViolationTypes(targetType);
   }
 
   @Post('admin/types')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   createViolationType(@Request() req, @Body() dto: CreateViolationTypeDto) {
     return this.violationsService.createViolationType(dto, req.user.id);
   }
 
   @Patch('admin/types/:id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   updateViolationType(@Request() req, @Param('id') id: string, @Body() dto: UpdateViolationTypeDto) {
     return this.violationsService.updateViolationType(id, dto, req.user.id);
   }
 
   @Get('admin/thresholds')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'view')
   getPenaltyThresholds(@Query('targetType') targetType?: ViolationTargetType) {
     return this.violationsService.getPenaltyThresholds(targetType);
   }
 
   @Post('admin/thresholds')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   createPenaltyThreshold(@Body() dto: CreatePenaltyThresholdDto) {
     return this.violationsService.createPenaltyThreshold(dto);
   }
 
   @Patch('admin/thresholds/:id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   updatePenaltyThreshold(@Param('id') id: string, @Body() dto: UpdatePenaltyThresholdDto) {
     return this.violationsService.updatePenaltyThreshold(id, dto);
   }
 
   @Get('admin/appeals/pending')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'view')
   getPendingAppeals() {
     return this.violationsService.getPendingAppeals();
   }
 
   @Patch('admin/appeals/:id/review')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   reviewAppeal(@Request() req, @Param('id') id: string, @Body() dto: ReviewAppealDto) {
     return this.violationsService.reviewAppeal(id, req.user.id, dto);
   }
 
   @Get('admin/penalties/pending')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'view')
   getPendingPenalties() {
     return this.violationsService.getPendingPenalties();
   }
 
   @Patch('admin/penalties/:id/review')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   reviewPenalty(@Request() req, @Param('id') id: string, @Body() dto: ReviewPenaltyDto) {
     return this.violationsService.reviewPenaltyAction(id, req.user.id, dto);
   }
@@ -143,15 +143,15 @@ export class ViolationsController {
   // --- CUSTOMER RISK GOVERNANCE (2026) ---
 
   @Get('admin/risk-alerts')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'view')
   getRiskAlerts(@Query('status') status?: string) {
     return this.violationsService.getRiskAlerts(status);
   }
 
   @Patch('admin/risk-alerts/:id/resolve')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
   resolveRiskAlert(@Request() req, @Param('id') id: string, @Body() dto: ResolveRiskAlertDto) {
     return this.violationsService.resolveRiskAlert(id, dto, req.user.id);
   }

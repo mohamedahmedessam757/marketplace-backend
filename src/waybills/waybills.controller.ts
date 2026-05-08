@@ -1,8 +1,8 @@
 import { Controller, Post, Get, Param, UseGuards, Request } from '@nestjs/common';
 import { WaybillsService } from './waybills.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('waybills')
 export class WaybillsController {
@@ -10,8 +10,8 @@ export class WaybillsController {
 
     // Admin issues waybills for a successfully verified order
     @Post('issue/:orderId')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles('ADMIN', 'SUPER_ADMIN')
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @Permissions('shipping', 'edit')
     async issueWaybills(
         @Param('orderId') orderId: string,
         @Request() req

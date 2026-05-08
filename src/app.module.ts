@@ -27,6 +27,7 @@ import { StripeModule } from './stripe/stripe.module';
 import { ViolationsModule } from './violations/violations.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { VehicleCatalogModule } from './vehicle-catalog/vehicle-catalog.module';
+import { AdminPermissionsModule } from './admin-permissions/admin-permissions.module';
 import { APP_GUARD } from '@nestjs/core';
 import { MaintenanceGuard } from './platform-settings/maintenance.guard';
 
@@ -61,6 +62,7 @@ import { MaintenanceGuard } from './platform-settings/maintenance.guard';
         ViolationsModule,
         PlatformSettingsModule,
         VehicleCatalogModule,
+        AdminPermissionsModule,
     ],
     controllers: [AppController],
     providers: [

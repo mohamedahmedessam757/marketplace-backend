@@ -4,6 +4,8 @@ import { UploadStoreDocumentDto } from './dto/upload-store-document.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole, StoreStatus } from '@prisma/client';
 
 @Controller('stores')
@@ -34,22 +36,22 @@ export class StoresController {
     }
 
     @Get()
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'view')
     findAll() {
         return this.storesService.findAll();
     }
 
     @Get(':id')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'view')
     findOne(@Param('id') id: string) {
         return this.storesService.findOne(id);
     }
 
     @Patch(':id/status')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'edit')
     updateStatus(
         @Request() req,
         @Param('id') id: string, 
@@ -59,8 +61,8 @@ export class StoresController {
     }
 
     @Patch(':id/notes')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'edit')
     updateAdminNotes(
         @Request() req,
         @Param('id') id: string,
@@ -70,8 +72,8 @@ export class StoresController {
     }
 
     @Patch(':id/documents/:docType/status')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'edit')
     updateDocumentStatus(
         @Request() req,
         @Param('id') id: string,
@@ -82,8 +84,8 @@ export class StoresController {
     }
 
     @Patch(':id/restrictions')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'edit')
     updateRestrictions(
         @Request() req,
         @Param('id') id: string,
@@ -93,8 +95,8 @@ export class StoresController {
     }
 
     @Post(':id/clear-restrictions')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'edit')
     resetRestrictions(
         @Request() req,
         @Param('id') id: string,

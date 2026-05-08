@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { VehicleCatalogService } from './vehicle-catalog.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole } from '@prisma/client';
 import { CreateMakeDto, UpdateMakeDto, CreateModelDto, UpdateModelDto } from './dto/vehicle-catalog.dto';
 
@@ -21,8 +21,8 @@ export class VehicleCatalogController {
   /**
    * ADMIN: Get full catalog
    */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('settings', 'view')
   @Get('admin/all')
   async getAllForAdmin() {
     return this.catalogService.getAllMakesForAdmin();
@@ -31,8 +31,8 @@ export class VehicleCatalogController {
   /**
    * ADMIN: Create new manufacturer
    */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('settings', 'edit')
   @Post('admin/makes')
   async createMake(@Request() req, @Body() dto: CreateMakeDto) {
     return this.catalogService.createMake(req.user.id, dto);
@@ -41,8 +41,8 @@ export class VehicleCatalogController {
   /**
    * ADMIN: Update manufacturer (Toggle status/Rename)
    */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('settings', 'edit')
   @Patch('admin/makes/:id')
   async updateMake(@Request() req, @Param('id') id: string, @Body() dto: UpdateMakeDto) {
     return this.catalogService.updateMake(req.user.id, id, dto);
@@ -51,8 +51,8 @@ export class VehicleCatalogController {
   /**
    * ADMIN: Create new model for a manufacturer
    */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('settings', 'edit')
   @Post('admin/models')
   async createModel(@Request() req, @Body() dto: CreateModelDto) {
     return this.catalogService.createModel(req.user.id, dto);
@@ -61,8 +61,8 @@ export class VehicleCatalogController {
   /**
    * ADMIN: Update model
    */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('settings', 'edit')
   @Patch('admin/models/:id')
   async updateModel(@Request() req, @Param('id') id: string, @Body() dto: UpdateModelDto) {
     return this.catalogService.updateModel(req.user.id, id, dto);
@@ -71,8 +71,8 @@ export class VehicleCatalogController {
   /**
    * ADMIN: Bulk toggle models for a make
    */
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('settings', 'edit')
   @Patch('admin/makes/:id/toggle-models')
   async toggleAllModels(
     @Request() req,

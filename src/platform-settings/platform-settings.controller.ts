@@ -1,12 +1,12 @@
 import { Controller, Get, Put, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { PlatformSettingsService } from './platform-settings.service';
 
 @Controller('admin/platform-settings')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'SUPER_ADMIN')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('settings', 'view')
 export class PlatformSettingsController {
   constructor(private readonly settingsService: PlatformSettingsService) {}
 
@@ -21,6 +21,7 @@ export class PlatformSettingsController {
   }
 
   @Put(':key')
+  @Permissions('settings', 'edit')
   async update(
     @Request() req,
     @Param('key') key: string,
@@ -38,12 +39,13 @@ export class PlatformSettingsController {
   }
 
   @Get('activity/logs')
-  @Roles('SUPER_ADMIN')
+  @Permissions('settings', 'view') // Super Admin bypasses this via Guard logic if needed, but 'view' is basic
   async getLogs() {
     return this.settingsService.getAdminActivityLogs();
   }
 
   @Put('activity/log')
+  @Permissions('settings', 'edit')
   async logActivity(
     @Request() req,
     @Body() body: { action: string; metadata?: any },

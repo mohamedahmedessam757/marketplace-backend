@@ -74,9 +74,18 @@ export class AuthService {
                     }
                 });
 
+                // Fetch permissions for Admin/Support/SuperAdmin (2026 fix)
+                let permissions = null;
+                if (['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].includes(user.role)) {
+                    permissions = await this.prisma.adminPermission.findUnique({
+                        where: { userId: user.id }
+                    });
+                }
+
                 return {
                     access_token: token,
                     user: user,
+                    permissions: permissions,
                 };
             }
         }
@@ -144,9 +153,18 @@ export class AuthService {
             });
         }
 
+        // Fetch permissions if Admin/Support/SuperAdmin
+        let permissions = null;
+        if (['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].includes(user.role)) {
+            permissions = await this.prisma.adminPermission.findUnique({
+                where: { userId: user.id }
+            });
+        }
+
         return {
             access_token: token,
             user: user,
+            permissions: permissions
         };
     }
 
@@ -176,15 +194,11 @@ export class AuthService {
     }
 
     async initiateMobileLogin(phone: string) {
-        console.log(`[AuthService] Initiating login for phone: ${phone}`);
         const user = await this.usersService.findByPhone(phone);
         
         if (!user) {
-            console.warn(`[AuthService] User not found for phone: ${phone}`);
             return null; // Controller will handle 404/Unauthorized
         }
-
-        console.log(`[AuthService] User found: ${user.id}, Role: ${user.role}`);
 
         // Return public user info needed for OTP selection
         return {
@@ -200,15 +214,11 @@ export class AuthService {
     }
 
     async initiateEmailLogin(email: string) {
-        console.log(`[AuthService] Initiating login for email: ${email}`);
         const user = await this.usersService.findByEmail(email);
         
         if (!user) {
-            console.warn(`[AuthService] User not found for email: ${email}`);
             return null;
         }
-
-        console.log(`[AuthService] Email user found: ${user.id}, Role: ${user.role}`);
 
         return {
             exists: true,
@@ -291,7 +301,7 @@ export class AuthService {
         try {
             await this.prisma.user.delete({ where: { id: userId } });
         } catch (e) {
-            console.warn('Prisma user delete skipped/failed, likely auto-cascaded or missing:', e);
+            // Prisma user delete skipped/failed, likely auto-cascaded or missing
         }
 
         // Delete from Supabase Auth
@@ -303,11 +313,7 @@ export class AuthService {
             const { createClient } = require('@supabase/supabase-js');
             const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-            const { error } = await supabase.auth.admin.deleteUser(userId);
-            if (error) {
-                console.error('Supabase Auth Delete Error:', error);
-                // We won't throw here if the user was already deleted, just log it.
-            }
+            await supabase.auth.admin.deleteUser(userId);
         }
 
         return { success: true };

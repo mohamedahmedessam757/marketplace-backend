@@ -1,8 +1,8 @@
 import { Controller, Post, Patch, Body, UseInterceptors, UploadedFiles, UseGuards, Request, Get, BadRequestException, Param } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole } from '@prisma/client';
 import { ReturnsService } from './returns.service';
 
@@ -173,15 +173,15 @@ export class ReturnsController {
     // --- Admin Endpoints ---
 
     @Get('admin/cases')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SUPPORT)
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @Permissions('shipping', 'view')
     async getAdminCases() {
         return this.returnsService.getAdminCases();
     }
 
     @Post(':id/verdict')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @Permissions('shipping', 'edit')
     async issueVerdict(
         @Request() req,
         @Param('id') id: string,
@@ -207,8 +207,8 @@ export class ReturnsController {
     }
 
     @Patch(':id/verdict')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @Permissions('shipping', 'edit')
     async updateVerdict(
         @Request() req,
         @Param('id') id: string,
@@ -230,15 +230,15 @@ export class ReturnsController {
     }
 
     @Get('admin/merchant-risk/:storeId')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @Permissions('shipping', 'view')
     async getMerchantRiskStats(@Param('storeId') storeId: string) {
         return this.returnsService.getMerchantRiskStats(storeId);
     }
 
     @Get('admin/customer-risk/:customerId')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(JwtAuthGuard, PermissionsGuard)
+    @Permissions('shipping', 'view')
     async getCustomerRiskStats(@Param('customerId') customerId: string) {
         return this.returnsService.getCustomerRiskStats(customerId);
     }

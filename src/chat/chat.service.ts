@@ -177,10 +177,25 @@ export class ChatService {
                 include: baseInclude as any,
                 orderBy: { updatedAt: 'desc' }
             });
-        } else if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
-            // Admin sees chats based on type if provided
+        } else if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPPORT') {
+            // Admin/Support sees chats based on type if provided
             const where: any = { isDeletedByAdmin: false };
             if (type) where.type = type;
+
+            // Granular Filtering for SUPPORT role (2026 Governance Standard)
+            if (role === 'SUPPORT') {
+                const adminPerms = await this.prisma.adminPermission.findUnique({
+                    where: { userId }
+                });
+                
+                if (adminPerms && adminPerms.supportTicketCategories && adminPerms.supportTicketCategories.length > 0) {
+                    // Filter chats by allowed categories (jsonb array check)
+                    // Note: 'support' type chats have a 'category' field
+                    if (type === 'support') {
+                        where.category = { in: adminPerms.supportTicketCategories };
+                    }
+                }
+            }
 
             chats = await this.prisma.orderChat.findMany({
                 where,

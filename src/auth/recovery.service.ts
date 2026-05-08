@@ -238,9 +238,6 @@ export class RecoveryService {
                 }
             });
 
-            // TODO: SEND EMAIL NOTIFICATION HERE
-            console.log(`[EMAIL NOTIFICATION] To: ${email} -> Your phone number has been updated. Withdrawals are frozen for 12 hours.`);
-
             // Persistent Notification for the user
             await this.notifications.create({
                 recipientId: user.id,

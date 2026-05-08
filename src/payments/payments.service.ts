@@ -1740,7 +1740,7 @@ export class PaymentsService {
 
             // 2. Notify Admins
             const admins = await tx.user.findMany({
-                where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } }
+                where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'] } }
             });
 
             const methodLabel = payoutMethod === 'STRIPE' ? 'Stripe' : 'Bank Transfer';
@@ -1809,7 +1809,7 @@ export class PaymentsService {
 
             // 2. Notify Admins
             const admins = await tx.user.findMany({
-                where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } }
+                where: { role: { in: ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'] } }
             });
 
             const methodLabel = payoutMethod === 'STRIPE' ? 'Stripe' : 'Bank Transfer';
@@ -1831,7 +1831,7 @@ export class PaymentsService {
     }
 
     async getWithdrawalRequests(userId: string, role: string) {
-        if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+        if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPPORT') {
             return this.prisma.withdrawalRequest.findMany({
                 include: { 
                     store: { select: { name: true, id: true, balance: true, bankName: true, bankIban: true, bankAccountHolder: true, bankSwift: true, bankDetailsVerified: true } },

@@ -148,6 +148,11 @@ model User {
 
   shippingWaybills ShippingWaybill[]
 
+  // Admin Permissions (RBAC - 2026)
+  adminPermission         AdminPermission?  @relation("UserPermissions")
+  createdAdminPermissions AdminPermission[] @relation("PermissionCreator")
+  updatedAdminPermissions AdminPermission[] @relation("PermissionUpdater")
+
   // Payout & Stripe Details
   bankName            String? @map("bank_name")
   bankAccountHolder   String? @map("bank_account_holder")
@@ -1594,4 +1599,23 @@ model CustomerRiskAlert {
   @@index([status])
   @@index([userId])
   @@map("customer_risk_alerts")
+}
+
+model AdminPermission {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String   @unique @map("user_id") @db.Uuid
+  permissions             Json     @default("{}")
+  supportTicketCategories String[] @default([]) @map("support_ticket_categories")
+  blurredSections         String[] @default([]) @map("blurred_sections")
+  isActive                Boolean  @default(true) @map("is_active")
+  createdById             String?  @map("created_by") @db.Uuid
+  updatedById             String?  @map("updated_by") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  user      User  @relation("UserPermissions", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("PermissionCreator", fields: [createdById], references: [id])
+  updatedBy User? @relation("PermissionUpdater", fields: [updatedById], references: [id])
+
+  @@map("admin_permissions")
 }

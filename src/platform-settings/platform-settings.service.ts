@@ -8,10 +8,30 @@ import * as geoip from 'geoip-lite';
 export class PlatformSettingsService {
   private readonly logger = new Logger(PlatformSettingsService.name);
 
+  // 2026 Standard: Centralized Setting Keys
+  static readonly KEYS = {
+    CHAT_ATTACHMENTS_ENABLED: 'CHAT_ATTACHMENTS_ENABLED',
+    ALLOW_CUSTOMER_ACCOUNT_DELETION: 'ALLOW_CUSTOMER_ACCOUNT_DELETION',
+    SYSTEM_CONFIG: 'system_config',
+    SYSTEM_STATUS: 'system_status',
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogs: AuditLogsService,
   ) {}
+
+  /**
+   * Helper to check if account deletion is enabled globally
+   */
+  async isAccountDeletionEnabled(): Promise<boolean> {
+    try {
+      const setting = await this.getSetting(PlatformSettingsService.KEYS.ALLOW_CUSTOMER_ACCOUNT_DELETION);
+      return setting === 'true' || setting === true;
+    } catch (e) {
+      return true; // Default to true if setting not found
+    }
+  }
 
   /**
    * Fetches all platform settings as a key-value object
@@ -137,9 +157,19 @@ export class PlatformSettingsService {
       const isMock = userId && userId.startsWith('ADM-');
 
       // 2. Prepare Data (Protect against Foreign Key Violated errors)
-      // If NOT a valid UUID or is a Mock, we MUST set adminId to null to avoid DB level crashes
+      // If NOT a valid UUID or is a Mock, we MUST set adminId to null
+      let resolvedAdminId: string | null = null;
+      if (isValidUuid && !isMock) {
+        // 2026 FIX: Pre-check if user exists before setting FK relation to avoid WARN
+        const userExists = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true },
+        }).catch(() => null);
+        resolvedAdminId = userExists ? userId : null;
+      }
+
       const logData = {
-        adminId: (isValidUuid && !isMock) ? userId : null,
+        adminId: resolvedAdminId,
         email: email || (isMock ? `${userId}@mock.local` : 'system@platform.com'),
         action: action,
         ipAddress: context.ip || null,
@@ -149,7 +179,7 @@ export class PlatformSettingsService {
         location: context.location || 'Unknown',
         metadata: {
           ...metadata,
-          originalUserId: userId, // Preserve even if not a valid DB UUID
+          originalUserId: userId,
           loggedAt: new Date().toISOString()
         },
       };
@@ -176,15 +206,15 @@ export class PlatformSettingsService {
             where: { id: latest.id },
             data: {
               ...logData,
-              createdAt: new Date() // Force timestamp update for Realtime ordering
+              createdAt: new Date()
             }
           });
         }
 
         return await this.prisma.adminActivityLog.create({ data: logData });
       } catch (prismaError) {
-        // If it still fails (e.g. valid UUID but not in Users table), record without adminId
-        this.logger.warn(`Logging failed for User ${userId}, retrying without Admin relation...`);
+        // Final fallback: record without adminId
+        this.logger.debug(`Activity log FK fallback for User ${userId}`);
         return await this.prisma.adminActivityLog.create({ 
           data: { ...logData, adminId: null } 
         });

@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, UseGuards, Request, Query, Param, Put, ForbiddenException } from '@nestjs/common';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { PaymentsService } from './payments.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { CreateIntentDto } from './dto/create-intent.dto';
@@ -91,8 +91,8 @@ export class PaymentsController {
     }
 
     @Get('admin/merchant/:targetUserId/dashboard')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'view')
     getAdminMerchantDashboard(
         @Param('targetUserId') targetUserId: string,
         @Query('startDate') startDate?: string, 
@@ -112,8 +112,8 @@ export class PaymentsController {
     }
 
     @Post('admin/release-escrow')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'edit')
     releaseEscrow(@Body() body: { orderId: string }, @Request() req) {
         return this.paymentsService.releaseEscrowManually(req.user.id, body.orderId);
     }
@@ -146,6 +146,8 @@ export class PaymentsController {
     }
 
     @Post('admin/withdrawals/:id/process')
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'edit')
     processWithdrawal(
         @Request() req,
         @Param('id') id: string,
@@ -165,13 +167,15 @@ export class PaymentsController {
     }
 
     @Get('admin/withdrawal-settings')
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'view')
     getWithdrawalSettings() {
         return this.paymentsService.getWithdrawalLimits();
     }
 
     @Put('admin/withdrawal-settings')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'edit')
     updateWithdrawalSettings(@Request() req, @Body() body: { min: number; max: number }) {
         return this.paymentsService.updateWithdrawalLimits(req.user.id, body);
     }
@@ -179,43 +183,43 @@ export class PaymentsController {
     // --- Admin Financial Hub Endpoints ---
 
     @Get('admin/financials')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'view')
     getAdminFinancials(@Query() filters: any) {
         return this.paymentsService.getAdminFinancials(filters);
     }
 
     @Get('admin/financial-feed')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'view')
     getUnifiedFinancialFeed(@Query() filters: any) {
         return this.paymentsService.getUnifiedFinancialFeed(filters);
     }
 
     @Get('admin/order-financial-timeline/:orderId')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'view')
     getOrderFinancialTimeline(@Param('orderId') orderId: string) {
         return this.paymentsService.getOrderFinancialTimeline(orderId);
     }
 
     @Get('admin/financials/export')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'view')
     exportFinancialTransactions(@Query() filters: any) {
         return this.paymentsService.exportFinancialTransactions(filters);
     }
 
     @Post('admin/manual-payout')
-    @Roles('SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'edit') // Note: Guard still enforces SUPER_ADMIN for sensitive logic if needed
     sendManualPayout(@Request() req, @Body() dto: AdminManualPayoutDto) {
         return this.paymentsService.sendManualPayout(req.user.id, dto);
     }
 
     @Post('admin/verify-bank-details')
-    @Roles('ADMIN', 'SUPER_ADMIN')
-    @UseGuards(RolesGuard)
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'edit')
     verifyBankDetails(
         @Request() req,
         @Body() body: { targetId: string; role: 'CUSTOMER' | 'VENDOR' }

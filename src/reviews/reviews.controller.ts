@@ -16,11 +16,9 @@ import { CreateRatingImpactRuleDto, UpdateRatingImpactRuleDto } from './dto/rati
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole } from '@prisma/client';
-
-// Note: In 2026 standards, you probably have a JwtAuthGuard and RolesGuard.
-// I'm using generic annotations, assuming you have authentication configured.
-// Adjust imports to match your actual AuthGuards.
 
 @Controller('reviews')
 export class ReviewsController {
@@ -30,26 +28,23 @@ export class ReviewsController {
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@Req() req, @Body() createReviewDto: CreateReviewDto) {
-    // Assuming req.user is set by authentication middleware
-    const customerId = req.user?.id || req.body.customerId; // Fallback for testing, in production rely strictly on JWT user ID
-    
-    if(!customerId) {
-        throw new Error('User ID missing from Request');
-    }
-    
+    const customerId = req.user?.id;
+    if(!customerId) throw new Error('User ID missing from Request');
     return this.reviewsService.create(customerId, createReviewDto);
   }
 
   // Admin looks at all reviews
   @Get('admin')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('reviews', 'view')
   findAllForAdmin() {
     return this.reviewsService.findAllForAdmin();
   }
 
   // Admin updates review status
   @Patch(':id/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('reviews', 'edit')
   updateStatus(
     @Req() req,
     @Param('id') id: string,
@@ -83,22 +78,22 @@ export class ReviewsController {
   // --- RATING IMPACT RULES (ADMIN) ---
 
   @Get('admin/impact-rules')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('reviews', 'view')
   getRatingImpactRules() {
     return this.reviewsService.getRatingImpactRules();
   }
 
   @Post('admin/impact-rules')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('reviews', 'edit')
   createRatingImpactRule(@Body() dto: CreateRatingImpactRuleDto) {
     return this.reviewsService.createRatingImpactRule(dto);
   }
 
   @Patch('admin/impact-rules/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('reviews', 'edit')
   updateRatingImpactRule(
     @Param('id') id: string,
     @Body() dto: UpdateRatingImpactRuleDto,
@@ -107,8 +102,8 @@ export class ReviewsController {
   }
 
   @Delete('admin/impact-rules/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('reviews', 'edit')
   deleteRatingImpactRule(@Param('id') id: string) {
     return this.reviewsService.deleteRatingImpactRule(id);
   }

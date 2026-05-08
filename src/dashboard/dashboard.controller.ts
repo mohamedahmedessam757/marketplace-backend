@@ -1,18 +1,17 @@
-
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole } from '@prisma/client';
 
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class DashboardController {
     constructor(private readonly dashboardService: DashboardService) { }
 
     @Get('stats')
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @Permissions('dashboard', 'view')
     async getStats(
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string

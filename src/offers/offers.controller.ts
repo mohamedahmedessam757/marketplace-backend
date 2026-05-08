@@ -5,6 +5,8 @@ import { UpdateOfferDto } from './dto/update-offer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole } from '@prisma/client';
 
 @Controller('offers')
@@ -53,15 +55,15 @@ export class OffersController {
     }
 
     @Patch('admin/:id')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('offers', 'edit')
     adminUpdate(@Request() req, @Param('id') id: string, @Body() updateOfferDto: UpdateOfferDto) {
         return this.offersService.adminUpdate(req.user.id, id, updateOfferDto);
     }
 
     @Delete('admin/:id')
-    @UseGuards(RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    @UseGuards(PermissionsGuard)
+    @Permissions('offers', 'edit')
     adminDelete(@Request() req, @Param('id') id: string) {
         return this.offersService.adminDelete(req.user.id, id);
     }

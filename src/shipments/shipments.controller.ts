@@ -3,15 +3,15 @@ import { ShipmentsService } from './shipments.service';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
 import { UpdateShipmentStatusDto } from './dto/update-shipment-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('shipments')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ShipmentsController {
     constructor(private readonly shipmentsService: ShipmentsService) {}
 
-    @Roles('ADMIN', 'SUPER_ADMIN')
+    @Permissions('shipping', 'view')
     @Get()
     findAll() {
         return this.shipmentsService.findAll();
@@ -32,13 +32,13 @@ export class ShipmentsController {
         return this.shipmentsService.getLogs(id);
     }
 
-    @Roles('ADMIN', 'SUPER_ADMIN')
+    @Permissions('shipping', 'edit')
     @Post()
     create(@Body() createShipmentDto: CreateShipmentDto, @Request() req) {
         return this.shipmentsService.create(createShipmentDto, req.user.id);
     }
 
-    @Roles('ADMIN', 'SUPER_ADMIN')
+    @Permissions('shipping', 'edit')
     @Patch(':id/status')
     updateStatus(
         @Param('id') id: string,
