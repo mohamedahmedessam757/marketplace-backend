@@ -1153,7 +1153,9 @@ export class PaymentsService {
                 completedOrders,
                 totalOrdersCount,
                 acceptanceRate: Math.round(acceptanceRate),
-                profitPercentage: userRate * 100
+                profitPercentage: userRate * 100, // Loyalty tier cashback percentage
+                referralRate: 0.01, // Fixed 1% referral commission
+                referralWindowDays: 180
             },
             transactions
         };
@@ -1404,19 +1406,20 @@ export class PaymentsService {
         stats.monthlyRewards = Number(monthlyAggr._sum.amount || 0);
 
         // ═══════════════════════════════════════════════════════
-        // 6. True Pending Referral Rewards
-        //    (5% of active first-time orders from referred users)
+        // 6. True Pending Referral Rewards (v2: 1% of unitPrice + 6-month window)
+        //    Active orders from referred users still inside their referral window
         // ═══════════════════════════════════════════════════════
+        const REFERRAL_WINDOW_MS = 180 * 24 * 60 * 60 * 1000;
+        const windowCutoff = new Date(Date.now() - REFERRAL_WINDOW_MS);
+
         const pendingReferrals = await this.prisma.order.findMany({
             where: {
                 status: { in: ACTIVE_STATUSES as any },
-                customer: { 
+                customer: {
                     referredById: store.ownerId,
-                    // Must be their first order (no completed ones yet)
-                    orders: {
-                        none: { status: { in: COMPLETED_STATUSES as any } }
-                    }
-                }
+                    // Window still active: referralStartsAt within last 6 months
+                    referralStartsAt: { gte: windowCutoff }
+                } as any
             },
             include: { payments: { where: { status: 'SUCCESS' } } }
         });
@@ -1424,14 +1427,14 @@ export class PaymentsService {
         let truePendingRewards = 0;
         for (const order of pendingReferrals) {
             const payments = (order as any).payments || [];
-            const orderTotal = payments.reduce((sum: number, p: any) => sum + Number(p.totalAmount || 0), 0);
-            if (orderTotal > 0) {
-                truePendingRewards += (orderTotal * 0.05); // 5% referral reward rate
-            } else if (order.totalAmount) {
-                truePendingRewards += (Number(order.totalAmount) * 0.05);
+            const itemSubtotal = payments.reduce(
+                (sum: number, p: any) => sum + Number(p.unitPrice || 0), 0
+            );
+            if (itemSubtotal > 0) {
+                truePendingRewards += itemSubtotal * 0.01; // 1% on item subtotal only
             }
         }
-        stats.pendingRewards = truePendingRewards;
+        stats.pendingRewards = Number(truePendingRewards.toFixed(2));
 
         // ═══════════════════════════════════════════════════════
         // 7. Notifications
@@ -1467,7 +1470,8 @@ export class PaymentsService {
                     await this.prisma.user.update({ where: { id: userId }, data: { referralCode: code } });
                     return code;
                 })(),
-                profitPercentage: userRate * 100,
+                profitPercentage: 1, // Fixed 1% referral commission (independent of loyalty tier)
+                referralWindowDays: 180,
                 tierBenefits: currentTierData.benefits,
                 nextTierBenefits: nextTierData?.benefits || [],
                 stripeOnboarded: store.owner.stripeOnboarded,

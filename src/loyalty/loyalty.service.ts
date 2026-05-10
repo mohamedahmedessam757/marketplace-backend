@@ -18,6 +18,7 @@ export class LoyaltyService {
   /**
    * 2026 REWARD ENGINE: Called strictly when an order transitions to COMPLETED.
    * Hardened logic: Rewards are granted only for successful, non-disputed orders.
+   * Covers BOTH sides: customer cashback/tier and merchant lifetime earnings/tier.
    */
   async grantOrderCompletionRewards(orderId: string) {
     this.logger.log(`[LoyaltyEngine] Processing 2026 hardened rewards for order ${orderId}`);
@@ -27,6 +28,7 @@ export class LoyaltyService {
       where: { id: orderId },
       include: {
         customer: true,
+        store: true,
         payments: { where: { status: 'SUCCESS' } },
         disputes: { select: { id: true } },
         returns: { select: { id: true } }
@@ -184,7 +186,7 @@ export class LoyaltyService {
       totalSpent: Number(result.totalSpent)
     });
 
-    // 10. NOTIFICATION ENGINE
+    // 10. NOTIFICATION ENGINE — Customer Tier Upgrade
     if (this.isTierUpgrade(oldTier, newTier)) {
       await this.notifications.create({
         recipientId: order.customerId,
@@ -198,54 +200,15 @@ export class LoyaltyService {
       });
     }
 
-    return { earnedPoints, earnedProfit, newTier };
-  }
+    // 11. MERCHANT SIDE — Update lifetimeEarnings + recalc store loyaltyTier
+    if (order.storeId && order.store) {
+      const newLifetimeEarnings = Number(order.store.lifetimeEarnings) + orderTotalAmount;
+      const newStoreTier = this.calculateStoreTier(
+        newLifetimeEarnings,
+        Number(order.store.rating)
+      );
+      const oldStoreTier = order.store.loyaltyTier;
 
-  /**
-   * Called primarily when an order transitions to CLOSED or COMPLETED
-   */
-  async processOrderClosure(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: { customer: true, payments: true, store: true }
-    });
-
-    if (!order) return;
-
-    // 1. Calculate amount spent (from payments sum)
-    const totalPayments = order.payments
-      .filter(p => p.status === 'SUCCESS')
-      .reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
-
-    if (totalPayments <= 0) return;
-
-    // 2. User Updates: totalSpent & loyaltyPoints (1 point per 10 AED)
-    const newTotalSpent = Number(order.customer.totalSpent) + totalPayments;
-    const earnedPoints = Math.floor(totalPayments / 10);
-    const newTier = this.calculateTier(newTotalSpent);
-
-    const updatedUser = await this.prisma.user.update({
-      where: { id: order.customerId },
-      data: {
-        totalSpent: newTotalSpent,
-        loyaltyTier: newTier,
-        loyaltyPoints: { increment: earnedPoints }
-      }
-    });
-
-    // Real-time Update for Customer
-    this.loyaltyGateway.emitLoyaltyUpdate(order.customerId, 'CUSTOMER', {
-      tier: newTier,
-      totalSpent: newTotalSpent,
-      loyaltyPoints: updatedUser.loyaltyPoints,
-      earnedPoints
-    });
-
-    // 3. Merchant Updates: lifetimeEarnings & recalculate tier
-    if (order.storeId) {
-      const newLifetimeEarnings = Number(order.store.lifetimeEarnings) + totalPayments;
-      const newStoreTier = this.calculateStoreTier(newLifetimeEarnings, Number(order.store.rating));
-      
       const updatedStore = await this.prisma.store.update({
         where: { id: order.storeId },
         data: {
@@ -254,109 +217,160 @@ export class LoyaltyService {
         }
       });
 
-      // Real-time Update for Merchant
+      // Real-time sync for merchant
       this.loyaltyGateway.emitLoyaltyUpdate(order.storeId, 'VENDOR', {
         tier: newStoreTier,
         lifetimeEarnings: newLifetimeEarnings,
         performanceScore: Number(updatedStore.performanceScore)
       });
 
-      // Notification for Merchant if tier upgraded
-      if (this.isStoreTierUpgrade(order.store.loyaltyTier, newStoreTier)) {
+      // Notify merchant on store tier upgrade
+      if (this.isStoreTierUpgrade(oldStoreTier, newStoreTier)) {
         await this.notifications.create({
           recipientId: order.store.ownerId,
           recipientRole: 'MERCHANT',
           titleAr: 'ترقية مستوى المتجر! 🏆',
           titleEn: 'Store Tier Upgrade! 🏆',
-          messageAr: `مبروك! وصلت متجرك إلى مستوى ${newStoreTier}.`,
+          messageAr: `مبروك! وصل متجرك إلى مستوى ${newStoreTier}.`,
           messageEn: `Congratulations! Your store reached ${newStoreTier} tier.`,
-          type: 'loyalty',
+          type: 'loyalty'
         });
       }
     }
 
-    // 4. Referral Reward (If first successful order)
-    await this.processReferralReward(order.customerId, totalPayments);
-
-    // 5. Fire Push Notification (If user tier increased)
-    if (this.isTierUpgrade(order.customer.loyaltyTier, newTier)) {
-      await this.notifications.create({
-        recipientId: order.customerId,
-        recipientRole: 'CUSTOMER',
-        titleAr: 'ترقية المستوى! 🎉',
-        titleEn: 'Tier Upgrade! 🎉',
-        messageAr: `مبروك! لقد وصلت إلى المستوى ${newTier}. استمتع بمميزات أكثر.`,
-        messageEn: `Congratulations! You have reached ${newTier} tier. Enjoy more benefits.`,
-        type: 'loyalty',
-      });
-    }
-
-    return { newTotalSpent, newTier, earnedPoints };
+    return { earnedPoints, earnedProfit, newTier };
   }
 
-  async processReferralReward(userId: string, orderAmount: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { 
-        id: true, 
-        name: true,
-        referredById: true, 
-        orders: { where: { status: 'COMPLETED' } } 
+  /**
+   * 2026 REFERRAL ENGINE v2 — Triggered when an order transitions to COMPLETED.
+   * Rules:
+   *   - Pays 1% of the item subtotal (sum of PaymentTransaction.unitPrice) to the referrer
+   *   - Only if the referred user is still inside their 6-month window (180 days from referralStartsAt)
+   *   - Applies on EVERY successful (COMPLETED, no dispute, no return) order during the window
+   *   - Idempotent: a single (referrer, orderId) pair can only be rewarded once
+   */
+  async processReferralReward(orderId: string) {
+    const REFERRAL_RATE = 0.01;
+    const REFERRAL_WINDOW_DAYS = 180;
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            referredById: true,
+            referralStartsAt: true,
+            createdAt: true
+          }
+        },
+        payments: { where: { status: 'SUCCESS' } },
+        disputes: { select: { id: true } },
+        returns: { select: { id: true } }
       }
     });
 
-    // Strategy: Reward only on first COMPLETED order and if referred
-    if (user && user.referredById && user.orders.length === 1) {
-      const rewardAmount = Number((orderAmount * 0.05).toFixed(2)); // 5% cash reward
-      
-      const result = await this.prisma.$transaction(async (tx) => {
-        // a. Update Referrer Stats & Balance
-        const referrer = await tx.user.update({
-          where: { id: user.referredById },
-          data: {
-            customerBalance: { increment: rewardAmount },
-            loyaltyPoints: { increment: Math.floor(rewardAmount) }
-            // referralCount is already incremented on registration in UsersService
-          }
-        });
+    if (!order || !order.customer || !order.customer.referredById) return;
 
-        // b. Financial Audit Trail
-        await tx.walletTransaction.create({
-          data: {
-            userId: user.referredById,
-            role: 'CUSTOMER',
-            type: 'CREDIT',
-            transactionType: 'REFERRAL_PROFIT',
-            amount: rewardAmount,
-            currency: 'AED',
-            description: `Success Referral Reward: Friend ${user.name || 'User'} joined and shopped!`,
-            balanceAfter: Number(referrer.customerBalance),
-            metadata: { referredUserId: userId, orderAmount }
-          }
-        });
-
-        return referrer;
-      });
-
-      // c. Real-time Reflection
-      this.loyaltyGateway.emitLoyaltyUpdate(user.referredById, 'CUSTOMER', {
-        customerBalance: Number(result.customerBalance),
-        loyaltyPoints: result.loyaltyPoints,
-        referralCount: result.referralCount
-      });
-
-      // d. Premium Encouraging Notification
-      await this.notifications.create({
-        recipientId: user.referredById,
-        recipientRole: 'CUSTOMER',
-        titleAr: 'مكافأة نجاح مبهرة! 🌟💸',
-        titleEn: 'Spectacular Referral Reward! 🌟💸',
-        messageAr: `خبر رائع! صديقك ${user.name || ''} أكمل طلبه الأول. تقديراً لتوصيتك، أضفنا ${rewardAmount} درهم إلى محفظتك. استمر في مشاركة التيمز! 🚀`,
-        messageEn: `Great news! Your friend ${user.name || ''} completed their first order. As a token of thanks, we've added ${rewardAmount} AED to your wallet. Keep sharing the excellence! 🚀`,
-        type: 'loyalty',
-        link: '/dashboard/wallet'
-      });
+    // Eligibility: order must be cleanly completed (no disputes, no returns)
+    if (order.status !== 'COMPLETED' || order.disputes.length > 0 || order.returns.length > 0) {
+      this.logger.warn(
+        `[Referral] Order ${orderId} ineligible. status=${order.status} disputes=${order.disputes.length} returns=${order.returns.length}`
+      );
+      return;
     }
+
+    // 6-month window check (referralStartsAt falls back to createdAt for legacy users)
+    const startsAt: Date | null = order.customer.referralStartsAt || order.customer.createdAt || null;
+    if (!startsAt) {
+      this.logger.warn(`[Referral] Missing referralStartsAt and createdAt for user ${order.customer.id}`);
+      return;
+    }
+    const expiresAt = new Date(new Date(startsAt).getTime() + REFERRAL_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    if (new Date() > expiresAt) {
+      this.logger.log(
+        `[Referral] Window expired for user ${order.customer.id}. Expired on ${expiresAt.toISOString()}.`
+      );
+      return;
+    }
+
+    // Idempotency: prevent duplicate reward for the same order
+    const existing = await this.prisma.walletTransaction.findFirst({
+      where: {
+        userId: order.customer.referredById,
+        transactionType: 'REFERRAL_PROFIT',
+        metadata: { path: ['orderId'], equals: orderId }
+      }
+    });
+    if (existing) {
+      this.logger.warn(`[Referral] Duplicate prevention: order ${orderId} already rewarded.`);
+      return;
+    }
+
+    // Compute reward = 1% × sum of unitPrice (item subtotal only — no commission/VAT/shipping)
+    const itemSubtotal = order.payments.reduce((sum, p) => sum + Number(p.unitPrice || 0), 0);
+    if (itemSubtotal <= 0) {
+      this.logger.log(`[Referral] Order ${orderId} has zero item subtotal. Skipping.`);
+      return;
+    }
+    const rewardAmount = Number((itemSubtotal * REFERRAL_RATE).toFixed(2));
+    if (rewardAmount <= 0) return;
+
+    const referredById = order.customer.referredById;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const referrer = await tx.user.update({
+        where: { id: referredById },
+        data: {
+          customerBalance: { increment: rewardAmount },
+          loyaltyPoints: { increment: Math.floor(rewardAmount) }
+        }
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: referredById,
+          role: 'CUSTOMER',
+          type: 'CREDIT',
+          transactionType: 'REFERRAL_PROFIT',
+          amount: rewardAmount,
+          currency: 'AED',
+          description: `Referral commission 1%: friend ${order.customer.name || 'User'} order #${order.orderNumber}`,
+          balanceAfter: Number(referrer.customerBalance),
+          metadata: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            referredUserId: order.customer.id,
+            itemSubtotal,
+            rate: REFERRAL_RATE,
+            windowStartsAt: new Date(startsAt).toISOString(),
+            windowExpiresAt: expiresAt.toISOString()
+          }
+        }
+      });
+
+      return referrer;
+    });
+
+    this.loyaltyGateway.emitLoyaltyUpdate(referredById, 'CUSTOMER', {
+      customerBalance: Number(result.customerBalance),
+      loyaltyPoints: result.loyaltyPoints,
+      referralCount: result.referralCount
+    });
+
+    await this.notifications.create({
+      recipientId: referredById,
+      recipientRole: 'CUSTOMER',
+      titleAr: 'مكافأة إحالة جديدة! 💸',
+      titleEn: 'New Referral Reward! 💸',
+      messageAr: `استلمت ${rewardAmount} درهم (1%) من طلب صديقك ${order.customer.name || ''} رقم #${order.orderNumber}.`,
+      messageEn: `You received ${rewardAmount} AED (1%) from your friend ${order.customer.name || ''}'s order #${order.orderNumber}.`,
+      type: 'loyalty',
+      link: '/dashboard/wallet'
+    });
+
+    return { rewardAmount, referredById };
   }
 
   async getLoyaltyData(userId: string) {
@@ -489,5 +503,97 @@ export class LoyaltyService {
       this.logger.error('Failed to fetch public loyalty stats', error);
       return { totalUsers: 1250, totalReferrals: 850, totalDistributed: 45000, currency: 'AED' };
     }
+  }
+
+  /**
+   * Returns per-referee statistics: first name only (privacy), window dates,
+   * total earned by the referrer from each referee, orders count.
+   * Optimized: 2 queries total (referees + all referral wallet_transactions),
+   * grouped in-memory. O(R + T) where R = referees, T = referral txs.
+   */
+  async getReferralHistory(userId: string) {
+    const REFERRAL_WINDOW_DAYS = 180;
+    const windowMs = REFERRAL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+    const referees = await this.prisma.user.findMany({
+      where: { referredById: userId },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        referralStartsAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (referees.length === 0) {
+      return {
+        referrals: [],
+        totals: { count: 0, earned: 0, activeCount: 0 },
+      };
+    }
+
+    // Bulk-fetch all REFERRAL_PROFIT transactions for this referrer in one query
+    const allRewards = await this.prisma.walletTransaction.findMany({
+      where: {
+        userId,
+        type: 'CREDIT',
+        transactionType: 'REFERRAL_PROFIT',
+      },
+      select: { amount: true, metadata: true, createdAt: true },
+    });
+
+    // Group rewards by referredUserId from metadata JSON
+    const rewardsByReferee = new Map<
+      string,
+      { total: number; orders: number; lastAt?: Date }
+    >();
+    for (const tx of allRewards) {
+      const refereeId = (tx.metadata as any)?.referredUserId;
+      if (!refereeId) continue;
+      const prev =
+        rewardsByReferee.get(refereeId) || { total: 0, orders: 0, lastAt: undefined };
+      prev.total += Number(tx.amount);
+      prev.orders += 1;
+      if (!prev.lastAt || tx.createdAt > prev.lastAt) prev.lastAt = tx.createdAt;
+      rewardsByReferee.set(refereeId, prev);
+    }
+
+    const now = Date.now();
+    const referrals = referees.map((r) => {
+      const startsAt = r.referralStartsAt || r.createdAt;
+      const expiresAt = new Date(startsAt.getTime() + windowMs);
+      const msRemaining = expiresAt.getTime() - now;
+      const daysRemaining = Math.max(
+        0,
+        Math.ceil(msRemaining / (24 * 60 * 60 * 1000))
+      );
+      const isActive = msRemaining > 0;
+      const stats =
+        rewardsByReferee.get(r.id) || { total: 0, orders: 0, lastAt: undefined };
+
+      return {
+        id: r.id,
+        firstName: (r.name || '').split(' ')[0] || 'User',
+        registeredAt: r.createdAt.toISOString(),
+        windowStartsAt: startsAt.toISOString(),
+        windowExpiresAt: expiresAt.toISOString(),
+        daysRemaining,
+        isActive,
+        totalEarned: Number(stats.total.toFixed(2)),
+        ordersCount: stats.orders,
+        lastRewardAt: stats.lastAt?.toISOString() || null,
+      };
+    });
+
+    const totals = {
+      count: referrals.length,
+      earned: Number(
+        referrals.reduce((s, r) => s + r.totalEarned, 0).toFixed(2)
+      ),
+      activeCount: referrals.filter((r) => r.isActive).length,
+    };
+
+    return { referrals, totals };
   }
 }

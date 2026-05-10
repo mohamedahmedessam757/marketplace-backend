@@ -172,6 +172,7 @@ model User {
   referralCount   Int         @default(0) @map("referral_count")
   referralCode    String?     @unique @map("referral_code")
   referredById    String?     @map("referred_by_id") @db.Uuid
+  referralStartsAt DateTime?  @map("referral_starts_at") @db.Timestamptz
   referredBy      User?       @relation("ReferralHistory", fields: [referredById], references: [id])
   referredUsers   User[]      @relation("ReferralHistory")
 

@@ -64,11 +64,12 @@ export class UsersService {
             role: createUserDto.role || 'CUSTOMER',
             referralCode,
             referredById,
+            referralStartsAt: referredById ? new Date() : null,
           },
         });
 
         // Increment referralCount on the referrer immediately upon successful registration
-        // (Financial reward/points fire later via processReferralReward after first order closed)
+        // (Financial reward fires per completed order during the 6-month window via processReferralReward)
         if (referredById) {
           await tx.user.update({
             where: { id: referredById },

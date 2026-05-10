@@ -12,6 +12,11 @@ export class LoyaltyController {
     return this.loyaltyService.getLoyaltyData(req.user.id);
   }
 
+  @Get('referrals')
+  async getMyReferrals(@Request() req) {
+    return this.loyaltyService.getReferralHistory(req.user.id);
+  }
+
   @Get('public-stats')
   async getPublicStats() {
     return this.loyaltyService.getPublicStats();

@@ -517,6 +517,10 @@ export class OrdersService {
                 this.loyaltyService.grantOrderCompletionRewards(orderId).catch(err => {
                     console.error(`Failed to grant rewards for order ${orderId}:`, err);
                 });
+                // Referral commission v2 (1% of item subtotal, within 6-month window)
+                this.loyaltyService.processReferralReward(orderId).catch(err => {
+                    console.error(`Failed to process referral reward for order ${orderId}:`, err);
+                });
             }
 
             // 3.1 Notify Customer
