@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -13,17 +20,67 @@ import {
   ReviewPenaltyDto,
   ResolveRiskAlertDto 
 } from './dto';
-import { ViolationTargetType, ViolationStatus, AppealStatus, PenaltyActionStatus, PenaltyActionType } from '@prisma/client';
+import {
+  ViolationTargetType,
+  ViolationStatus,
+  AppealStatus,
+  PenaltyActionStatus,
+  PenaltyActionType,
+  ViolationSource,
+  LoyaltyImpact,
+  LoyaltyReviewStatus,
+  LoyaltyReviewTrigger,
+  ViolationType,
+} from '@prisma/client';
+import { MerchantPerformanceService } from '../merchant-performance/merchant-performance.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
+
+/** Resolves a stable violation type by `code` with a small in-memory cache (5 min TTL). */
+type CachedType = { type: ViolationType; expiresAt: number };
+const TYPE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+export interface AutoIssueInput {
+  code: string;
+  targetUserId: string;
+  targetType: ViolationTargetType;
+  targetStoreId?: string | null;
+  orderId?: string | null;
+  reason?: string;
+  metadata?: Record<string, any>;
+  /** Optional unique key suffix when multiple violations of the same code can be valid for the same order. */
+  dedupSuffix?: string;
+}
 
 @Injectable()
 export class ViolationsService {
   private readonly logger = new Logger(ViolationsService.name);
+  private readonly typeCache = new Map<string, CachedType>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly auditLogs: AuditLogsService,
+    @Inject(forwardRef(() => MerchantPerformanceService))
+    private readonly merchantPerformance: MerchantPerformanceService,
+    @Inject(forwardRef(() => LoyaltyService))
+    private readonly loyaltyService: LoyaltyService,
   ) {}
+
+  private async resolveTypeByCode(code: string): Promise<ViolationType | null> {
+    const cached = this.typeCache.get(code);
+    if (cached && cached.expiresAt > Date.now()) return cached.type;
+
+    const type = await this.prisma.violationType.findUnique({ where: { code } });
+    if (type) {
+      this.typeCache.set(code, { type, expiresAt: Date.now() + TYPE_CACHE_TTL_MS });
+    }
+    return type;
+  }
+
+  /** Public helper for tests / admin tooling to clear the cache after edits. */
+  clearTypeCache() {
+    this.typeCache.clear();
+  }
 
   // --- VIOLATION TYPES (CRUD) ---
 
@@ -95,7 +152,7 @@ export class ViolationsService {
 
   // --- ISSUING VIOLATIONS ---
 
-  async issueViolation(dto: IssueViolationDto, issuerId: string, tx?: any) {
+  async issueViolation(dto: IssueViolationDto, issuerId: string | null, tx?: any) {
     const { typeId, targetUserId, targetStoreId, targetType, customPoints, customFineAmount, customDecayDays } = dto;
     const db = tx || this.prisma;
 
@@ -108,8 +165,21 @@ export class ViolationsService {
     const points = customPoints ?? vType.points;
     const fineAmount = customFineAmount ?? Number(vType.fineAmount);
     const decayDays = customDecayDays ?? vType.decayDays;
+    const source = dto.source ?? ViolationSource.MANUAL;
     const decayAt = new Date();
     decayAt.setDate(decayAt.getDate() + decayDays);
+
+    // 1.1 Idempotency short-circuit (when uniqueKey is provided, e.g. by autoIssue)
+    if (dto.uniqueKey) {
+      const existing = await db.violation.findUnique({
+        where: { uniqueKey: dto.uniqueKey },
+        include: { type: true },
+      });
+      if (existing) {
+        this.logger.debug(`[autoIssue] Idempotent skip — existing violation for key ${dto.uniqueKey}`);
+        return existing;
+      }
+    }
 
     const logic = async (itx: any) => {
       // 2. Create Violation Record
@@ -124,6 +194,8 @@ export class ViolationsService {
           adminNotes: dto.adminNotes,
           orderId: dto.orderId,
           issuedBy: issuerId,
+          source,
+          uniqueKey: dto.uniqueKey ?? null,
           decayAt,
         },
         include: { type: true },
@@ -218,13 +290,15 @@ export class ViolationsService {
       }
 
       // 6. Audit Log (2026 Admin Traceability)
+      const isSystem = source === ViolationSource.SYSTEM;
       await this.auditLogs.logAction({
-        action: 'CREATE',
+        action: isSystem ? 'AUTO_CREATE' : 'CREATE',
         entity: 'VIOLATION',
-        actorId: issuerId,
-        actorType: 'ADMIN',
-        reason: `Issued violation ${violation.id} to user ${targetUserId}`,
-        metadata: { violationId: violation.id, points, fineAmount },
+        actorId: issuerId ?? undefined,
+        actorType: isSystem ? 'SYSTEM' : 'ADMIN',
+        actorName: isSystem ? `Scheduler:${vType.code ?? vType.nameEn}` : undefined,
+        reason: dto.adminNotes || `Issued violation ${violation.id} to user ${targetUserId}`,
+        metadata: { violationId: violation.id, points, fineAmount, source, code: vType.code },
       }, itx);
 
       // 7. Notification (Bilingual)
@@ -240,22 +314,53 @@ export class ViolationsService {
       });
 
       // 7.1 Notify Admin Group (Oversight)
+      const adminTitleAr = isSystem ? 'مخالفة تلقائية مُسجَّلة 🛡️' : 'تم تسجيل مخالفة 🛡️';
+      const adminTitleEn = isSystem ? 'Auto-Issued Violation 🛡️' : 'Violation Issued 🛡️';
+      const adminMsgAr = isSystem
+        ? `قام النظام تلقائياً بتسجيل مخالفة (${vType.nameAr}) للمستخدم. يمكنك مراجعة المخالفة والتراجع عنها لو كانت غير صحيحة.`
+        : `قام أدمن بتسجيل مخالفة (${vType.nameAr}) بحق المستخدم ${targetUserId}. النقاط: ${points}.`;
+      const adminMsgEn = isSystem
+        ? `System auto-issued violation (${vType.nameEn}). Review and dismiss if false-positive.`
+        : `Admin issued violation (${vType.nameEn}) to user ${targetUserId}. Points: ${points}.`;
       await this.notifications.notifyAdmins({
-        titleAr: 'تم تسجيل مخالفة 🛡️',
-        titleEn: 'Violation Issued 🛡️',
-        messageAr: `قام أدمن بتسجيل مخالفة (${vType.nameAr}) بحق المستخدم ${targetUserId}. النقاط: ${points}.`,
-        messageEn: `Admin issued violation (${vType.nameEn}) to user ${targetUserId}. Points: ${points}.`,
+        titleAr: adminTitleAr,
+        titleEn: adminTitleEn,
+        messageAr: adminMsgAr,
+        messageEn: adminMsgEn,
         type: 'VIOLATION',
-        metadata: { violationId: violation.id, targetUserId }
+        link: '/dashboard/violations',
+        metadata: { violationId: violation.id, targetUserId, source, code: vType.code }
       });
 
       // 8. Check for Penalties
       await this.checkAndTriggerPenalty(targetUserId, targetType, newScore, targetStoreId, itx);
 
+      // 9. Loyalty Review prompt for SEVERE violations flagged with CANCEL_ALL_REWARDS_PROMPT
+      if (vType.loyaltyImpact === LoyaltyImpact.CANCEL_ALL_REWARDS_PROMPT) {
+        await this.createLoyaltyReviewAlert(
+          {
+            userId: targetUserId,
+            triggeredByType: LoyaltyReviewTrigger.VIOLATION,
+            triggeredById: violation.id,
+            reasonAr: `مخالفة جسيمة: ${vType.nameAr}`,
+            reasonEn: `Severe violation: ${vType.nameEn}`,
+            metadata: { violationId: violation.id, code: vType.code, points, orderId: dto.orderId },
+          },
+          itx,
+        );
+      }
+
       return violation;
     };
 
-    return tx ? logic(tx) : this.prisma.$transaction(logic);
+    if (tx) {
+      return logic(tx);
+    }
+    const created = await this.prisma.$transaction(logic);
+    if (targetType === ViolationTargetType.MERCHANT && targetStoreId) {
+      await this.merchantPerformance.recalculateAndPersist(targetStoreId);
+    }
+    return created;
   }
 
   // --- CUSTOMER RISK ALERTS (2026) ---
@@ -441,7 +546,12 @@ export class ViolationsService {
 
     if (!appeal) throw new NotFoundException('Appeal not found');
 
-    return this.prisma.$transaction(async (tx) => {
+    const merchantStoreId =
+      appeal.violation.targetType === ViolationTargetType.MERCHANT
+        ? appeal.violation.targetStoreId
+        : null;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updatedAppeal = await tx.violationAppeal.update({
         where: { id: appealId },
         data: {
@@ -520,6 +630,12 @@ export class ViolationsService {
 
       return updatedAppeal;
     });
+
+    if (dto.status === 'APPROVED' && merchantStoreId) {
+      await this.merchantPerformance.recalculateAndPersist(merchantStoreId);
+    }
+
+    return updated;
   }
 
   // --- PENALTY EXECUTION ---
@@ -647,5 +763,316 @@ export class ViolationsService {
       include: { targetUser: true, targetStore: true, threshold: true },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // =====================================================================
+  // 2026 AUTO-ISSUE PIPELINE
+  // Called by schedulers / order-cleanup / returns / dispute verdict
+  // - Resolves type by stable `code` (cached)
+  // - Idempotent via `unique_key` (one violation per code+order+target)
+  // - Never throws into the caller's flow (failures are logged)
+  // =====================================================================
+  async autoIssue(input: AutoIssueInput): Promise<any | null> {
+    try {
+      const vType = await this.resolveTypeByCode(input.code);
+      if (!vType) {
+        this.logger.warn(`[autoIssue] No ViolationType found for code "${input.code}"; skipping.`);
+        return null;
+      }
+      if (!vType.isActive) {
+        this.logger.debug(`[autoIssue] ViolationType "${input.code}" is inactive; skipping.`);
+        return null;
+      }
+      if (vType.targetType !== input.targetType) {
+        this.logger.warn(
+          `[autoIssue] targetType mismatch for "${input.code}" — expected ${vType.targetType} got ${input.targetType}; skipping.`,
+        );
+        return null;
+      }
+
+      // Validate target user exists (prevent orphan rows)
+      const userExists = await this.prisma.user.findUnique({
+        where: { id: input.targetUserId },
+        select: { id: true },
+      });
+      if (!userExists) {
+        this.logger.warn(`[autoIssue] target user ${input.targetUserId} not found; skipping.`);
+        return null;
+      }
+
+      const orderPart = input.orderId ?? 'no-order';
+      const suffix = input.dedupSuffix ? `:${input.dedupSuffix}` : '';
+      const uniqueKey = `${input.code}:${orderPart}:${input.targetUserId}${suffix}`;
+
+      const violation = await this.issueViolation(
+        {
+          typeId: vType.id,
+          targetUserId: input.targetUserId,
+          targetStoreId: input.targetStoreId ?? undefined,
+          targetType: input.targetType,
+          orderId: input.orderId ?? undefined,
+          adminNotes: input.reason || `Auto-issued by system (${input.code})`,
+          source: ViolationSource.SYSTEM,
+          uniqueKey,
+        },
+        null,
+      );
+
+      this.logger.log(
+        `[autoIssue] OK code=${input.code} target=${input.targetType}:${input.targetUserId} order=${input.orderId ?? '-'}`,
+      );
+      return violation;
+    } catch (err) {
+      // Never break the caller's pipeline; log loudly so ops can investigate.
+      this.logger.error(
+        `[autoIssue] Failed for code=${input.code} target=${input.targetUserId}: ${err?.message || err}`,
+        err?.stack,
+      );
+      return null;
+    }
+  }
+
+  // =====================================================================
+  // LOYALTY REVIEW ALERTS (admin-gated rewards cancellation)
+  // =====================================================================
+  async createLoyaltyReviewAlert(
+    input: {
+      userId: string;
+      triggeredByType: LoyaltyReviewTrigger;
+      triggeredById?: string;
+      reasonAr: string;
+      reasonEn: string;
+      metadata?: Record<string, any>;
+    },
+    tx?: any,
+  ) {
+    const db = tx || this.prisma;
+    // Dedup: don't create another PENDING_REVIEW alert for the same trigger
+    if (input.triggeredById) {
+      const existing = await db.loyaltyReviewAlert.findFirst({
+        where: {
+          userId: input.userId,
+          triggeredByType: input.triggeredByType,
+          triggeredById: input.triggeredById,
+          status: LoyaltyReviewStatus.PENDING_REVIEW,
+        },
+      });
+      if (existing) return existing;
+    }
+
+    const alert = await db.loyaltyReviewAlert.create({
+      data: {
+        userId: input.userId,
+        triggeredByType: input.triggeredByType,
+        triggeredById: input.triggeredById,
+        reasonAr: input.reasonAr,
+        reasonEn: input.reasonEn,
+        metadata: input.metadata || {},
+      },
+    });
+
+    await this.notifications.notifyAdmins({
+      titleAr: 'مراجعة ولاء مطلوبة ⚠️',
+      titleEn: 'Loyalty Review Required ⚠️',
+      messageAr: `طلب من الإدارة قرار بشأن إلغاء مكافآت الولاء بسبب: ${input.reasonAr}.`,
+      messageEn: `Admin decision needed on loyalty rewards cancellation. Reason: ${input.reasonEn}.`,
+      type: 'LOYALTY_REVIEW',
+      link: '/dashboard/violations',
+      metadata: { alertId: alert.id, userId: input.userId, triggeredByType: input.triggeredByType },
+    });
+
+    await this.auditLogs.logAction(
+      {
+        action: 'CREATE',
+        entity: 'LOYALTY_REVIEW_ALERT',
+        actorType: 'SYSTEM',
+        actorName: 'Scheduler:LoyaltyReview',
+        reason: input.reasonEn,
+        metadata: { alertId: alert.id, userId: input.userId, triggeredByType: input.triggeredByType, triggeredById: input.triggeredById },
+      },
+      tx,
+    );
+
+    return alert;
+  }
+
+  async getLoyaltyReviewAlerts(status?: LoyaltyReviewStatus) {
+    return this.prisma.loyaltyReviewAlert.findMany({
+      where: status ? { status } : {},
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            avatar: true,
+            loyaltyTier: true,
+            loyaltyPoints: true,
+            customerBalance: true,
+            violationScore: true,
+          },
+        },
+        decider: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async decideLoyaltyAlert(
+    alertId: string,
+    decision: 'CANCEL_REWARDS' | 'KEEP_REWARDS',
+    adminId: string,
+    adminNotes?: string,
+  ) {
+    const alert = await this.prisma.loyaltyReviewAlert.findUnique({
+      where: { id: alertId },
+      include: { user: { select: { id: true, loyaltyTier: true, loyaltyPoints: true } } },
+    });
+    if (!alert) throw new NotFoundException('Loyalty review alert not found');
+    if (alert.status !== LoyaltyReviewStatus.PENDING_REVIEW) {
+      throw new BadRequestException('Alert has already been decided');
+    }
+
+    if (decision === 'CANCEL_REWARDS') {
+      await this.loyaltyService.cancelAllRewards(
+        alert.userId,
+        adminNotes || alert.reasonEn,
+        adminId,
+      );
+    }
+
+    const updated = await this.prisma.loyaltyReviewAlert.update({
+      where: { id: alertId },
+      data: {
+        status:
+          decision === 'CANCEL_REWARDS'
+            ? LoyaltyReviewStatus.REWARDS_CANCELLED
+            : LoyaltyReviewStatus.KEPT,
+        decidedBy: adminId,
+        decidedAt: new Date(),
+        adminNotes,
+      },
+    });
+
+    await this.auditLogs.logAction({
+      action: 'DECIDE',
+      entity: 'LOYALTY_REVIEW_ALERT',
+      actorType: 'ADMIN',
+      actorId: adminId,
+      reason: adminNotes || decision,
+      metadata: {
+        alertId,
+        userId: alert.userId,
+        decision,
+        previousTier: alert.user?.loyaltyTier,
+        previousPoints: alert.user?.loyaltyPoints,
+      },
+    });
+
+    // Notify the user about the decision (transparency)
+    await this.notifications.create({
+      recipientId: alert.userId,
+      recipientRole: 'CUSTOMER',
+      type: 'LOYALTY',
+      titleAr: decision === 'CANCEL_REWARDS' ? 'تم إلغاء مكافآت الولاء' : 'تم الإبقاء على مكافآت الولاء',
+      titleEn: decision === 'CANCEL_REWARDS' ? 'Loyalty Rewards Cancelled' : 'Loyalty Rewards Kept',
+      messageAr:
+        decision === 'CANCEL_REWARDS'
+          ? `بناءً على المراجعة الإدارية، تم تصفير نقاط ولاءك وإرجاع مستواك إلى BASIC.`
+          : `تمت مراجعة حالتك وتم الإبقاء على مكافآت الولاء بدون تغيير.`,
+      messageEn:
+        decision === 'CANCEL_REWARDS'
+          ? `Following admin review, your loyalty points were reset and tier returned to BASIC.`
+          : `Your case was reviewed and loyalty rewards were kept unchanged.`,
+      link: '/dashboard/wallet',
+      metadata: { alertId, decision },
+    });
+
+    return updated;
+  }
+
+  // =====================================================================
+  // ADMIN: Direct Drop a Violation (without waiting for an appeal)
+  // =====================================================================
+  async dropViolation(violationId: string, adminId: string, reason: string) {
+    const violation = await this.prisma.violation.findUnique({
+      where: { id: violationId },
+      include: { type: true },
+    });
+    if (!violation) throw new NotFoundException('Violation not found');
+    if (violation.status === ViolationStatus.DROPPED) {
+      throw new BadRequestException('Violation already dropped');
+    }
+    if (violation.status === ViolationStatus.DECAYED) {
+      throw new BadRequestException('Violation already decayed; nothing to drop');
+    }
+
+    const merchantStoreId =
+      violation.targetType === ViolationTargetType.MERCHANT ? violation.targetStoreId : null;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: violation.targetUserId },
+        select: { violationScore: true },
+      });
+      const previousScore = user?.violationScore ?? 0;
+      const pointsToRestore = violation.points;
+      const newScore = Math.max(0, previousScore - pointsToRestore);
+
+      await tx.user.update({
+        where: { id: violation.targetUserId },
+        data: { violationScore: newScore },
+      });
+
+      const result = await tx.violation.update({
+        where: { id: violationId },
+        data: { status: ViolationStatus.DROPPED },
+      });
+
+      await tx.violationScoreLog.create({
+        data: {
+          targetUserId: violation.targetUserId,
+          targetType: violation.targetType,
+          previousScore,
+          newScore,
+          changeAmount: -pointsToRestore,
+          reason: `Admin drop: ${reason}`,
+          violationId: violation.id,
+        },
+      });
+
+      await this.auditLogs.logAction(
+        {
+          action: 'DROP',
+          entity: 'VIOLATION',
+          actorType: 'ADMIN',
+          actorId: adminId,
+          reason,
+          metadata: { violationId, restoredPoints: pointsToRestore, code: violation.type.code },
+        },
+        tx,
+      );
+
+      return result;
+    });
+
+    await this.notifications.create({
+      recipientId: violation.targetUserId,
+      recipientRole: violation.targetType === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+      type: 'VIOLATION',
+      titleAr: 'تم إسقاط مخالفة بحقك ✅',
+      titleEn: 'Violation Dropped by Admin ✅',
+      messageAr: `تم إسقاط المخالفة "${violation.type.nameAr}" واستعادة ${violation.points} نقطة. السبب: ${reason}`,
+      messageEn: `Violation "${violation.type.nameEn}" was dropped and ${violation.points} points were restored. Reason: ${reason}`,
+      link: '/dashboard/violations',
+      metadata: { violationId, restoredPoints: violation.points },
+    });
+
+    if (merchantStoreId) {
+      await this.merchantPerformance.recalculateAndPersist(merchantStoreId);
+    }
+
+    return updated;
   }
 }

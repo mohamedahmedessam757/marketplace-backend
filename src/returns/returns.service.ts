@@ -5,7 +5,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { UsersService } from '../users/users.service';
 import { EscrowService } from '../payments/escrow.service';
-import { ActorType } from '@prisma/client';
+import { ActorType, ViolationTargetType } from '@prisma/client';
+import { ViolationsService } from '../violations/violations.service';
 
 @Injectable()
 export class ReturnsService {
@@ -16,6 +17,7 @@ export class ReturnsService {
         private auditLogs: AuditLogsService,
         private usersService: UsersService,
         private escrowService: EscrowService,
+        private violationsService: ViolationsService,
     ) { }
 
     // --- Case Messaging (Phase 4) ---
@@ -1311,6 +1313,64 @@ export class ReturnsService {
             metadata: { caseId, verdict, type, extra }
         });
 
+        // 2026 Auto-Violation Engine: tie admin verdicts to the violations system
+        try {
+            const faultLower = String(extra?.faultParty || '').toUpperCase();
+            const isMerchantFault = ['STORE', 'MERCHANT', 'VENDOR'].includes(faultLower);
+            const isCustomerFault = faultLower === 'CUSTOMER';
+            const merchantOwnerId = caseRecord.store?.ownerId
+                || (caseRecord.order as any).store?.ownerId
+                || caseRecord.order?.acceptedOffer?.store?.ownerId;
+            const merchantStoreId = caseRecord.store?.id
+                || (caseRecord.order as any).store?.id
+                || caseRecord.order?.acceptedOffer?.store?.id;
+            const customerId = caseRecord.order?.customer?.id;
+
+            if (type === 'dispute' && verdict !== null) {
+                if (isMerchantFault && merchantOwnerId) {
+                    // Merchant lost the dispute → SEVERE + loyalty review prompt
+                    await this.violationsService.autoIssue({
+                        code: 'DISPUTE_LOST_MERCHANT',
+                        targetUserId: merchantOwnerId,
+                        targetStoreId: merchantStoreId,
+                        targetType: ViolationTargetType.MERCHANT,
+                        orderId: caseRecord.orderId,
+                        reason: `Admin ruled merchant fault on dispute ${caseId}: ${notes || ''}`.trim(),
+                        metadata: { caseId, verdict },
+                        dedupSuffix: 'dispute',
+                    });
+                } else if (isCustomerFault && customerId && (verdict === 'DENY' || verdict === 'RELEASE_FUNDS')) {
+                    // Customer lost the dispute (fake/malicious) → SEVERE + loyalty review prompt
+                    await this.violationsService.autoIssue({
+                        code: 'FAKE_DISPUTE',
+                        targetUserId: customerId,
+                        targetType: ViolationTargetType.CUSTOMER,
+                        orderId: caseRecord.orderId,
+                        reason: `Admin ruled customer at fault on dispute ${caseId}: ${notes || ''}`.trim(),
+                        metadata: { caseId, verdict },
+                        dedupSuffix: 'dispute',
+                    });
+                }
+            }
+
+            if (type === 'return' && verdict === 'REFUND' && isMerchantFault && merchantOwnerId) {
+                // Refund granted because merchant was at fault
+                await this.violationsService.autoIssue({
+                    code: 'REFUND_MERCHANT_FAULT',
+                    targetUserId: merchantOwnerId,
+                    targetStoreId: merchantStoreId,
+                    targetType: ViolationTargetType.MERCHANT,
+                    orderId: caseRecord.orderId,
+                    reason: `Refund issued due to merchant fault on case ${caseId}: ${notes || ''}`.trim(),
+                    metadata: { caseId, verdict },
+                    dedupSuffix: 'return',
+                });
+            }
+        } catch (autoErr: any) {
+            // Defensive: never let violation issuance break the verdict flow
+            console.error('[ReturnsService] autoIssue post-verdict failed:', autoErr?.message || autoErr);
+        }
+
         return result;
     }
 
@@ -1512,9 +1572,20 @@ export class ReturnsService {
             // Notify Merchant about Escalation (Warning)
             const store = await this.prisma.store.findFirst({
                 where: { OR: [{ id: ret.storeId }, { orders: { some: { id: ret.orderId } } }] },
-                select: { ownerId: true }
+                select: { id: true, ownerId: true }
             });
             if (store?.ownerId) {
+                // 2026 Auto-Violation: merchant ignored a return request past 48h
+                await this.violationsService.autoIssue({
+                    code: 'LATE_RETURN_PROCESSING',
+                    targetUserId: store.ownerId,
+                    targetStoreId: store.id,
+                    targetType: ViolationTargetType.MERCHANT,
+                    orderId: ret.orderId,
+                    reason: `Merchant did not respond to return request #${ret.id} within 48h.`,
+                    metadata: { returnRequestId: ret.id, orderNumber: ret.order.orderNumber },
+                });
+
                 await this.notificationsService.create({
                     recipientId: store.ownerId,
                     recipientRole: 'VENDOR',
@@ -1567,9 +1638,20 @@ export class ReturnsService {
             // Notify Merchant about Escalation (Warning)
             const store = await this.prisma.store.findFirst({
                 where: { OR: [{ id: dispute.storeId }, { orders: { some: { id: dispute.orderId } } }] },
-                select: { ownerId: true }
+                select: { id: true, ownerId: true }
             });
             if (store?.ownerId) {
+                // 2026 Auto-Violation: merchant ignored a dispute past 48h
+                await this.violationsService.autoIssue({
+                    code: 'LATE_DISPUTE_RESPONSE',
+                    targetUserId: store.ownerId,
+                    targetStoreId: store.id,
+                    targetType: ViolationTargetType.MERCHANT,
+                    orderId: dispute.orderId,
+                    reason: `Merchant did not respond to dispute #${dispute.id} within 48h.`,
+                    metadata: { disputeId: dispute.id, orderNumber: dispute.order.orderNumber },
+                });
+
                 await this.notificationsService.create({
                     recipientId: store.ownerId,
                     recipientRole: 'VENDOR',

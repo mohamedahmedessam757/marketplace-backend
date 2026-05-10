@@ -1290,7 +1290,7 @@ export class PaymentsService {
         };
 
         const tierConfig: Record<string, { rate: number; benefits: { ar: string; en: string }[] }> = { 
-            BRONZE: { 
+            BASIC: { 
                 rate: 0.02, 
                 benefits: [
                     { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' }
@@ -1311,7 +1311,7 @@ export class PaymentsService {
                     { ar: 'خصم 5% على عمولة المنصة', en: '5% Platform Fee Discount' }
                 ]
             }, 
-            PLATINUM: { 
+            VIP: { 
                 rate: 0.05, 
                 benefits: [
                     { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' },
@@ -1319,13 +1319,21 @@ export class PaymentsService {
                     { ar: 'خصم 5% على عمولة المنصة', en: '5% Platform Fee Discount' },
                     { ar: 'مدير حساب VIP (24/7)', en: '24/7 VIP Account Manager' }
                 ]
-            } 
+            },
+            ELITE: {
+                rate: 0.05,
+                benefits: [
+                    { ar: 'أعلى مستوى — دعوة فقط', en: 'Invite-only top tier' },
+                    { ar: 'مدير حساب VIP (24/7)', en: '24/7 VIP Account Manager' },
+                    { ar: 'أولوية قصوى في الطلبات والظهور', en: 'Maximum order and visibility priority' },
+                ],
+            },
         };
         
-        const currentTierData = tierConfig[store.loyaltyTier] || tierConfig.BRONZE;
+        const currentTierData = tierConfig[store.loyaltyTier] || tierConfig.BASIC;
         const userRate = currentTierData.rate;
 
-        const tiers = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'];
+        const tiers = ['BASIC', 'SILVER', 'GOLD', 'VIP', 'ELITE'];
         const currentIdx = tiers.indexOf(store.loyaltyTier);
         const nextTier = currentIdx < tiers.length - 1 ? tiers[currentIdx + 1] : null;
         const nextTierData = nextTier ? tierConfig[nextTier] : null;

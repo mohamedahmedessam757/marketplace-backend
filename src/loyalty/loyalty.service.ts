@@ -1,8 +1,10 @@
 import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoyaltyTier, StoreLoyaltyTier } from '@prisma/client';
+import { LoyaltyTier } from '@prisma/client';
 import { LoyaltyGateway } from './loyalty.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MerchantPerformanceService } from '../merchant-performance/merchant-performance.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class LoyaltyService {
@@ -12,8 +14,95 @@ export class LoyaltyService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => LoyaltyGateway))
     private readonly loyaltyGateway: LoyaltyGateway,
-    private notifications: NotificationsService
+    private notifications: NotificationsService,
+    @Inject(forwardRef(() => MerchantPerformanceService))
+    private readonly merchantPerformance: MerchantPerformanceService,
+    private readonly auditLogs: AuditLogsService,
   ) {}
+
+  /**
+   * 2026 LOYALTY GOVERNANCE: Cancel ALL loyalty rewards for a user.
+   * This is admin-gated via LoyaltyReviewAlert (see ViolationsService.decideLoyaltyAlert).
+   *
+   * Scope (per spec / chosen behavior):
+   *   - Resets `loyaltyPoints` to 0
+   *   - Resets `loyaltyTier` to BASIC
+   *   - DOES NOT touch `customerBalance` nor reverse paid wallet transactions
+   *     (cashback already realized stays with the customer).
+   *
+   * Always emits audit + realtime + bilingual notification.
+   */
+  async cancelAllRewards(userId: string, reason: string, adminId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, loyaltyTier: true, loyaltyPoints: true },
+    });
+    if (!user) {
+      this.logger.warn(`[cancelAllRewards] User ${userId} not found.`);
+      return null;
+    }
+
+    const previousTier = user.loyaltyTier;
+    const previousPoints = user.loyaltyPoints;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.user.update({
+        where: { id: userId },
+        data: {
+          loyaltyPoints: 0,
+          loyaltyTier: 'BASIC' as LoyaltyTier,
+        },
+        select: { id: true, loyaltyTier: true, loyaltyPoints: true, customerBalance: true },
+      });
+
+      await this.auditLogs.logAction(
+        {
+          action: 'LOYALTY_REWARDS_CANCELLED',
+          entity: 'USER_LOYALTY',
+          actorType: 'ADMIN',
+          actorId: adminId,
+          previousState: JSON.stringify({ tier: previousTier, points: previousPoints }),
+          newState: JSON.stringify({ tier: 'BASIC', points: 0 }),
+          reason,
+          metadata: { userId, previousTier, previousPoints },
+        },
+        tx,
+      );
+
+      return result;
+    });
+
+    // Realtime
+    this.loyaltyGateway.emitLoyaltyUpdate(userId, 'CUSTOMER', {
+      tier: updated.loyaltyTier,
+      loyaltyPoints: updated.loyaltyPoints,
+      customerBalance: Number(updated.customerBalance),
+      cancelled: true,
+    });
+
+    // Bilingual user notification
+    await this.notifications.create({
+      recipientId: userId,
+      recipientRole: 'CUSTOMER',
+      titleAr: 'تم تصفير نقاط الولاء',
+      titleEn: 'Loyalty Points Reset',
+      messageAr: `تم تصفير نقاط الولاء وإعادة مستواك إلى BASIC بقرار إدارى. السبب: ${reason}`,
+      messageEn: `Your loyalty points were reset and tier returned to BASIC by admin decision. Reason: ${reason}`,
+      type: 'LOYALTY',
+      link: '/dashboard/wallet',
+      metadata: { previousTier, previousPoints, decidedBy: adminId },
+    });
+
+    this.logger.warn(
+      `[cancelAllRewards] user=${userId} previousTier=${previousTier} previousPoints=${previousPoints} reason="${reason}" admin=${adminId}`,
+    );
+
+    return {
+      resetPoints: previousPoints,
+      previousTier,
+      newTier: updated.loyaltyTier,
+    };
+  }
 
   /**
    * 2026 REWARD ENGINE: Called strictly when an order transitions to COMPLETED.
@@ -200,42 +289,17 @@ export class LoyaltyService {
       });
     }
 
-    // 11. MERCHANT SIDE — Update lifetimeEarnings + recalc store loyaltyTier
+    // 11. MERCHANT SIDE — lifetime earnings + completed order count + centralized performance tier
     if (order.storeId && order.store) {
       const newLifetimeEarnings = Number(order.store.lifetimeEarnings) + orderTotalAmount;
-      const newStoreTier = this.calculateStoreTier(
-        newLifetimeEarnings,
-        Number(order.store.rating)
-      );
-      const oldStoreTier = order.store.loyaltyTier;
-
-      const updatedStore = await this.prisma.store.update({
+      await this.prisma.store.update({
         where: { id: order.storeId },
         data: {
           lifetimeEarnings: newLifetimeEarnings,
-          loyaltyTier: newStoreTier
-        }
+          completedOrdersCount: { increment: 1 },
+        },
       });
-
-      // Real-time sync for merchant
-      this.loyaltyGateway.emitLoyaltyUpdate(order.storeId, 'VENDOR', {
-        tier: newStoreTier,
-        lifetimeEarnings: newLifetimeEarnings,
-        performanceScore: Number(updatedStore.performanceScore)
-      });
-
-      // Notify merchant on store tier upgrade
-      if (this.isStoreTierUpgrade(oldStoreTier, newStoreTier)) {
-        await this.notifications.create({
-          recipientId: order.store.ownerId,
-          recipientRole: 'MERCHANT',
-          titleAr: 'ترقية مستوى المتجر! 🏆',
-          titleEn: 'Store Tier Upgrade! 🏆',
-          messageAr: `مبروك! وصل متجرك إلى مستوى ${newStoreTier}.`,
-          messageEn: `Congratulations! Your store reached ${newStoreTier} tier.`,
-          type: 'loyalty'
-        });
-      }
+      await this.merchantPerformance.recalculateAndPersist(order.storeId);
     }
 
     return { earnedPoints, earnedProfit, newTier };
@@ -437,6 +501,10 @@ export class LoyaltyService {
         performanceScore: true,
         lifetimeEarnings: true,
         rating: true,
+        subscriptionTier: true,
+        subscriptionActive: true,
+        completedOrdersCount: true,
+        avgResponseScore: true,
         reviews: {
           take: 5,
           orderBy: { createdAt: 'desc' }
@@ -455,21 +523,8 @@ export class LoyaltyService {
     return 'BASIC';
   }
 
-  calculateStoreTier(lifetimeEarnings: number, rating: number): StoreLoyaltyTier {
-    // 2026 Standards: High rating is required for top tiers
-    if (lifetimeEarnings >= 200000 && rating >= 4.8) return 'PLATINUM';
-    if (lifetimeEarnings >= 50000 && rating >= 4.5) return 'GOLD';
-    if (lifetimeEarnings >= 10000 && rating >= 4.0) return 'SILVER';
-    return 'BRONZE';
-  }
-
   isTierUpgrade(oldTier: LoyaltyTier, newTier: LoyaltyTier): boolean {
     const ranks: Record<string, number> = { 'BASIC': 1, 'SILVER': 2, 'GOLD': 3, 'VIP': 4, 'PARTNER': 5 };
-    return ranks[newTier] > ranks[oldTier];
-  }
-
-  isStoreTierUpgrade(oldTier: StoreLoyaltyTier, newTier: StoreLoyaltyTier): boolean {
-    const ranks: Record<string, number> = { 'BRONZE': 1, 'SILVER': 2, 'GOLD': 3, 'PLATINUM': 4 };
     return ranks[newTier] > ranks[oldTier];
   }
 

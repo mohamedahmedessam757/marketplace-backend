@@ -1,5 +1,5 @@
 import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
-import { ViolationTargetType } from '@prisma/client';
+import { ViolationSource, ViolationTargetType } from '@prisma/client';
 
 export class IssueViolationDto {
   @IsUUID()
@@ -40,4 +40,14 @@ export class IssueViolationDto {
   @IsOptional()
   @Min(1)
   customDecayDays?: number;
+
+  /** Internal flag: SYSTEM auto-issue vs MANUAL admin issue. Defaults to MANUAL. */
+  @IsEnum(ViolationSource)
+  @IsOptional()
+  source?: ViolationSource;
+
+  /** Internal idempotency key (used by autoIssue). When set, duplicate violations are ignored. */
+  @IsString()
+  @IsOptional()
+  uniqueKey?: string;
 }

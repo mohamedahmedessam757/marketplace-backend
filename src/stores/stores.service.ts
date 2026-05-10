@@ -1,16 +1,19 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadStoreDocumentDto } from './dto/upload-store-document.dto';
-import { StoreStatus, OrderStatus } from '@prisma/client';
+import { StoreStatus, OrderStatus, StoreSubscriptionTier } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { MerchantPerformanceService } from '../merchant-performance/merchant-performance.service';
 
 @Injectable()
 export class StoresService {
     constructor(
         private prisma: PrismaService,
         private notificationsService: NotificationsService,
-        private auditLogs: AuditLogsService
+        private auditLogs: AuditLogsService,
+        @Inject(forwardRef(() => MerchantPerformanceService))
+        private readonly merchantPerformance: MerchantPerformanceService,
     ) { }
 
     async findMyStore(userId: string) {
@@ -708,6 +711,10 @@ export class StoresService {
                 prepSpeed: 24, // Mock realistic average for M1
                 acceptanceRate,
                 rating: Number(store.rating) || 0.0,
+                loyaltyTier: store.loyaltyTier,
+                performanceScore: Number(store.performanceScore),
+                completedOrdersCount: store.completedOrdersCount,
+                lifetimeEarnings: Number(store.lifetimeEarnings),
                 // 2026 Governance Metrics
                 totalOffersSent: store.totalOffersSent,
                 editCount: store.editCount,
@@ -874,6 +881,47 @@ export class StoresService {
             link: '/dashboard/merchant/profile'
         }).catch(() => {});
 
+        return updated;
+    }
+
+    async adminUpdateSubscription(
+        adminId: string,
+        storeId: string,
+        body: {
+            subscriptionTier?: StoreSubscriptionTier;
+            subscriptionActive?: boolean;
+            subscriptionExpiresAt?: string | Date | null;
+        },
+    ) {
+        const store = await this.prisma.store.findUnique({ where: { id: storeId } });
+        if (!store) throw new NotFoundException('Store not found');
+
+        const expires =
+            body.subscriptionExpiresAt === undefined
+                ? undefined
+                : body.subscriptionExpiresAt === null
+                  ? null
+                  : new Date(body.subscriptionExpiresAt);
+
+        const updated = await this.prisma.store.update({
+            where: { id: storeId },
+            data: {
+                ...(body.subscriptionTier !== undefined && { subscriptionTier: body.subscriptionTier }),
+                ...(body.subscriptionActive !== undefined && { subscriptionActive: body.subscriptionActive }),
+                ...(expires !== undefined && { subscriptionExpiresAt: expires }),
+            },
+        });
+
+        await this.auditLogs.logAction({
+            action: 'STORE_SUBSCRIPTION_UPDATE',
+            entity: 'STORE',
+            actorType: 'ADMIN',
+            actorId: adminId,
+            reason: 'Administrative update of store subscription fields',
+            metadata: { storeId, ...body },
+        });
+
+        await this.merchantPerformance.recalculateAndPersist(storeId);
         return updated;
     }
 }

@@ -3,7 +3,7 @@ import { ViolationsService } from './violations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { UserRole, ViolationTargetType } from '@prisma/client';
+import { LoyaltyReviewStatus, UserRole, ViolationTargetType } from '@prisma/client';
 import { 
   IssueViolationDto, 
   SubmitAppealDto, 
@@ -13,7 +13,9 @@ import {
   CreatePenaltyThresholdDto, 
   UpdatePenaltyThresholdDto, 
   ReviewPenaltyDto,
-  ResolveRiskAlertDto 
+  ResolveRiskAlertDto,
+  DecideLoyaltyAlertDto,
+  DropViolationDto
 } from './dto';
 
 @Controller('violations')
@@ -154,5 +156,34 @@ export class ViolationsController {
   @Permissions('violations', 'edit')
   resolveRiskAlert(@Request() req, @Param('id') id: string, @Body() dto: ResolveRiskAlertDto) {
     return this.violationsService.resolveRiskAlert(id, dto, req.user.id);
+  }
+
+  // --- LOYALTY REVIEW ALERTS (admin-gated rewards cancellation) ---
+
+  @Get('admin/loyalty-alerts')
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'view')
+  getLoyaltyAlerts(@Query('status') status?: string) {
+    const validStatuses = Object.values(LoyaltyReviewStatus);
+    const filter = status && validStatuses.includes(status as LoyaltyReviewStatus)
+      ? (status as LoyaltyReviewStatus)
+      : undefined;
+    return this.violationsService.getLoyaltyReviewAlerts(filter);
+  }
+
+  @Patch('admin/loyalty-alerts/:id/decide')
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
+  decideLoyaltyAlert(@Request() req, @Param('id') id: string, @Body() dto: DecideLoyaltyAlertDto) {
+    return this.violationsService.decideLoyaltyAlert(id, dto.decision, req.user.id, dto.adminNotes);
+  }
+
+  // --- DIRECT VIOLATION DROP (admin override without appeal) ---
+
+  @Patch('admin/:id/drop')
+  @UseGuards(PermissionsGuard)
+  @Permissions('violations', 'edit')
+  dropViolation(@Request() req, @Param('id') id: string, @Body() dto: DropViolationDto) {
+    return this.violationsService.dropViolation(id, req.user.id, dto.reason);
   }
 }

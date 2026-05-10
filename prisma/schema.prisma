@@ -206,6 +206,9 @@ model User {
   riskAlerts               CustomerRiskAlert[] @relation("TargetUser")
   reviewedRiskAlerts       CustomerRiskAlert[] @relation("RiskReviewer")
 
+  loyaltyReviewAlerts      LoyaltyReviewAlert[] @relation("LoyaltyReviewTarget")
+  decidedLoyaltyAlerts     LoyaltyReviewAlert[] @relation("LoyaltyReviewDecider")
+
   // Advanced Restrictions (2026)
   withdrawalsFrozen        Boolean   @default(false) @map("withdrawals_frozen")
   withdrawalFreezeNote     String?   @map("withdrawal_freeze_note") @db.Text
@@ -218,12 +221,21 @@ model User {
 }
 
 enum StoreLoyaltyTier {
-  BRONZE
+  BASIC
   SILVER
   GOLD
-  PLATINUM
+  VIP
+  ELITE
 
   @@map("store_loyalty_tier")
+}
+
+enum StoreSubscriptionTier {
+  NONE
+  STANDARD
+  PREMIUM
+
+  @@map("store_subscription_tier")
 }
 
 model UserSettings {
@@ -267,9 +279,18 @@ model Store {
   rejectionReason String?     @map("rejection_reason")
 
   // Loyalty & Reputation System
-  loyaltyTier      StoreLoyaltyTier @default(BRONZE) @map("loyalty_tier")
+  loyaltyTier      StoreLoyaltyTier @default(BASIC) @map("loyalty_tier")
   performanceScore Decimal          @default(0) @map("performance_score") @db.Decimal(10, 2)
   lifetimeEarnings Decimal          @default(0) @map("lifetime_earnings") @db.Decimal(14, 2)
+
+  // Merchant subscription (admin / future billing)
+  subscriptionTier     StoreSubscriptionTier @default(NONE) @map("subscription_tier")
+  subscriptionActive   Boolean               @default(false) @map("subscription_active")
+  subscriptionExpiresAt DateTime?            @map("subscription_expires_at") @db.Timestamptz
+
+  // Performance metrics (merchant levels v1)
+  completedOrdersCount Int     @default(0) @map("completed_orders_count")
+  avgResponseScore     Decimal @default(0) @map("avg_response_score") @db.Decimal(3, 2)
 
   // Car Specializations
   selectedMakes  String[] @default([]) @map("selected_makes")
@@ -327,6 +348,7 @@ model Store {
 
   @@index([status])
   @@index([suspendedUntil])
+  @@index([loyaltyTier, rating])
   @@map("stores")
 }
 
@@ -1442,9 +1464,49 @@ enum AppealStatus {
 enum PenaltyActionType {
   WARNING
   TEMPORARY_SUSPENSION
+  FREEZE_BALANCE
+  RESTRICT_PURCHASE
   PERMANENT_BAN
 
   @@map("penalty_action_type")
+}
+
+enum ViolationSeverity {
+  NORMAL
+  SEVERE
+
+  @@map("violation_severity")
+}
+
+enum LoyaltyImpact {
+  NONE
+  CANCEL_ALL_REWARDS_PROMPT
+
+  @@map("loyalty_impact")
+}
+
+enum ViolationSource {
+  MANUAL
+  SYSTEM
+
+  @@map("violation_source")
+}
+
+enum LoyaltyReviewStatus {
+  PENDING_REVIEW
+  REWARDS_CANCELLED
+  KEPT
+
+  @@map("loyalty_review_status")
+}
+
+enum LoyaltyReviewTrigger {
+  VIOLATION
+  DISPUTE
+  REFUND
+  MANUAL
+
+  @@map("loyalty_review_trigger")
 }
 
 enum PenaltyActionStatus {
@@ -1459,6 +1521,7 @@ enum PenaltyActionStatus {
 
 model ViolationType {
     id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    code           String?             @unique
     nameAr         String              @map("name_ar")
     nameEn         String              @map("name_en")
     descriptionAr  String?             @map("description_ar")
@@ -1467,6 +1530,8 @@ model ViolationType {
     points         Int                 @default(0)
     fineAmount     Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
     decayDays      Int                 @default(30) @map("decay_days")
+    severity       ViolationSeverity   @default(NORMAL)
+    loyaltyImpact  LoyaltyImpact       @default(NONE) @map("loyalty_impact")
     isActive       Boolean             @default(true) @map("is_active")
     createdBy      String?             @map("created_by") @db.Uuid
     createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz
@@ -1487,6 +1552,8 @@ model Violation {
     points          Int
     fineAmount      Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
     status          ViolationStatus     @default(ACTIVE)
+    source          ViolationSource     @default(MANUAL)
+    uniqueKey       String?             @unique @map("unique_key")
     adminNotes      String?             @map("admin_notes")
     orderId         String?             @map("order_id") @db.Uuid
     issuedBy        String?             @map("issued_by") @db.Uuid
@@ -1609,6 +1676,30 @@ model AdminActivityLog {
     @@index([adminId])
     @@index([createdAt])
     @@map("admin_activity_logs")
+}
+
+model LoyaltyReviewAlert {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String                @map("user_id") @db.Uuid
+  triggeredByType  LoyaltyReviewTrigger  @map("triggered_by_type")
+  triggeredById    String?               @map("triggered_by_id") @db.Uuid
+  reasonAr         String                @map("reason_ar") @db.Text
+  reasonEn         String                @map("reason_en") @db.Text
+  status           LoyaltyReviewStatus   @default(PENDING_REVIEW)
+  decidedBy        String?               @map("decided_by") @db.Uuid
+  decidedAt        DateTime?             @map("decided_at") @db.Timestamptz
+  adminNotes       String?               @map("admin_notes") @db.Text
+  metadata         Json?                 @default("{}")
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user     User  @relation("LoyaltyReviewTarget", fields: [userId], references: [id], onDelete: Cascade)
+  decider  User? @relation("LoyaltyReviewDecider", fields: [decidedBy], references: [id])
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@index([triggeredByType, triggeredById])
+  @@map("loyalty_review_alerts")
 }
 
 model CustomerRiskAlert {

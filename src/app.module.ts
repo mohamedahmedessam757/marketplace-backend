@@ -23,6 +23,7 @@ import { WaybillsModule } from './waybills/waybills.module';
 import { ShipmentsModule } from './shipments/shipments.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
+import { MerchantPerformanceModule } from './merchant-performance/merchant-performance.module';
 import { StripeModule } from './stripe/stripe.module';
 import { ViolationsModule } from './violations/violations.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
@@ -58,6 +59,7 @@ import { MaintenanceGuard } from './platform-settings/maintenance.guard';
         ShipmentsModule,
         ReviewsModule,
         LoyaltyModule,
+        MerchantPerformanceModule,
         StripeModule,
         ViolationsModule,
         PlatformSettingsModule,

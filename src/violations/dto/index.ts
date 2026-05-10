@@ -7,3 +7,5 @@ export * from './create-penalty-threshold.dto';
 export * from './update-penalty-threshold.dto';
 export * from './review-penalty.dto';
 export * from './resolve-risk-alert.dto';
+export * from './decide-loyalty-alert.dto';
+export * from './drop-violation.dto';

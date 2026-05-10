@@ -4,7 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { OrderStateMachine } from '../orders/fsm/order-state-machine.service';
 import { OrdersService } from '../orders/orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { OrderStatus, ActorType } from '@prisma/client';
+import { OrderStatus, ActorType, ViolationTargetType } from '@prisma/client';
+import { ViolationsService } from '../violations/violations.service';
 
 @Injectable()
 export class OrderCleanupService {
@@ -15,6 +16,7 @@ export class OrderCleanupService {
         private readonly orderStateMachine: OrderStateMachine,
         private readonly ordersService: OrdersService,
         private readonly notificationsService: NotificationsService,
+        private readonly violationsService: ViolationsService,
     ) { }
 
     // Run every 1 minute to check for expired orders for near real-time expirations
@@ -164,6 +166,24 @@ export class OrderCleanupService {
 
                         for (const offer of order.offers) {
                             if (offer.storeId) {
+                                // 2026 Auto-Violation: 7-day no-prep auto-cancel
+                                const store = await this.prisma.store.findUnique({
+                                    where: { id: offer.storeId },
+                                    select: { id: true, ownerId: true },
+                                });
+                                if (store) {
+                                    await this.violationsService.autoIssue({
+                                        code: 'LATE_PREPARATION_AUTO_CANCEL',
+                                        targetUserId: store.ownerId,
+                                        targetStoreId: store.id,
+                                        targetType: ViolationTargetType.MERCHANT,
+                                        orderId: order.id,
+                                        reason: `Order #${order.orderNumber} auto-cancelled after 7 days without preparation.`,
+                                        metadata: { orderNumber: order.orderNumber },
+                                        dedupSuffix: store.id,
+                                    });
+                                }
+
                                 await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
                                     titleAr: 'مخالفة: إلغاء طلب لتأخر التجهيز', titleEn: 'Violation: Cancelled for Delay',
                                     messageAr: `تم إلغاء الطلب #${order.orderNumber} وتسجيل مخالفة تأخير لعدم التزامكم بالمهلة القصوى (7 أيام).`,
@@ -350,6 +370,16 @@ export class OrderCleanupService {
                     'System: Payment period expired after 24 hours',
                 );
 
+                // 2026 Auto-Violation: Customer accepted offer but failed to pay
+                await this.violationsService.autoIssue({
+                    code: 'ACCEPT_OFFER_NO_PAYMENT',
+                    targetUserId: order.customerId,
+                    targetType: ViolationTargetType.CUSTOMER,
+                    orderId: order.id,
+                    reason: `Customer accepted offer for order #${order.orderNumber} but did not pay within 24h.`,
+                    metadata: { orderNumber: order.orderNumber },
+                });
+
                 // Notify Customer
                 await this.notificationsService.create({
                     recipientId: order.customerId,
@@ -492,6 +522,24 @@ export class OrderCleanupService {
 
                 for (const offer of order.offers) {
                     if (offer.storeId) {
+                        // 2026 Auto-Violation: 48h+24h SLA breach
+                        const store = await this.prisma.store.findUnique({
+                            where: { id: offer.storeId },
+                            select: { id: true, ownerId: true },
+                        });
+                        if (store) {
+                            await this.violationsService.autoIssue({
+                                code: 'LATE_SHIPPING',
+                                targetUserId: store.ownerId,
+                                targetStoreId: store.id,
+                                targetType: ViolationTargetType.MERCHANT,
+                                orderId: order.id,
+                                reason: `Merchant exceeded the 48h+24h preparation SLA on order #${order.orderNumber}.`,
+                                metadata: { orderNumber: order.orderNumber },
+                                dedupSuffix: store.id,
+                            });
+                        }
+
                         await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
                             titleAr: 'مخالفة نظام: تم إلغاء الطلب لتأخر التجهيز',
                             titleEn: 'System Violation: Cancelled for Delay',
@@ -586,6 +634,23 @@ export class OrderCleanupService {
 
                 // Notify Merchant
                 if (order.storeId) {
+                    // 2026 Auto-Violation: missed 48h correction window
+                    const store = await this.prisma.store.findUnique({
+                        where: { id: order.storeId },
+                        select: { id: true, ownerId: true },
+                    });
+                    if (store) {
+                        await this.violationsService.autoIssue({
+                            code: 'LATE_CORRECTION',
+                            targetUserId: store.ownerId,
+                            targetStoreId: store.id,
+                            targetType: ViolationTargetType.MERCHANT,
+                            orderId: order.id,
+                            reason: `Merchant did not provide corrected verification within 48h on order #${order.orderNumber}.`,
+                            metadata: { orderNumber: order.orderNumber },
+                        });
+                    }
+
                     await this.notificationsService.notifyMerchantByStoreId(order.storeId, {
                         titleAr: 'إلغاء الطلب: انتهاء مهلة التصحيح', titleEn: 'Order Cancelled: Correction Timeout',
                         messageAr: `تم إلغاء الطلب #${order.orderNumber} لعدم رفعك التوثيق المصحح خلال 48 ساعة. سيتم إرجاع المبلغ للعميل وتطبيق مخالفة.`,

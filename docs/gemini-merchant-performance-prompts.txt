@@ -1,0 +1,32 @@
+Gemini 3 Flash (Antigravity) — Merchant Performance / Loyalty UI prompts (2026)
+Run each prompt in order; after each chunk, wire API responses exactly as typed.
+
+Shared context for all prompts:
+- Stack: React + Vite + existing design system (GlassCard, wallet/loyalty styling, RTL Arabic + English via LanguageContext).
+- Auth: merchant JWT; storeId from GET /stores/me or from dashboard context.
+- APIs:
+  * GET /merchant-performance/me — full dashboard payload (tier, performanceScore, subscription, violationPoints, benefitsByTier, progressToNext, thresholds, referralCode, etc.)
+  * GET /loyalty/referrals — same shape as customer ReferralHistoryCard (referees, earnings, window).
+  * Existing violations list endpoints used by merchant ViolationsPage (reuse).
+- Realtime:
+  * Socket.IO namespace /loyalty, event joinLoyalty with { targetId: storeId, role: 'VENDOR' }, listen loyaltyUpdated (tier, performanceScore, violationPoints, lifetimeEarnings, …).
+  * Supabase: postgres_changes on public.stores WHERE id = storeId (after migration enables publication).
+- Do not hardcode tier names only in English; use i18n keys or bilingual strings like the rest of the app.
+
+--- PROMPT A — Page shell & layout ---
+Create a new merchant dashboard route (e.g. merchant/performance or merchant/levels) titled "التقييم والمستوى" / "Rating & Performance Level". Match visual language of MerchantWallet and customer RewardsPage: dark theme, gold accents, RTL, responsive (mobile-first grid → desktop). Structure: header with current tier badge, overall rating, progress toward next tier using progressToNext from GET /merchant-performance/me. No placeholder lorem; use API fields only.
+
+--- PROMPT B — Benefits table ---
+Add a section "مزايا المستويات" / "Level benefits". Render benefitsByTier from the API as a comparison table: columns for tier (BASIC, SILVER, GOLD, VIP, ELITE) and rows for each benefit line (ar + en per benefit object). Highlight the row/column for the current loyaltyTier.
+
+--- PROMPT C — Violations & performance points ---
+Add card "نقاط المخالفات والأداء" / "Violations & performance points". Show violationPoints, violationLimits.freezeAt (50) and suspendAt (80) as read-only guidance. Table: reuse the same violation history component or fetch as merchant ViolationsPage; ensure dates and negative point styling match customer loyalty aesthetic. Show performanceScore as gauge (0–100).
+
+--- PROMPT D — Referral history block ---
+Clone the UX of Frontend/components/dashboard/rewards/ReferralHistoryCard.tsx for the merchant: same columns (friend, registered, orders, earned, window), call GET /loyalty/referrals with the vendor JWT (referrer is store owner). Empty states bilingual.
+
+--- PROMPT E — Realtime wiring ---
+In the new page useEffect: init Socket /loyalty joinLoyalty for VENDOR + storeId; subscribe Supabase channel on stores; on change refetch GET /merchant-performance/me. Cleanup disconnect on unmount (pattern from RewardsPage). Ensure no duplicate channels.
+
+--- PROMPT F — Admin subscription fields (optional UI) ---
+If building admin tools: PATCH /stores/:id/subscription with body { subscriptionTier: 'NONE'|'STANDARD'|'PREMIUM', subscriptionActive: boolean, subscriptionExpiresAt?: ISO string | null }. After success, show toast; merchant tier will update on next recalc (immediate if backend calls recalculate — it does).

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
@@ -6,13 +6,16 @@ import { CreateRatingImpactRuleDto, UpdateRatingImpactRuleDto } from './dto/rati
 import { NotificationsService } from '../notifications/notifications.service';
 
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { MerchantPerformanceService } from '../merchant-performance/merchant-performance.service';
 
 @Injectable()
 export class ReviewsService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
-    private auditLogs: AuditLogsService
+    private auditLogs: AuditLogsService,
+    @Inject(forwardRef(() => MerchantPerformanceService))
+    private readonly merchantPerformance: MerchantPerformanceService,
   ) {}
 
   async create(customerId: string, createReviewDto: CreateReviewDto) {
@@ -120,7 +123,8 @@ export class ReviewsService {
     // 5. Notify Merchant if Published
     if (updateDto.status === 'PUBLISHED') {
       await this.updateStoreRating(updatedReview.storeId);
-      
+      await this.merchantPerformance.recalculateAndPersist(updatedReview.storeId);
+
       // 6. Evaluate Rating Impact (2026 Standard: Automatic Rule Processing)
       await this.evaluateRatingImpact(updatedReview.storeId);
 

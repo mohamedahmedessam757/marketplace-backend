@@ -6,7 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { UserRole, StoreStatus } from '@prisma/client';
+import { UserRole, StoreStatus, StoreSubscriptionTier } from '@prisma/client';
 
 @Controller('stores')
 @UseGuards(JwtAuthGuard)
@@ -69,6 +69,22 @@ export class StoresController {
         @Body() body: { notes: string }
     ) {
         return this.storesService.updateAdminNotes(req.user.id, id, body.notes);
+    }
+
+    @Patch(':id/subscription')
+    @UseGuards(PermissionsGuard)
+    @Permissions('users', 'edit')
+    adminUpdateSubscription(
+        @Request() req,
+        @Param('id') id: string,
+        @Body()
+        body: {
+            subscriptionTier?: StoreSubscriptionTier;
+            subscriptionActive?: boolean;
+            subscriptionExpiresAt?: string | null;
+        },
+    ) {
+        return this.storesService.adminUpdateSubscription(req.user.id, id, body);
     }
 
     @Patch(':id/documents/:docType/status')

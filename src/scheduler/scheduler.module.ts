@@ -12,6 +12,9 @@ import { SecurityMaintenanceService } from './security-maintenance.service';
 import { WarrantyExpirationService } from './warranty-expiration.service';
 import { WithdrawalReminderService } from './withdrawal-reminder.service';
 import { MerchantGovernanceService } from './merchant-governance.service';
+import { MerchantPerformanceModule } from '../merchant-performance/merchant-performance.module';
+import { MerchantPerformanceCronService } from '../merchant-performance/merchant-performance-cron.service';
+import { ViolationsModule } from '../violations/violations.module';
 
 @Module({
     imports: [
@@ -19,7 +22,9 @@ import { MerchantGovernanceService } from './merchant-governance.service';
         PrismaModule,
         OrdersModule,
         NotificationsModule,
-        PaymentsModule
+        PaymentsModule,
+        MerchantPerformanceModule,
+        ViolationsModule,
     ],
     providers: [
         OrderCleanupService, 
@@ -29,7 +34,8 @@ import { MerchantGovernanceService } from './merchant-governance.service';
         SecurityMaintenanceService,
         WarrantyExpirationService,
         WithdrawalReminderService,
-        MerchantGovernanceService
+        MerchantGovernanceService,
+        MerchantPerformanceCronService,
     ],
 })
 export class SchedulerModule { }

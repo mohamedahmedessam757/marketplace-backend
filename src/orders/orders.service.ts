@@ -4,7 +4,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStateMachine } from './fsm/order-state-machine.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ActorType, Order, OrderStatus, Prisma } from '@prisma/client';
+import { ActorType, Order, OrderStatus, Prisma, StoreLoyaltyTier } from '@prisma/client';
 import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 
 import { ChatService } from '../chat/chat.service';
@@ -367,8 +367,17 @@ export class OrdersService {
                 offers: {
                     orderBy: { createdAt: 'asc' },
                     include: {
-                        store: { select: { id: true, name: true, storeCode: true, logo: true } }
-                    }
+                        store: {
+                            select: {
+                                id: true,
+                                name: true,
+                                storeCode: true,
+                                logo: true,
+                                loyaltyTier: true,
+                                rating: true,
+                            },
+                        },
+                    },
                 },
                 invoices: { 
                     orderBy: { issuedAt: 'desc' }
@@ -407,7 +416,26 @@ export class OrdersService {
                 if (order._count) order._count.offers = order.offers.length;
             }
         }
-        
+
+        // Customer offer ranking: tier (desc) → rating (desc) → unit price (asc)
+        if (user.role === 'CUSTOMER' && order.offers?.length) {
+            const rank: Record<StoreLoyaltyTier, number> = {
+                BASIC: 1,
+                SILVER: 2,
+                GOLD: 3,
+                VIP: 4,
+                ELITE: 5,
+            };
+            order.offers = [...order.offers].sort((a, b) => {
+                const ta = rank[(a as any).store?.loyaltyTier as StoreLoyaltyTier] ?? 0;
+                const tb = rank[(b as any).store?.loyaltyTier as StoreLoyaltyTier] ?? 0;
+                if (tb !== ta) return tb - ta;
+                const ra = Number((b as any).store?.rating ?? 0) - Number((a as any).store?.rating ?? 0);
+                if (ra !== 0) return ra;
+                return Number((a as any).unitPrice) - Number((b as any).unitPrice);
+            });
+        }
+
         return order;
     }
 
