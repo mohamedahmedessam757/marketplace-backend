@@ -26,10 +26,16 @@ export class MaintenanceGuard implements CanActivate {
 
     if (!isMaintenance) return true;
 
-    // 2. Allow Admins to bypass maintenance to allow disabling it
     const user = request.user;
-    if (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.role === 'SUPPORT')) {
-      return true;
+    if (user?.id) {
+      const dbUser = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { role: true },
+      });
+      const r = (dbUser?.role || user.role || '').toString().toUpperCase();
+      if (r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPPORT') {
+        return true;
+      }
     }
 
     // 3. Block all other operations during maintenance

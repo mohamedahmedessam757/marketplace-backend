@@ -55,6 +55,9 @@ export class PaymentsController {
     }
 
     @Get('customer/wallet')
+    getCustomerWallet(@Request() req) {
+        return this.paymentsService.getCustomerWallet(req.user.id);
+    }
 
     @Get('customer/transactions')
     getCustomerTransactions(@Request() req) {

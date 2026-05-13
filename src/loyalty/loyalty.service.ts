@@ -51,8 +51,9 @@ export class LoyaltyService {
         data: {
           loyaltyPoints: 0,
           loyaltyTier: 'BASIC' as LoyaltyTier,
+          pointsLastResetAt: new Date(),
         },
-        select: { id: true, loyaltyTier: true, loyaltyPoints: true, customerBalance: true },
+        select: { id: true, loyaltyTier: true, loyaltyPoints: true, customerBalance: true, pointsLastResetAt: true },
       });
 
       await this.auditLogs.logAction(
@@ -77,6 +78,7 @@ export class LoyaltyService {
       tier: updated.loyaltyTier,
       loyaltyPoints: updated.loyaltyPoints,
       customerBalance: Number(updated.customerBalance),
+      pointsLastResetAt: updated.pointsLastResetAt,
       cancelled: true,
     });
 
@@ -448,6 +450,7 @@ export class LoyaltyService {
           referralCount: true,
           referralCode: true,
           customerBalance: true,
+          pointsLastResetAt: true,
         }
       });
 
@@ -458,6 +461,7 @@ export class LoyaltyService {
           loyaltyPoints: 0,
           referralCount: 0,
           referralCode: null,
+          pointsLastResetAt: new Date(),
           submittedReviews: []
         };
       }
@@ -488,6 +492,7 @@ export class LoyaltyService {
           loyaltyPoints: 0,
           referralCount: 0,
           referralCode: null,
+          pointsLastResetAt: new Date(),
           submittedReviews: []
       };
     }

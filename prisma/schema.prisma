@@ -142,10 +142,9 @@ model User {
   verificationReviews     VerificationDocument[]
   invoices                Invoice[]
 
-
-  adminNotes       String?           @map("admin_notes") @db.Text
-  suspendedUntil   DateTime?         @map("suspended_until") @db.Timestamptz
-  suspendReason    String?           @map("suspend_reason") @db.Text
+  adminNotes     String?   @map("admin_notes") @db.Text
+  suspendedUntil DateTime? @map("suspended_until") @db.Timestamptz
+  suspendReason  String?   @map("suspend_reason") @db.Text
 
   shippingWaybills ShippingWaybill[]
 
@@ -165,16 +164,17 @@ model User {
   stripeCustomerId    String? @map("stripe_customer_id")
 
   // Loyalty & Referral System
-  customerBalance Decimal     @default(0) @map("customer_balance") @db.Decimal(14, 2)
-  loyaltyTier     LoyaltyTier @default(BASIC) @map("loyalty_tier")
-  totalSpent      Decimal     @default(0) @map("total_spent") @db.Decimal(14, 2)
-  loyaltyPoints   Int         @default(0) @map("loyalty_points")
-  referralCount   Int         @default(0) @map("referral_count")
-  referralCode    String?     @unique @map("referral_code")
-  referredById    String?     @map("referred_by_id") @db.Uuid
-  referralStartsAt DateTime?  @map("referral_starts_at") @db.Timestamptz
-  referredBy      User?       @relation("ReferralHistory", fields: [referredById], references: [id])
-  referredUsers   User[]      @relation("ReferralHistory")
+  customerBalance   Decimal     @default(0) @map("customer_balance") @db.Decimal(14, 2)
+  loyaltyTier       LoyaltyTier @default(BASIC) @map("loyalty_tier")
+  pointsLastResetAt DateTime?   @default(now()) @map("points_last_reset_at")
+  totalSpent        Decimal     @default(0) @map("total_spent") @db.Decimal(14, 2)
+  loyaltyPoints     Int         @default(0) @map("loyalty_points")
+  referralCount     Int         @default(0) @map("referral_count")
+  referralCode      String?     @unique @map("referral_code")
+  referredById      String?     @map("referred_by_id") @db.Uuid
+  referralStartsAt  DateTime?   @map("referral_starts_at") @db.Timestamptz
+  referredBy        User?       @relation("ReferralHistory", fields: [referredById], references: [id])
+  referredUsers     User[]      @relation("ReferralHistory")
 
   withdrawalRequests WithdrawalRequest[]
   walletTransactions WalletTransaction[]
@@ -187,35 +187,35 @@ model User {
   changedShipmentStatuses ShipmentStatusLog[]
 
   // Violations & Penalties
-  violationScore     Int                @default(0) @map("violation_score")
-  violations         Violation[]        @relation("TargetUser")
-  issuedViolations   Violation[]        @relation("Issuer")
-  violationAppeals   ViolationAppeal[]
-  reviewedAppeals    ViolationAppeal[]  @relation("AppealReviewer")
-  penaltyActions     PenaltyAction[]    @relation("TargetUser")
-  approvedPenalties  PenaltyAction[]    @relation("PenaltyApprover")
-  scoreLogs          ViolationScoreLog[]
+  violationScore        Int                 @default(0) @map("violation_score")
+  violations            Violation[]         @relation("TargetUser")
+  issuedViolations      Violation[]         @relation("Issuer")
+  violationAppeals      ViolationAppeal[]
+  reviewedAppeals       ViolationAppeal[]   @relation("AppealReviewer")
+  penaltyActions        PenaltyAction[]     @relation("TargetUser")
+  approvedPenalties     PenaltyAction[]     @relation("PenaltyApprover")
+  scoreLogs             ViolationScoreLog[]
   createdViolationTypes ViolationType[]
-  caseMessages       CaseMessage[]
-  adminActivityLogs  AdminActivityLog[]
+  caseMessages          CaseMessage[]
+  adminActivityLogs     AdminActivityLog[]
 
   // Customer Return Risk Tracking (2026)
-  totalDeliveredOrders     Int                @default(0) @map("total_delivered_orders")
-  totalReturnDisputeOrders Int                @default(0) @map("total_return_dispute_orders")
-  cachedReturnRate         Decimal            @default(0) @map("cached_return_rate") @db.Decimal(5, 4)
+  totalDeliveredOrders     Int                 @default(0) @map("total_delivered_orders")
+  totalReturnDisputeOrders Int                 @default(0) @map("total_return_dispute_orders")
+  cachedReturnRate         Decimal             @default(0) @map("cached_return_rate") @db.Decimal(5, 4)
   riskAlerts               CustomerRiskAlert[] @relation("TargetUser")
   reviewedRiskAlerts       CustomerRiskAlert[] @relation("RiskReviewer")
 
-  loyaltyReviewAlerts      LoyaltyReviewAlert[] @relation("LoyaltyReviewTarget")
-  decidedLoyaltyAlerts     LoyaltyReviewAlert[] @relation("LoyaltyReviewDecider")
+  loyaltyReviewAlerts  LoyaltyReviewAlert[] @relation("LoyaltyReviewTarget")
+  decidedLoyaltyAlerts LoyaltyReviewAlert[] @relation("LoyaltyReviewDecider")
 
   // Advanced Restrictions (2026)
-  withdrawalsFrozen        Boolean   @default(false) @map("withdrawals_frozen")
-  withdrawalFreezeNote     String?   @map("withdrawal_freeze_note") @db.Text
-  withdrawalFreezeSignature String?  @map("withdrawal_freeze_signature") @db.Text
-  orderLimit               Int       @default(-1) @map("order_limit")
-  dailyOrderCount          Int       @default(0) @map("daily_order_count")
-  restrictionAlertMessage  String?   @map("restriction_alert_message") @db.Text
+  withdrawalsFrozen         Boolean @default(false) @map("withdrawals_frozen")
+  withdrawalFreezeNote      String? @map("withdrawal_freeze_note") @db.Text
+  withdrawalFreezeSignature String? @map("withdrawal_freeze_signature") @db.Text
+  orderLimit                Int     @default(-1) @map("order_limit")
+  dailyOrderCount           Int     @default(0) @map("daily_order_count")
+  restrictionAlertMessage   String? @map("restriction_alert_message") @db.Text
 
   @@map("users")
 }
@@ -270,13 +270,13 @@ model Store {
   payoutSchedule  String      @default("MANUAL") @map("payout_schedule")
 
   // Bank Transfer Details
-  bankName              String?  @map("bank_name")
-  bankAccountHolder     String?  @map("bank_account_holder")
-  bankIban              String?  @map("bank_iban")
-  bankSwift             String?  @map("bank_swift")
-  bankDetailsVerified   Boolean  @default(false) @map("bank_details_verified")
-  rating          Decimal     @default(0) @db.Decimal(3, 2)
-  rejectionReason String?     @map("rejection_reason")
+  bankName            String? @map("bank_name")
+  bankAccountHolder   String? @map("bank_account_holder")
+  bankIban            String? @map("bank_iban")
+  bankSwift           String? @map("bank_swift")
+  bankDetailsVerified Boolean @default(false) @map("bank_details_verified")
+  rating              Decimal @default(0) @db.Decimal(3, 2)
+  rejectionReason     String? @map("rejection_reason")
 
   // Loyalty & Reputation System
   loyaltyTier      StoreLoyaltyTier @default(BASIC) @map("loyalty_tier")
@@ -284,9 +284,9 @@ model Store {
   lifetimeEarnings Decimal          @default(0) @map("lifetime_earnings") @db.Decimal(14, 2)
 
   // Merchant subscription (admin / future billing)
-  subscriptionTier     StoreSubscriptionTier @default(NONE) @map("subscription_tier")
-  subscriptionActive   Boolean               @default(false) @map("subscription_active")
-  subscriptionExpiresAt DateTime?            @map("subscription_expires_at") @db.Timestamptz
+  subscriptionTier      StoreSubscriptionTier @default(NONE) @map("subscription_tier")
+  subscriptionActive    Boolean               @default(false) @map("subscription_active")
+  subscriptionExpiresAt DateTime?             @map("subscription_expires_at") @db.Timestamptz
 
   // Performance metrics (merchant levels v1)
   completedOrdersCount Int     @default(0) @map("completed_orders_count")
@@ -328,23 +328,23 @@ model Store {
   withdrawalRequests    WithdrawalRequest[]
 
   // Violations & Penalties
-  violations        Violation[]
-  penaltyActions    PenaltyAction[]
-  returns           ReturnRequest[]
-  disputes          Dispute[]
+  violations     Violation[]
+  penaltyActions PenaltyAction[]
+  returns        ReturnRequest[]
+  disputes       Dispute[]
 
   // Advanced Restrictions (2026)
-  offerLimit           Int       @default(-1) @map("offer_limit")
-  dailyOfferCount      Int       @default(0) @map("daily_offer_count")
-  visibilityRestricted Boolean   @default(false) @map("visibility_restricted")
-  visibilityNote       String?   @map("visibility_note") @db.Text
-  visibilitySignature  String?   @map("visibility_signature") @db.Text
-  visibilityRate       Int       @default(100) @map("visibility_rate")
+  offerLimit           Int     @default(-1) @map("offer_limit")
+  dailyOfferCount      Int     @default(0) @map("daily_offer_count")
+  visibilityRestricted Boolean @default(false) @map("visibility_restricted")
+  visibilityNote       String? @map("visibility_note") @db.Text
+  visibilitySignature  String? @map("visibility_signature") @db.Text
+  visibilityRate       Int     @default(100) @map("visibility_rate")
 
   // Governance Stats (2026)
-  totalOffersSent      Int       @default(0) @map("total_offers_sent")
-  editCount            Int       @default(0) @map("edit_count")
-  withdrawalCount      Int       @default(0) @map("withdrawal_count")
+  totalOffersSent Int @default(0) @map("total_offers_sent")
+  editCount       Int @default(0) @map("edit_count")
+  withdrawalCount Int @default(0) @map("withdrawal_count")
 
   @@index([status])
   @@index([suspendedUntil])
@@ -443,7 +443,7 @@ model Order {
   escrowTransactions    EscrowTransaction[]
 
   // Violations & Penalties
-  violations            Violation[]
+  violations Violation[]
 
   @@index([customerId])
   @@index([storeId])
@@ -506,25 +506,25 @@ model Offer {
   orderPartId String? @map("order_part_id") @db.Uuid
   storeId     String  @map("store_id") @db.Uuid
 
-  unitPrice        Decimal @map("unit_price") @db.Decimal(14, 2)
-  weightKg         Decimal @map("weight_kg") @db.Decimal(8, 2)
-  shippingCost     Decimal @default(0) @map("shipping_cost") @db.Decimal(14, 2)
-  hasWarranty      Boolean @default(false) @map("has_warranty")
-  warrantyDuration String? @map("warranty_duration")
-  deliveryDays     String? @map("delivery_days")
+  unitPrice        Decimal   @map("unit_price") @db.Decimal(14, 2)
+  weightKg         Decimal   @map("weight_kg") @db.Decimal(8, 2)
+  shippingCost     Decimal   @default(0) @map("shipping_cost") @db.Decimal(14, 2)
+  hasWarranty      Boolean   @default(false) @map("has_warranty")
+  warrantyDuration String?   @map("warranty_duration")
+  deliveryDays     String?   @map("delivery_days")
   condition        String?
-  partType         String? @map("part_type")
+  partType         String?   @map("part_type")
   notes            String?
-  offerImage       String? @map("offer_image")
-  cylinders        Int?    @map("cylinders")
-  status           String  @default("pending") // pending | accepted | rejected | withdrawn
+  offerImage       String?   @map("offer_image")
+  cylinders        Int?      @map("cylinders")
+  status           String    @default("pending") // pending | accepted | rejected | withdrawn
   canEditUntil     DateTime? @map("can_edit_until") @db.Timestamptz
-  isWithdrawn      Boolean @default(false) @map("is_withdrawn")
+  isWithdrawn      Boolean   @default(false) @map("is_withdrawn")
 
   // Partial Shipping from Assembly Cart (2026)
   shippedFromCart   Boolean   @default(false) @map("shipped_from_cart")
   shippedFromCartAt DateTime? @map("shipped_from_cart_at") @db.Timestamptz
-  cartShipmentId   String?   @map("cart_shipment_id") @db.Uuid
+  cartShipmentId    String?   @map("cart_shipment_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -657,19 +657,19 @@ model ReturnRequest {
   evidenceFiles Json    @default("[]") @map("evidence_files")
 
   // 2026 Enhanced Fields
-  usageCondition   String?   @map("usage_condition") // UNUSED | OPENED | INSTALLED
-  returnType       String    @default("REFUND") @map("return_type") // REFUND | EXCHANGE
-  storeId          String?   @map("store_id") @db.Uuid
-  invoiceId        String?   @map("invoice_id") @db.Uuid
-  shipmentId       String?   @map("shipment_id") @db.Uuid
-  returnWaybillId  String?   @map("return_waybill_id") @db.Uuid
-  handoverDeadline DateTime? @map("handover_deadline") @db.Timestamptz
-  merchantEvidence Json      @default("[]") @map("merchant_evidence")
-  merchantResponseText String? @map("merchant_response_text")
-  merchantDecision String? @map("merchant_decision") // APPROVE | REJECT
+  usageCondition       String?   @map("usage_condition") // UNUSED | OPENED | INSTALLED
+  returnType           String    @default("REFUND") @map("return_type") // REFUND | EXCHANGE
+  storeId              String?   @map("store_id") @db.Uuid
+  invoiceId            String?   @map("invoice_id") @db.Uuid
+  shipmentId           String?   @map("shipment_id") @db.Uuid
+  returnWaybillId      String?   @map("return_waybill_id") @db.Uuid
+  handoverDeadline     DateTime? @map("handover_deadline") @db.Timestamptz
+  merchantEvidence     Json      @default("[]") @map("merchant_evidence")
+  merchantResponseText String?   @map("merchant_response_text")
+  merchantDecision     String?   @map("merchant_decision") // APPROVE | REJECT
 
   // Phase 4 Governance
-  verdictNotes String? @map("verdict_notes")
+  verdictNotes        String?   @map("verdict_notes")
   adminApproval       String?   @map("admin_approval")
   adminApprovalReason String?   @map("admin_approval_reason") @db.Text
   adminEvidence       Json      @default("[]") @map("admin_evidence")
@@ -680,33 +680,33 @@ model ReturnRequest {
   verdictLocked       Boolean   @default(false) @map("verdict_locked")
 
   // Phase 4 Governance Extensions (Spec §15)
-  faultParty      String?   @map("fault_party")
-  refundAmount    Decimal?  @map("refund_amount") @db.Decimal(14, 2)
-  shippingRefund  Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
-  stripeFee       Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
+  faultParty     String?  @map("fault_party")
+  refundAmount   Decimal? @map("refund_amount") @db.Decimal(14, 2)
+  shippingRefund Decimal? @map("shipping_refund") @db.Decimal(14, 2)
+  stripeFee      Decimal? @map("stripe_fee") @db.Decimal(14, 2)
 
   // 2026 Financial Fee Enforcement
-  gatewayFeePct     Decimal?  @default(3.00) @map("gateway_fee_pct") @db.Decimal(5, 2)
-  refundFeePct      Decimal?  @default(1.50) @map("refund_fee_pct") @db.Decimal(5, 2)
-  gatewayFeeAmount  Decimal?  @default(0) @map("gateway_fee_amount") @db.Decimal(14, 2)
-  refundFeeAmount   Decimal?  @default(0) @map("refund_fee_amount") @db.Decimal(14, 2)
-  shippingRoundtrip Decimal?  @default(0) @map("shipping_roundtrip") @db.Decimal(14, 2)
-  penaltyAmount     Decimal?  @default(0) @map("penalty_amount") @db.Decimal(14, 2)
-  penaltyType       String?   @map("penalty_type")
-  netRefundAmount   Decimal?  @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
+  gatewayFeePct     Decimal? @default(3.00) @map("gateway_fee_pct") @db.Decimal(5, 2)
+  refundFeePct      Decimal? @default(1.50) @map("refund_fee_pct") @db.Decimal(5, 2)
+  gatewayFeeAmount  Decimal? @default(0) @map("gateway_fee_amount") @db.Decimal(14, 2)
+  refundFeeAmount   Decimal? @default(0) @map("refund_fee_amount") @db.Decimal(14, 2)
+  shippingRoundtrip Decimal? @default(0) @map("shipping_roundtrip") @db.Decimal(14, 2)
+  penaltyAmount     Decimal? @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  penaltyType       String?  @map("penalty_type")
+  netRefundAmount   Decimal? @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
 
   // Shipping Payment Tracking (Phase 1)
-  shippingPayee         String?   @map("shipping_payee")
-  shippingPaymentStatus String?   @default("PENDING") @map("shipping_payment_status")
-  shippingPaymentMethod String?   @map("shipping_payment_method")
-  shippingStripeId      String?   @map("shipping_stripe_id")
-  isAttachmentsEnabled  Boolean   @default(true) @map("is_attachments_enabled")
+  shippingPayee         String? @map("shipping_payee")
+  shippingPaymentStatus String? @default("PENDING") @map("shipping_payment_status")
+  shippingPaymentMethod String? @map("shipping_payment_method")
+  shippingStripeId      String? @map("shipping_stripe_id")
+  isAttachmentsEnabled  Boolean @default(true) @map("is_attachments_enabled")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  customer User  @relation(fields: [customerId], references: [id])
-  order    Order @relation(fields: [orderId], references: [id])
+  customer User   @relation(fields: [customerId], references: [id])
+  order    Order  @relation(fields: [orderId], references: [id])
   store    Store? @relation(fields: [storeId], references: [id])
   offer    Offer? @relation(fields: [offerId], references: [id])
 
@@ -726,53 +726,53 @@ model Dispute {
   evidenceFiles Json    @default("[]") @map("evidence_files")
 
   // 2026 Enhanced Fields
-  usageCondition   String? @map("usage_condition") // UNUSED | OPENED | INSTALLED
-  storeId          String? @map("store_id") @db.Uuid
+  usageCondition String? @map("usage_condition") // UNUSED | OPENED | INSTALLED
+  storeId        String? @map("store_id") @db.Uuid
 
-  invoiceId        String? @map("invoice_id") @db.Uuid
-  shipmentId       String? @map("shipment_id") @db.Uuid
-  merchantEvidence Json    @default("[]") @map("merchant_evidence")
+  invoiceId            String? @map("invoice_id") @db.Uuid
+  shipmentId           String? @map("shipment_id") @db.Uuid
+  merchantEvidence     Json    @default("[]") @map("merchant_evidence")
   merchantResponseText String? @map("merchant_response_text")
-  merchantDecision String? @map("merchant_decision") // APPROVE | REJECT
+  merchantDecision     String? @map("merchant_decision") // APPROVE | REJECT
 
   // Phase 4 Governance
-  faultParty      String?   @map("fault_party")
-  refundAmount    Decimal?  @map("refund_amount") @db.Decimal(14, 2)
-  shippingRefund  Decimal?  @map("shipping_refund") @db.Decimal(14, 2)
-  stripeFee       Decimal?  @map("stripe_fee") @db.Decimal(14, 2)
+  faultParty     String?  @map("fault_party")
+  refundAmount   Decimal? @map("refund_amount") @db.Decimal(14, 2)
+  shippingRefund Decimal? @map("shipping_refund") @db.Decimal(14, 2)
+  stripeFee      Decimal? @map("stripe_fee") @db.Decimal(14, 2)
 
   // 2026 Financial Fee Enforcement
-  gatewayFeePct     Decimal?  @default(3.00) @map("gateway_fee_pct") @db.Decimal(5, 2)
-  refundFeePct      Decimal?  @default(1.50) @map("refund_fee_pct") @db.Decimal(5, 2)
-  gatewayFeeAmount  Decimal?  @default(0) @map("gateway_fee_amount") @db.Decimal(14, 2)
-  refundFeeAmount   Decimal?  @default(0) @map("refund_fee_amount") @db.Decimal(14, 2)
-  shippingRoundtrip Decimal?  @default(0) @map("shipping_roundtrip") @db.Decimal(14, 2)
-  penaltyAmount     Decimal?  @default(0) @map("penalty_amount") @db.Decimal(14, 2)
-  penaltyType       String?   @map("penalty_type")
-  netRefundAmount   Decimal?  @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
+  gatewayFeePct     Decimal? @default(3.00) @map("gateway_fee_pct") @db.Decimal(5, 2)
+  refundFeePct      Decimal? @default(1.50) @map("refund_fee_pct") @db.Decimal(5, 2)
+  gatewayFeeAmount  Decimal? @default(0) @map("gateway_fee_amount") @db.Decimal(14, 2)
+  refundFeeAmount   Decimal? @default(0) @map("refund_fee_amount") @db.Decimal(14, 2)
+  shippingRoundtrip Decimal? @default(0) @map("shipping_roundtrip") @db.Decimal(14, 2)
+  penaltyAmount     Decimal? @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  penaltyType       String?  @map("penalty_type")
+  netRefundAmount   Decimal? @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
 
   // Shipping Payment Tracking (Phase 1)
-  shippingPayee         String?   @map("shipping_payee")
-  shippingPaymentStatus String?   @default("PENDING") @map("shipping_payment_status")
-  shippingPaymentMethod String?   @map("shipping_payment_method")
-  shippingStripeId      String?   @map("shipping_stripe_id")
-  isAttachmentsEnabled  Boolean   @default(true) @map("is_attachments_enabled")
+  shippingPayee         String? @map("shipping_payee")
+  shippingPaymentStatus String? @default("PENDING") @map("shipping_payment_status")
+  shippingPaymentMethod String? @map("shipping_payment_method")
+  shippingStripeId      String? @map("shipping_stripe_id")
+  isAttachmentsEnabled  Boolean @default(true) @map("is_attachments_enabled")
 
-  verdictNotes    String?   @map("verdict_notes")
+  verdictNotes        String?   @map("verdict_notes")
   adminApproval       String?   @map("admin_approval")
   adminApprovalReason String?   @map("admin_approval_reason") @db.Text
   adminEvidence       Json      @default("[]") @map("admin_evidence")
   adminName           String?   @map("admin_name")
   adminEmail          String?   @map("admin_email")
   adminSignature      String?   @map("admin_signature") @db.Text
-  verdictIssuedAt DateTime? @map("verdict_issued_at") @db.Timestamptz
-  verdictLocked   Boolean   @default(false) @map("verdict_locked")
+  verdictIssuedAt     DateTime? @map("verdict_issued_at") @db.Timestamptz
+  verdictLocked       Boolean   @default(false) @map("verdict_locked")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
-  customer User  @relation(fields: [customerId], references: [id])
-  order    Order @relation(fields: [orderId], references: [id])
+  customer User   @relation(fields: [customerId], references: [id])
+  order    Order  @relation(fields: [orderId], references: [id])
   store    Store? @relation(fields: [storeId], references: [id])
   offer    Offer? @relation(fields: [offerId], references: [id])
 
@@ -810,18 +810,18 @@ model OrderChat {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
-  
+
   adminInitReason String? @map("admin_init_reason") @db.Text
   category        String? @default("OTHER")
-  
-  guestName       String? @map("guest_name")
-  guestEmail      String? @map("guest_email")
-  guestPhone      String? @map("guest_phone")
-  source          String  @default("DASHBOARD")
+
+  guestName  String? @map("guest_name")
+  guestEmail String? @map("guest_email")
+  guestPhone String? @map("guest_phone")
+  source     String  @default("DASHBOARD")
 
   // Administrative Control (2026 Enhancement)
-  isDeletedByAdmin Boolean   @default(false) @map("is_deleted_by_admin")
-  adminJoinedAt    DateTime? @map("admin_joined_at") @db.Timestamptz
+  isDeletedByAdmin     Boolean   @default(false) @map("is_deleted_by_admin")
+  adminJoinedAt        DateTime? @map("admin_joined_at") @db.Timestamptz
   isAttachmentsEnabled Boolean   @default(true) @map("is_attachments_enabled")
 
   messages OrderChatMessage[]
@@ -829,7 +829,7 @@ model OrderChat {
   // Relations
   order    Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
   vendor   Store? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  customer User?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer User?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   // Modified uniqueness constraints to allow multiple support chats per order
   @@unique([orderId, vendorId, type])
@@ -856,8 +856,8 @@ model OrderChatMessage {
   // Administrative Moderation (2026 Enhancement)
   isDeletedByAdmin Boolean @default(false) @map("is_deleted_by_admin")
 
-  priority String? @map("priority")
-  subject  String? @map("subject")
+  priority   String? @map("priority")
+  subject    String? @map("subject")
   senderRole String? @map("sender_role")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -998,18 +998,18 @@ model PaymentTransaction {
   paidAt    DateTime? @map("paid_at") @db.Timestamptz
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  order    Order @relation(fields: [orderId], references: [id])
-  offer    Offer @relation(fields: [offerId], references: [id])
-  customer User  @relation(fields: [customerId], references: [id])
+  order              Order               @relation(fields: [orderId], references: [id])
+  offer              Offer               @relation(fields: [offerId], references: [id])
+  customer           User                @relation(fields: [customerId], references: [id])
   walletTransactions WalletTransaction[]
-  escrow           EscrowTransaction?
+  escrow             EscrowTransaction?
 
-  @@unique([offerId])                     // Prevent duplicate payments at DB level — race-condition safe
+  @@unique([offerId]) // Prevent duplicate payments at DB level — race-condition safe
   @@index([orderId])
   @@index([customerId])
   @@index([status])
-  @@index([status, createdAt])            // Phase 5: composite — status + date for KPI aggregations
-  @@index([createdAt])                    // Phase 5: date-range queries
+  @@index([status, createdAt]) // Phase 5: composite — status + date for KPI aggregations
+  @@index([createdAt]) // Phase 5: date-range queries
   @@map("payment_transactions")
 }
 
@@ -1030,17 +1030,17 @@ model WalletTransaction {
 
   payment PaymentTransaction? @relation(fields: [paymentId], references: [id])
   escrow  EscrowTransaction?  @relation(fields: [escrowId], references: [id])
-  user    User               @relation(fields: [userId], references: [id])
+  user    User                @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([userId])
   @@index([paymentId])
-  @@index([role])                         // Phase 5: admin financial filter by role
-  @@index([transactionType])              // Phase 5: admin financial filter by type
-  @@index([createdAt])                    // Phase 5: date-range queries
-  @@index([role, createdAt])              // Phase 5: composite — role + date
-  @@index([transactionType, createdAt])   // Phase 5: composite — type + date
+  @@index([role]) // Phase 5: admin financial filter by role
+  @@index([transactionType]) // Phase 5: admin financial filter by type
+  @@index([createdAt]) // Phase 5: date-range queries
+  @@index([role, createdAt]) // Phase 5: composite — role + date
+  @@index([transactionType, createdAt]) // Phase 5: composite — type + date
   @@map("wallet_transactions")
 }
 
@@ -1104,16 +1104,16 @@ model Invoice {
 }
 
 model UserCard {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  last4          String
-  brand          String   @default("visa")
-  expiryMonth    Int      @map("expiry_month")
-  expiryYear     Int      @map("expiry_year")
-  cardHolderName String?  @map("card_holder_name")
-  isDefault      Boolean  @default(false) @map("is_default")
-  stripePaymentMethodId String? @map("stripe_payment_method_id")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String   @map("user_id") @db.Uuid
+  last4                 String
+  brand                 String   @default("visa")
+  expiryMonth           Int      @map("expiry_month")
+  expiryYear            Int      @map("expiry_year")
+  cardHolderName        String?  @map("card_holder_name")
+  isDefault             Boolean  @default(false) @map("is_default")
+  stripePaymentMethodId String?  @map("stripe_payment_method_id")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1170,37 +1170,37 @@ model ContractAcceptance {
 }
 
 model ShippingWaybill {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  waybillNumber    String   @unique @map("waybill_number")
-  orderId          String   @map("order_id") @db.Uuid
-  partId           String?  @map("part_id") @db.Uuid
-  storeId          String   @map("store_id") @db.Uuid
-  storeName        String   @map("store_name")
-  storeCode        String   @map("store_code")
-  recipientName    String   @map("recipient_name")
-  recipientPhone   String?  @map("recipient_phone")
-  recipientEmail   String?  @map("recipient_email")
-  recipientCity    String?  @map("recipient_city")
-  recipientCountry String?  @map("recipient_country")
-  recipientAddress String?  @map("recipient_address")
-  customerCode     String?  @map("customer_code")
-  partName         String   @map("part_name")
-  partDescription  String?  @map("part_description")
-  finalPrice       Decimal  @map("final_price") @db.Decimal(14, 2)
-  currency         String   @default("AED")
-  
-  // 2026 Enhanced Logistics Metadata
-  senderName       String?  @map("sender_name")
-  senderPhone      String?  @map("sender_phone")
-  senderAddress    String?  @map("sender_address")
-  senderCity       String?  @map("sender_city")
-  senderCountry    String?  @map("sender_country")
-  shippingRefund   Decimal? @map("shipping_refund") @db.Decimal(14, 2) // Round-trip Cost
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  waybillNumber    String  @unique @map("waybill_number")
+  orderId          String  @map("order_id") @db.Uuid
+  partId           String? @map("part_id") @db.Uuid
+  storeId          String  @map("store_id") @db.Uuid
+  storeName        String  @map("store_name")
+  storeCode        String  @map("store_code")
+  recipientName    String  @map("recipient_name")
+  recipientPhone   String? @map("recipient_phone")
+  recipientEmail   String? @map("recipient_email")
+  recipientCity    String? @map("recipient_city")
+  recipientCountry String? @map("recipient_country")
+  recipientAddress String? @map("recipient_address")
+  customerCode     String? @map("customer_code")
+  partName         String  @map("part_name")
+  partDescription  String? @map("part_description")
+  finalPrice       Decimal @map("final_price") @db.Decimal(14, 2)
+  currency         String  @default("AED")
 
-  issuedBy         String?  @map("issued_by") @db.Uuid
-  issuedAt         DateTime @default(now()) @map("issued_at") @db.Timestamptz
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  // 2026 Enhanced Logistics Metadata
+  senderName     String?  @map("sender_name")
+  senderPhone    String?  @map("sender_phone")
+  senderAddress  String?  @map("sender_address")
+  senderCity     String?  @map("sender_city")
+  senderCountry  String?  @map("sender_country")
+  shippingRefund Decimal? @map("shipping_refund") @db.Decimal(14, 2) // Round-trip Cost
+
+  issuedBy  String?  @map("issued_by") @db.Uuid
+  issuedAt  DateTime @default(now()) @map("issued_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderPart OrderPart? @relation(fields: [partId], references: [id], onDelete: SetNull)
@@ -1250,7 +1250,7 @@ enum ShipmentStatus {
   EXCHANGE_COMPLETED
   IN_TRANSIT_TO_CUSTOMER
   RETURN_COMPLETED_TO_CUSTOMER
-  
+
   // Legacy/Internal states
   RETURN_TO_SENDER_INITIATED
   RETURNED_TO_SENDER
@@ -1413,7 +1413,7 @@ model VehicleMake {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  models    VehicleModel[]
+  models VehicleModel[]
 
   @@map("vehicle_makes")
 }
@@ -1427,7 +1427,7 @@ model VehicleModel {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  make      VehicleMake @relation(fields: [makeId], references: [id], onDelete: Cascade)
+  make VehicleMake @relation(fields: [makeId], references: [id], onDelete: Cascade)
 
   @@unique([makeId, name])
   @@map("vehicle_models")
@@ -1520,181 +1520,181 @@ enum PenaltyActionStatus {
 }
 
 model ViolationType {
-    id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    code           String?             @unique
-    nameAr         String              @map("name_ar")
-    nameEn         String              @map("name_en")
-    descriptionAr  String?             @map("description_ar")
-    descriptionEn  String?             @map("description_en")
-    targetType     ViolationTargetType @map("target_type")
-    points         Int                 @default(0)
-    fineAmount     Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
-    decayDays      Int                 @default(30) @map("decay_days")
-    severity       ViolationSeverity   @default(NORMAL)
-    loyaltyImpact  LoyaltyImpact       @default(NONE) @map("loyalty_impact")
-    isActive       Boolean             @default(true) @map("is_active")
-    createdBy      String?             @map("created_by") @db.Uuid
-    createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz
-    updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String?             @unique
+  nameAr        String              @map("name_ar")
+  nameEn        String              @map("name_en")
+  descriptionAr String?             @map("description_ar")
+  descriptionEn String?             @map("description_en")
+  targetType    ViolationTargetType @map("target_type")
+  points        Int                 @default(0)
+  fineAmount    Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
+  decayDays     Int                 @default(30) @map("decay_days")
+  severity      ViolationSeverity   @default(NORMAL)
+  loyaltyImpact LoyaltyImpact       @default(NONE) @map("loyalty_impact")
+  isActive      Boolean             @default(true) @map("is_active")
+  createdBy     String?             @map("created_by") @db.Uuid
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-    creator        User?               @relation(fields: [createdBy], references: [id])
-    violations     Violation[]
+  creator    User?       @relation(fields: [createdBy], references: [id])
+  violations Violation[]
 
-    @@map("violation_types")
+  @@map("violation_types")
 }
 
 model Violation {
-    id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    typeId          String              @map("type_id") @db.Uuid
-    targetUserId    String              @map("target_user_id") @db.Uuid
-    targetStoreId   String?             @map("target_store_id") @db.Uuid
-    targetType      ViolationTargetType @map("target_type")
-    points          Int
-    fineAmount      Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
-    status          ViolationStatus     @default(ACTIVE)
-    source          ViolationSource     @default(MANUAL)
-    uniqueKey       String?             @unique @map("unique_key")
-    adminNotes      String?             @map("admin_notes")
-    orderId         String?             @map("order_id") @db.Uuid
-    issuedBy        String?             @map("issued_by") @db.Uuid
-    decayAt         DateTime?           @map("decay_at") @db.Timestamptz
-    createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
-    updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  typeId        String              @map("type_id") @db.Uuid
+  targetUserId  String              @map("target_user_id") @db.Uuid
+  targetStoreId String?             @map("target_store_id") @db.Uuid
+  targetType    ViolationTargetType @map("target_type")
+  points        Int
+  fineAmount    Decimal             @default(0) @map("fine_amount") @db.Decimal(14, 2)
+  status        ViolationStatus     @default(ACTIVE)
+  source        ViolationSource     @default(MANUAL)
+  uniqueKey     String?             @unique @map("unique_key")
+  adminNotes    String?             @map("admin_notes")
+  orderId       String?             @map("order_id") @db.Uuid
+  issuedBy      String?             @map("issued_by") @db.Uuid
+  decayAt       DateTime?           @map("decay_at") @db.Timestamptz
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-    type            ViolationType       @relation(fields: [typeId], references: [id])
-    targetUser      User                @relation("TargetUser", fields: [targetUserId], references: [id])
-    targetStore     Store?              @relation(fields: [targetStoreId], references: [id])
-    order           Order?              @relation(fields: [orderId], references: [id])
-    issuer          User?               @relation("Issuer", fields: [issuedBy], references: [id])
-    appeals         ViolationAppeal[]
-    scoreLogs       ViolationScoreLog[]
+  type        ViolationType       @relation(fields: [typeId], references: [id])
+  targetUser  User                @relation("TargetUser", fields: [targetUserId], references: [id])
+  targetStore Store?              @relation(fields: [targetStoreId], references: [id])
+  order       Order?              @relation(fields: [orderId], references: [id])
+  issuer      User?               @relation("Issuer", fields: [issuedBy], references: [id])
+  appeals     ViolationAppeal[]
+  scoreLogs   ViolationScoreLog[]
 
-    @@index([targetUserId])
-    @@index([targetStoreId])
-    @@index([status])
-    @@index([decayAt])
-    @@map("violations")
+  @@index([targetUserId])
+  @@index([targetStoreId])
+  @@index([status])
+  @@index([decayAt])
+  @@map("violations")
 }
 
 model ViolationAppeal {
-    id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    violationId      String       @map("violation_id") @db.Uuid
-    userId           String       @map("user_id") @db.Uuid
-    reason           String
-    description      String?
-    evidenceUrls     Json?        @default("[]") @map("evidence_urls")
-    status           AppealStatus @default(PENDING)
-    adminResponse    String?      @map("admin_response")
-    reviewedBy       String?      @map("reviewed_by") @db.Uuid
-    reviewedAt       DateTime?    @map("reviewed_at") @db.Timestamptz
-    createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
-    updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  violationId   String       @map("violation_id") @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  reason        String
+  description   String?
+  evidenceUrls  Json?        @default("[]") @map("evidence_urls")
+  status        AppealStatus @default(PENDING)
+  adminResponse String?      @map("admin_response")
+  reviewedBy    String?      @map("reviewed_by") @db.Uuid
+  reviewedAt    DateTime?    @map("reviewed_at") @db.Timestamptz
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-    violation        Violation    @relation(fields: [violationId], references: [id])
-    user             User         @relation(fields: [userId], references: [id])
-    reviewer         User?        @relation("AppealReviewer", fields: [reviewedBy], references: [id])
+  violation Violation @relation(fields: [violationId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+  reviewer  User?     @relation("AppealReviewer", fields: [reviewedBy], references: [id])
 
-    @@index([status])
-    @@map("violation_appeals")
+  @@index([status])
+  @@map("violation_appeals")
 }
 
 model PenaltyThreshold {
-    id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    nameAr              String            @map("name_ar")
-    nameEn              String            @map("name_en")
-    targetType          ViolationTargetType @map("target_type")
-    thresholdPoints     Int               @map("threshold_points")
-    action              PenaltyActionType
-    suspendDurationDays Int?              @map("suspend_duration_days")
-    isActive            Boolean           @default(true) @map("is_active")
-    createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
-    updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameAr              String              @map("name_ar")
+  nameEn              String              @map("name_en")
+  targetType          ViolationTargetType @map("target_type")
+  thresholdPoints     Int                 @map("threshold_points")
+  action              PenaltyActionType
+  suspendDurationDays Int?                @map("suspend_duration_days")
+  isActive            Boolean             @default(true) @map("is_active")
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-    actions             PenaltyAction[]
+  actions PenaltyAction[]
 
-    @@map("penalty_thresholds")
+  @@map("penalty_thresholds")
 }
 
 model PenaltyAction {
-    id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    targetUserId    String              @map("target_user_id") @db.Uuid
-    targetStoreId   String?             @map("target_store_id") @db.Uuid
-    targetType      ViolationTargetType @map("target_type")
-    thresholdId     String?             @map("threshold_id") @db.Uuid
-    action          PenaltyActionType
-    status          PenaltyActionStatus @default(PENDING_APPROVAL)
-    adminNotes      String?             @map("admin_notes")
-    approvedBy      String?             @map("approved_by") @db.Uuid
-    approvedAt      DateTime?           @map("approved_at") @db.Timestamptz
-    executedAt      DateTime?           @map("executed_at") @db.Timestamptz
-    expiresAt       DateTime?           @map("expires_at") @db.Timestamptz
-    createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
-    updatedAt       DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  targetUserId  String              @map("target_user_id") @db.Uuid
+  targetStoreId String?             @map("target_store_id") @db.Uuid
+  targetType    ViolationTargetType @map("target_type")
+  thresholdId   String?             @map("threshold_id") @db.Uuid
+  action        PenaltyActionType
+  status        PenaltyActionStatus @default(PENDING_APPROVAL)
+  adminNotes    String?             @map("admin_notes")
+  approvedBy    String?             @map("approved_by") @db.Uuid
+  approvedAt    DateTime?           @map("approved_at") @db.Timestamptz
+  executedAt    DateTime?           @map("executed_at") @db.Timestamptz
+  expiresAt     DateTime?           @map("expires_at") @db.Timestamptz
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-    targetUser      User                @relation("TargetUser", fields: [targetUserId], references: [id])
-    targetStore     Store?              @relation(fields: [targetStoreId], references: [id])
-    threshold       PenaltyThreshold?   @relation(fields: [thresholdId], references: [id])
-    approver        User?               @relation("PenaltyApprover", fields: [approvedBy], references: [id])
+  targetUser  User              @relation("TargetUser", fields: [targetUserId], references: [id])
+  targetStore Store?            @relation(fields: [targetStoreId], references: [id])
+  threshold   PenaltyThreshold? @relation(fields: [thresholdId], references: [id])
+  approver    User?             @relation("PenaltyApprover", fields: [approvedBy], references: [id])
 
-    @@index([status])
-    @@map("penalty_actions")
+  @@index([status])
+  @@map("penalty_actions")
 }
 
 model ViolationScoreLog {
-    id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    targetUserId    String              @map("target_user_id") @db.Uuid
-    targetType      ViolationTargetType @map("target_type")
-    previousScore   Int                 @map("previous_score")
-    newScore        Int                 @map("new_score")
-    changeAmount    Int                 @map("change_amount")
-    reason          String?
-    violationId     String?             @map("violation_id") @db.Uuid
-    createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  targetUserId  String              @map("target_user_id") @db.Uuid
+  targetType    ViolationTargetType @map("target_type")
+  previousScore Int                 @map("previous_score")
+  newScore      Int                 @map("new_score")
+  changeAmount  Int                 @map("change_amount")
+  reason        String?
+  violationId   String?             @map("violation_id") @db.Uuid
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
 
-    targetUser      User                @relation(fields: [targetUserId], references: [id])
-    violation       Violation?          @relation(fields: [violationId], references: [id])
+  targetUser User       @relation(fields: [targetUserId], references: [id])
+  violation  Violation? @relation(fields: [violationId], references: [id])
 
-    @@index([targetUserId])
-    @@map("violation_score_logs")
+  @@index([targetUserId])
+  @@map("violation_score_logs")
 }
 
 model AdminActivityLog {
-    id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-    adminId    String?  @map("admin_id") @db.Uuid
-    email      String?
-    action     String
-    ipAddress  String?  @map("ip_address")
-    userAgent  String?  @map("user_agent")
-    deviceType String?  @map("device_type")
-    browser    String?  
-    location   String?
-    metadata   Json?    @default("{}")
-    createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId    String?  @map("admin_id") @db.Uuid
+  email      String?
+  action     String
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  deviceType String?  @map("device_type")
+  browser    String?
+  location   String?
+  metadata   Json?    @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-    admin      User?    @relation(fields: [adminId], references: [id])
+  admin User? @relation(fields: [adminId], references: [id])
 
-    @@index([adminId])
-    @@index([createdAt])
-    @@map("admin_activity_logs")
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("admin_activity_logs")
 }
 
 model LoyaltyReviewAlert {
-  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String                @map("user_id") @db.Uuid
-  triggeredByType  LoyaltyReviewTrigger  @map("triggered_by_type")
-  triggeredById    String?               @map("triggered_by_id") @db.Uuid
-  reasonAr         String                @map("reason_ar") @db.Text
-  reasonEn         String                @map("reason_en") @db.Text
-  status           LoyaltyReviewStatus   @default(PENDING_REVIEW)
-  decidedBy        String?               @map("decided_by") @db.Uuid
-  decidedAt        DateTime?             @map("decided_at") @db.Timestamptz
-  adminNotes       String?               @map("admin_notes") @db.Text
-  metadata         Json?                 @default("{}")
-  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String               @map("user_id") @db.Uuid
+  triggeredByType LoyaltyReviewTrigger @map("triggered_by_type")
+  triggeredById   String?              @map("triggered_by_id") @db.Uuid
+  reasonAr        String               @map("reason_ar") @db.Text
+  reasonEn        String               @map("reason_en") @db.Text
+  status          LoyaltyReviewStatus  @default(PENDING_REVIEW)
+  decidedBy       String?              @map("decided_by") @db.Uuid
+  decidedAt       DateTime?            @map("decided_at") @db.Timestamptz
+  adminNotes      String?              @map("admin_notes") @db.Text
+  metadata        Json?                @default("{}")
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  user     User  @relation("LoyaltyReviewTarget", fields: [userId], references: [id], onDelete: Cascade)
-  decider  User? @relation("LoyaltyReviewDecider", fields: [decidedBy], references: [id])
+  user    User  @relation("LoyaltyReviewTarget", fields: [userId], references: [id], onDelete: Cascade)
+  decider User? @relation("LoyaltyReviewDecider", fields: [decidedBy], references: [id])
 
   @@index([status, createdAt])
   @@index([userId])
@@ -1703,17 +1703,17 @@ model LoyaltyReviewAlert {
 }
 
 model CustomerRiskAlert {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  returnRate     Decimal  @map("return_rate") @db.Decimal(5, 4)
-  deliveredCount Int      @map("delivered_count")
-  negativeCount  Int      @map("negative_count")
-  status         String   @default("PENDING_REVIEW") // PENDING_REVIEW, DISMISSED, VIOLATION_ISSUED
-  adminNotes     String?  @map("admin_notes") @db.Text
-  reviewedBy     String?  @map("reviewed_by") @db.Uuid
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  returnRate     Decimal   @map("return_rate") @db.Decimal(5, 4)
+  deliveredCount Int       @map("delivered_count")
+  negativeCount  Int       @map("negative_count")
+  status         String    @default("PENDING_REVIEW") // PENDING_REVIEW, DISMISSED, VIOLATION_ISSUED
+  adminNotes     String?   @map("admin_notes") @db.Text
+  reviewedBy     String?   @map("reviewed_by") @db.Uuid
   reviewedAt     DateTime? @map("reviewed_at") @db.Timestamptz
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz
 
   user     User  @relation("TargetUser", fields: [userId], references: [id], onDelete: Cascade)
   reviewer User? @relation("RiskReviewer", fields: [reviewedBy], references: [id])

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -34,6 +35,9 @@ import { MaintenanceGuard } from './platform-settings/maintenance.guard';
 
 @Module({
     imports: [
+        ThrottlerModule.forRoot([
+            { name: 'short', ttl: 60_000, limit: 150 },
+        ]),
         ConfigModule.forRoot({
             isGlobal: true,
         }),
@@ -68,10 +72,8 @@ import { MaintenanceGuard } from './platform-settings/maintenance.guard';
     ],
     controllers: [AppController],
     providers: [
-        {
-            provide: APP_GUARD,
-            useClass: MaintenanceGuard,
-        },
+        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        { provide: APP_GUARD, useClass: MaintenanceGuard },
     ],
 })
 export class AppModule { }

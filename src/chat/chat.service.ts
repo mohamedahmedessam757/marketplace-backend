@@ -931,6 +931,31 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
         return 'OTHER';
     }
 
+    async userMayJoinChatRoom(chatId: string, userId: string): Promise<boolean> {
+        const chat = await this.prisma.orderChat.findUnique({
+            where: { id: chatId },
+            include: { vendor: { select: { ownerId: true } } },
+        });
+        if (!chat) return false;
+        if (chat.customerId === userId) return true;
+        if (chat.vendor?.ownerId === userId) return true;
+        const actor = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true },
+        });
+        const r = actor?.role?.toUpperCase();
+        return r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'SUPPORT';
+    }
+
+    async userMayJoinAdminGlobal(userId: string): Promise<boolean> {
+        const actor = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true },
+        });
+        const r = actor?.role?.toUpperCase();
+        return r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'SUPPORT';
+    }
+
     async getUserRiskProfile(userId: string) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },

@@ -6,9 +6,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChatGateway } from './chat.gateway';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { JwtAuthSharedModule } from '../auth/jwt-auth-shared.module';
 
 @Module({
-    imports: [NotificationsModule, AuditLogsModule],
+    imports: [JwtAuthSharedModule, NotificationsModule, AuditLogsModule],
     controllers: [ChatController, PublicChatController],
     providers: [ChatService, PrismaService, ChatGateway],
     exports: [ChatService, ChatGateway],

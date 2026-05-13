@@ -6,9 +6,11 @@ import { LoyaltyGateway } from './loyalty.gateway';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MerchantPerformanceModule } from '../merchant-performance/merchant-performance.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { JwtAuthSharedModule } from '../auth/jwt-auth-shared.module';
 
 @Module({
   imports: [
+    JwtAuthSharedModule,
     PrismaModule,
     NotificationsModule,
     AuditLogsModule,

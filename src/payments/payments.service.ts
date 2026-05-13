@@ -35,6 +35,10 @@ export class PaymentsService {
      * 7. Notifications
      */
     async processPayment(customerId: string, dto: ProcessPaymentDto) {
+        if (process.env.ALLOW_MOCK_PAYMENTS !== 'true') {
+            throw new ForbiddenException('Mock payment API is disabled. Use Stripe.');
+        }
+
         const { orderId, offerId, card } = dto;
 
         // 1. Fetch and validate order
@@ -585,6 +589,20 @@ export class PaymentsService {
             return;
         }
 
+        const stripeClient = this.stripeService.getStripeClient();
+        const intentSnapshot = await stripeClient.paymentIntents.retrieve(paymentIntentId);
+        const expectedMinor = Math.round(Number(payment.totalAmount) * 100);
+        if (
+            intentSnapshot.status === 'succeeded' &&
+            typeof intentSnapshot.amount_received === 'number' &&
+            intentSnapshot.amount_received !== expectedMinor
+        ) {
+            this.logger.error(
+                `Stripe amount mismatch for ${paymentIntentId}: expected ${expectedMinor}, received ${intentSnapshot.amount_received}`,
+            );
+            throw new Error('Stripe payment amount does not match recorded transaction');
+        }
+
         // 2. Atomic Database Transaction
         const result = await this.prisma.$transaction(async (tx) => {
             // Re-check status inside transaction to prevent race conditions
@@ -794,6 +812,37 @@ export class PaymentsService {
         });
     }
 
+    async handleStripeChargeRefunded(charge: {
+        payment_intent?: string | { id?: string } | null;
+        amount_refunded?: number;
+        amount?: number;
+    }) {
+        const piRaw = charge.payment_intent;
+        const piId = typeof piRaw === 'string' ? piRaw : piRaw?.id;
+        if (!piId || charge.amount_refunded == null || charge.amount == null) return;
+
+        const payment = await this.prisma.paymentTransaction.findFirst({
+            where: { stripePaymentId: piId },
+        });
+        if (!payment) {
+            this.logger.warn(`Refund webhook: no payment row for PI ${piId}`);
+            return;
+        }
+
+        const refundedMajor = charge.amount_refunded / 100;
+        const fullRefund = charge.amount_refunded >= charge.amount;
+
+        await this.prisma.paymentTransaction.update({
+            where: { id: payment.id },
+            data: {
+                refundedAmount: refundedMajor,
+                refundedAt: fullRefund ? new Date() : payment.refundedAt ?? new Date(),
+                refundReason: payment.refundReason || 'STRIPE_CHARGE_REFUNDED',
+                ...(fullRefund ? { status: 'REFUNDED' } : {}),
+            },
+        });
+    }
+
     /**
      * Get the current status of a payment for an offer.
      * Used by the frontend to verify status before/after Stripe redirection.
@@ -822,7 +871,28 @@ export class PaymentsService {
      * Phase 2: Fulfill Shipping Payment (Return/Dispute)
      */
     private async fulfillShippingPayment(intent: any) {
-        const { caseId, caseType } = intent.metadata;
+        const { caseId, caseType } = intent.metadata || {};
+        if (!caseId || !caseType) {
+            this.logger.warn('Shipping fulfillment missing case metadata');
+            return;
+        }
+
+        const caseBefore =
+            caseType === 'return'
+                ? await this.prisma.returnRequest.findUnique({ where: { id: caseId } })
+                : await this.prisma.dispute.findUnique({ where: { id: caseId } });
+        if (!caseBefore) {
+            this.logger.warn(`Shipping case record missing for ${caseId}`);
+            return;
+        }
+        const expectedMinor = Math.round(Number(caseBefore.shippingRefund || 0) * 100);
+        if (typeof intent.amount_received === 'number' && intent.amount_received !== expectedMinor) {
+            this.logger.error(
+                `Shipping PI ${intent.id} amount mismatch: expected ${expectedMinor}, got ${intent.amount_received}`,
+            );
+            throw new Error('Shipping payment amount mismatch');
+        }
+
         const modelName = caseType === 'return' ? 'returnRequest' : 'dispute';
 
         this.logger.log(`Fulfilling shipping payment for ${caseType} ${caseId}`);
@@ -2016,25 +2086,22 @@ export class PaymentsService {
                 this.logger.log(`Bank Transfer approved for request ${request.id} for ${request.role}`);
             }
 
-            // Audit Log (2026 Security compliance)
-            if (adminSignature) {
-                await this.auditLogs.logAction({
-                    entity: 'FINANCIAL',
-                    action: 'WITHDRAWAL_APPROVAL',
-                    actorType: ActorType.ADMIN,
-                    actorId: adminId,
-                    actorName: adminName,
-                    metadata: {
-                        requestId: request.id,
-                        amount: request.amount,
-                        method: methodToUse,
-                        note: notes,
-                        adminEmail,
-                        adminSignature,
-                        stripeTransferId: transferId
-                    }
-                }, tx);
-            }
+            await this.auditLogs.logAction({
+                entity: 'FINANCIAL',
+                action: 'WITHDRAWAL_APPROVAL',
+                actorType: ActorType.ADMIN,
+                actorId: adminId,
+                actorName: adminName,
+                metadata: {
+                    requestId: request.id,
+                    amount: request.amount,
+                    method: methodToUse,
+                    note: notes,
+                    adminEmail,
+                    adminSignature: adminSignature || null,
+                    stripeTransferId: transferId
+                }
+            }, tx);
 
             // 6. Update Request
             const updatedRequest = await tx.withdrawalRequest.update({
