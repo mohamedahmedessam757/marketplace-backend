@@ -122,7 +122,7 @@ export class AdminPermissionsService {
   async findAllAdmins() {
     return this.prisma.user.findMany({
       where: {
-        role: { in: [UserRole.ADMIN, UserRole.SUPPORT, UserRole.SUPER_ADMIN] }
+        role: { in: [UserRole.ADMIN, UserRole.SUPPORT, UserRole.SUPER_ADMIN, UserRole.VERIFICATION_OFFICER] }
       },
       include: {
         adminPermission: true

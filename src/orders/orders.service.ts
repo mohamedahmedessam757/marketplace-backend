@@ -1699,6 +1699,33 @@ export class OrdersService {
         }
 
         try {
+            const availableOfficer = await this.prisma.user.findFirst({
+                where: { role: 'VERIFICATION_OFFICER', status: 'ACTIVE' },
+                orderBy: { updatedAt: 'asc' },
+            });
+
+            const task = await this.prisma.verificationTask.create({
+                data: {
+                    orderId,
+                    officerId: availableOfficer?.id ?? null,
+                    status: availableOfficer ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
+                    assignedAt: availableOfficer ? new Date() : null,
+                },
+            });
+
+            if (availableOfficer) {
+                await this.notifications.create({
+                    recipientId: availableOfficer.id,
+                    recipientRole: 'VERIFICATION_OFFICER',
+                    type: 'system_alert',
+                    titleAr: 'مهمة مطابقة جديدة',
+                    titleEn: 'New verification task',
+                    messageAr: `تم إسناد مهمة مطابقة للطلب #${order.orderNumber} إليك.`,
+                    messageEn: `Verification task for order #${order.orderNumber} assigned to you.`,
+                    link: `/dashboard/verification-task-details/${task.id}`,
+                });
+            }
+
             const [doc] = await this.prisma.$transaction([
                 this.prisma.verificationDocument.create({
                     data: {
@@ -1717,7 +1744,7 @@ export class OrdersService {
                 }),
                 this.prisma.order.update({
                     where: { id: orderId },
-                    data: { status: OrderStatus.VERIFICATION, verificationSubmittedAt: new Date() }
+                    data: { status: OrderStatus.VERIFICATION, verificationSubmittedAt: new Date(), verificationTaskId: task.id }
                 })
             ]);
 
@@ -1758,12 +1785,21 @@ export class OrdersService {
         const latestDoc = order.verificationDocuments[0];
         if (!latestDoc) throw new NotFoundException('Verification document not found.');
 
-        // Support both action-based ('APPROVE'/'REJECT') and legacy status-based ('APPROVED') inputs
         const isApprove = data.action === 'APPROVE' || data.status === 'APPROVED' || data.approved === true;
         const decision = isApprove ? 'APPROVED' : 'REJECTED';
-        const newOrderStatus = decision === 'APPROVED' ? OrderStatus.VERIFICATION_SUCCESS : OrderStatus.NON_MATCHING;
         
-        const correctionDeadline = decision === 'REJECTED' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null;
+        let newOrderStatus: OrderStatus = decision === 'APPROVED' ? OrderStatus.VERIFICATION_SUCCESS : OrderStatus.NON_MATCHING;
+        let correctionDeadline = decision === 'REJECTED' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null;
+        let newRejectionCount = order.rejectionCount;
+
+        if (decision === 'REJECTED') {
+            newRejectionCount += 1;
+            if (newRejectionCount >= 2) {
+                // Cancel order and block further corrections
+                newOrderStatus = OrderStatus.CANCELLED;
+                correctionDeadline = null;
+            }
+        }
 
         await this.prisma.$transaction([
             this.prisma.verificationDocument.update({
@@ -1785,8 +1821,19 @@ export class OrdersService {
             }),
             this.prisma.order.update({
                 where: { id: orderId },
-                data: { status: newOrderStatus, correctionDeadlineAt: correctionDeadline }
-            })
+                data: { 
+                    status: newOrderStatus, 
+                    correctionDeadlineAt: correctionDeadline,
+                    rejectionCount: newRejectionCount
+                }
+            }),
+            // Sync with VerificationTask if it exists
+            ...(order.verificationTaskId ? [
+                this.prisma.verificationTask.update({
+                    where: { id: order.verificationTaskId },
+                    data: { status: decision === 'APPROVED' ? 'ADMIN_APPROVED' : 'ADMIN_REJECTED' }
+                })
+            ] : [])
         ]);
 
         await this.auditLogs.logAction({
@@ -1819,6 +1866,21 @@ export class OrdersService {
                         messageAr: `تم الموافقة على توثيق الطلب #${order.orderNumber}. يمكنك الآن تسليمه للمندوب ومتابعة الشحن.`,
                         messageEn: `Verification for #${order.orderNumber} approved. You can now handover to courier.`,
                         link: `/merchant/orders/${order.id}`
+                    });
+                } else if (newRejectionCount >= 2) {
+                    await this.notifications.create({
+                        recipientId: merchantUserId, recipientRole: 'MERCHANT', type: 'system_alert',
+                        titleAr: '❌ رفض نهائي وإلغاء الطلب', titleEn: '❌ Final Rejection & Order Cancelled',
+                        messageAr: `تم رفض مطابقة الطلب #${order.orderNumber} للمرة الثانية. تم إلغاء الطلب وسحب المبلغ.`,
+                        messageEn: `Order #${order.orderNumber} verification rejected twice. Order cancelled.`,
+                        link: `/merchant/orders/${order.id}`
+                    });
+                    await this.notifications.create({
+                        recipientId: order.customerId, recipientRole: 'CUSTOMER', type: 'system_alert',
+                        titleAr: '❌ إلغاء الطلب لعدم المطابقة', titleEn: '❌ Order Cancelled due to Non-Matching',
+                        messageAr: `تم إلغاء طلبك #${order.orderNumber} لعدم مطابقة القطعة من المتجر. سيتم استرجاع مبلغك قريباً.`,
+                        messageEn: `Your order #${order.orderNumber} was cancelled due to non-matching part. Refund will be processed soon.`,
+                        link: `/customer/orders/${order.id}`
                     });
                 } else {
                     await this.notifications.create({
@@ -1857,7 +1919,15 @@ export class OrdersService {
 
         const originalDoc = order.verificationDocuments[0];
 
-        const [doc] = await this.prisma.$transaction([
+        // Find previous verification task to link the cycle
+        const previousTask = await this.prisma.verificationTask.findFirst({
+            where: { orderId },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const newCycleNumber = previousTask ? previousTask.cycleNumber + 1 : 2;
+
+        const [doc, newTask] = await this.prisma.$transaction([
             this.prisma.verificationDocument.create({
                 data: {
                     orderId, storeId,
@@ -1874,11 +1944,24 @@ export class OrdersService {
                     handoverTime: data.handoverTime,
                 }
             }),
+            this.prisma.verificationTask.create({
+                data: {
+                    orderId,
+                    status: 'PENDING_ASSIGNMENT',
+                    cycleNumber: newCycleNumber,
+                    previousTaskId: previousTask?.id
+                }
+            }),
             this.prisma.order.update({
                 where: { id: orderId },
                 data: { status: OrderStatus.CORRECTION_SUBMITTED }
             })
         ]);
+
+        await this.prisma.order.update({
+            where: { id: orderId },
+            data: { verificationTaskId: newTask.id }
+        });
 
         await this.auditLogs.logAction({
             orderId, action: 'SUBMIT_CORRECTION', entity: 'Order',

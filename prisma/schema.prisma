@@ -14,6 +14,7 @@ enum UserRole {
   ADMIN
   SUPER_ADMIN
   SUPPORT
+  VERIFICATION_OFFICER
 
   @@map("user_role")
 }
@@ -141,6 +142,12 @@ model User {
   createdContracts        PlatformContract[]
   verificationReviews     VerificationDocument[]
   invoices                Invoice[]
+
+  // Verification Tasks (2026)
+  verificationTasksAssigned VerificationTask[]        @relation("VerificationTasksAssigned")
+  verificationTasksCreated  VerificationTask[]        @relation("VerificationTasksCreated")
+  verificationLinksCreated  VerificationLink[]        @relation("VerificationLinksCreated")
+  verificationActivityLogs  VerificationActivityLog[] @relation("VerificationOfficerLogs")
 
   adminNotes     String?   @map("admin_notes") @db.Text
   suspendedUntil DateTime? @map("suspended_until") @db.Timestamptz
@@ -437,6 +444,9 @@ model Order {
   shippingAddresses OrderShippingAddress[]
 
   // Verification
+  verificationTaskId    String?                @map("verification_task_id") @db.Uuid
+  rejectionCount        Int                    @default(0) @map("rejection_count")
+  verificationTasks     VerificationTask[]
   verificationDocuments VerificationDocument[]
   shippingWaybills      ShippingWaybill[]
   shipments             Shipment[]
@@ -1740,4 +1750,99 @@ model AdminPermission {
   updatedBy User? @relation("PermissionUpdater", fields: [updatedById], references: [id])
 
   @@map("admin_permissions")
+}
+
+model VerificationTask {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId      String  @map("order_id") @db.Uuid
+  officerId    String? @map("officer_id") @db.Uuid
+  assignedById String? @map("assigned_by") @db.Uuid
+  status       String  @default("PENDING_ASSIGNMENT")
+
+  assignedAt  DateTime? @map("assigned_at") @db.Timestamptz
+  startedAt   DateTime? @map("started_at") @db.Timestamptz
+  completedAt DateTime? @map("completed_at") @db.Timestamptz
+
+  startLat        Decimal? @map("start_lat") @db.Decimal(10, 8)
+  startLng        Decimal? @map("start_lng") @db.Decimal(11, 8)
+  startDeviceInfo Json?    @default("{}") @map("start_device_info")
+
+  endLat        Decimal? @map("end_lat") @db.Decimal(10, 8)
+  endLng        Decimal? @map("end_lng") @db.Decimal(11, 8)
+  endDeviceInfo Json?    @default("{}") @map("end_device_info")
+
+  decision       String? @map("decision")
+  decisionReason String? @map("decision_reason") @db.Text
+  officerPhotos  Json?   @default("[]") @map("officer_photos")
+  officerNotes   String? @map("officer_notes") @db.Text
+
+  reportUrl String? @map("report_url")
+
+  cycleNumber    Int     @default(1) @map("cycle_number")
+  previousTaskId String? @map("previous_task_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  order        Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  officer      User?                     @relation("VerificationTasksAssigned", fields: [officerId], references: [id])
+  assignedBy   User?                     @relation("VerificationTasksCreated", fields: [assignedById], references: [id])
+  previousTask VerificationTask?         @relation("TaskCycles", fields: [previousTaskId], references: [id])
+  nextTasks    VerificationTask[]        @relation("TaskCycles")
+  links        VerificationLink[]
+  activityLogs VerificationActivityLog[]
+
+  @@index([orderId])
+  @@index([officerId])
+  @@index([status])
+  @@map("verification_tasks")
+}
+
+model VerificationLink {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId           String    @map("task_id") @db.Uuid
+  token            String    @unique
+  qrCodeData       String?   @map("qr_code_data") @db.Text
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz
+  maxDurationHours Int       @default(24) @map("max_duration_hours")
+  isUsed           Boolean   @default(false) @map("is_used")
+  usedAt           DateTime? @map("used_at") @db.Timestamptz
+  isActive         Boolean   @default(true) @map("is_active")
+
+  openedAt      DateTime? @map("opened_at") @db.Timestamptz
+  otpVerifiedAt DateTime? @map("otp_verified_at") @db.Timestamptz
+  deviceInfo    Json?     @default("{}") @map("device_info")
+  ipAddress     String?   @map("ip_address")
+  gpsLat        Decimal?  @map("gps_lat") @db.Decimal(10, 8)
+  gpsLng        Decimal?  @map("gps_lng") @db.Decimal(11, 8)
+
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  task      VerificationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdBy User?            @relation("VerificationLinksCreated", fields: [createdById], references: [id])
+
+  @@index([token])
+  @@index([taskId])
+  @@map("verification_links")
+}
+
+model VerificationActivityLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId     String   @map("task_id") @db.Uuid
+  officerId  String?  @map("officer_id") @db.Uuid
+  action     String
+  gpsLat     Decimal? @map("gps_lat") @db.Decimal(10, 8)
+  gpsLng     Decimal? @map("gps_lng") @db.Decimal(11, 8)
+  deviceInfo Json?    @default("{}") @map("device_info")
+  ipAddress  String?  @map("ip_address")
+  metadata   Json?    @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  task    VerificationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  officer User?            @relation("VerificationOfficerLogs", fields: [officerId], references: [id])
+
+  @@index([taskId])
+  @@index([officerId])
+  @@map("verification_activity_logs")
 }

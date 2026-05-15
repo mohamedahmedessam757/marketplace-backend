@@ -74,9 +74,9 @@ export class AuthService {
                     }
                 });
 
-                // Fetch permissions for Admin/Support/SuperAdmin (2026 fix)
+                // Fetch permissions for Admin/Support/SuperAdmin/VerificationOfficer (2026 fix)
                 let permissions = null;
-                if (['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].includes(user.role)) {
+                if (['ADMIN', 'SUPPORT', 'SUPER_ADMIN', 'VERIFICATION_OFFICER'].includes(user.role)) {
                     permissions = await this.prisma.adminPermission.findUnique({
                         where: { userId: user.id }
                     });
@@ -104,7 +104,7 @@ export class AuthService {
         });
 
         // Log Admin Activity for 2026 Audit Standards
-        if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'SUPPORT') {
+        if (['ADMIN', 'SUPER_ADMIN', 'SUPPORT', 'VERIFICATION_OFFICER'].includes(user.role)) {
             const loginMetadata = {
                 os: osName,
                 fingerprint: fingerprint || 'none',
@@ -153,9 +153,9 @@ export class AuthService {
             });
         }
 
-        // Fetch permissions if Admin/Support/SuperAdmin
+        // Fetch permissions if Admin/Support/SuperAdmin/VerificationOfficer
         let permissions = null;
-        if (['ADMIN', 'SUPPORT', 'SUPER_ADMIN'].includes(user.role)) {
+        if (['ADMIN', 'SUPPORT', 'SUPER_ADMIN', 'VERIFICATION_OFFICER'].includes(user.role)) {
             permissions = await this.prisma.adminPermission.findUnique({
                 where: { userId: user.id }
             });
