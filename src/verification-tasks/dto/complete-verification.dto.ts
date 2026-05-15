@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, IsNumber, IsObject } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CompleteVerificationDto {
   @IsString()
@@ -13,6 +14,20 @@ export class CompleteVerificationDto {
   @IsArray()
   @IsOptional()
   photos?: string[];
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  lat?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  lng?: number;
+
+  @IsObject()
+  @IsOptional()
+  deviceInfo?: Record<string, unknown>;
 
   @IsString()
   @IsOptional()

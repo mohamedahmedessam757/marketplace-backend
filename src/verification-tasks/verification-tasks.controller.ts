@@ -1,8 +1,11 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, Req, Res, ForbiddenException, UseInterceptors, UploadedFiles, BadRequestException } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { VerificationTasksService } from './verification-tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { StartVerificationDto } from './dto/start-verification.dto';
 import { CompleteVerificationDto } from './dto/complete-verification.dto';
+import { AdminFieldReviewDto } from './dto/admin-field-review.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('verification-tasks')
@@ -20,10 +23,18 @@ export class VerificationTasksController {
 
   @Get('my-tasks')
   async getMyTasks(@Req() req: any) {
-    if (req.user.role !== 'VERIFICATION_OFFICER' && !['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
-      throw new ForbiddenException('Invalid role');
+    if (req.user.role !== 'VERIFICATION_OFFICER') {
+      throw new ForbiddenException('Only verification officers can list assigned tasks');
     }
     return this.tasksService.getMyTasks(req.user.id);
+  }
+
+  @Get('admin-queue')
+  async getAdminQueue(@Req() req: any) {
+    if (!['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(req.user.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+    return this.tasksService.getAdminQueue();
   }
 
   @Get('order/:orderId')
@@ -70,20 +81,42 @@ export class VerificationTasksController {
     return this.tasksService.activateLink(token, req.user.id);
   }
 
-  @Get(':id')
-  async getTaskDetails(@Param('id') taskId: string, @Req() req: any) {
-    if (req.user.role !== 'VERIFICATION_OFFICER' && !['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
-      throw new ForbiddenException('Invalid role');
-    }
-    return this.tasksService.getTaskDetails(taskId);
-  }
-
   @Get(':id/activity-log')
   async getActivityLog(@Param('id') taskId: string, @Req() req: any) {
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
-      throw new ForbiddenException('Only admins can view activity logs');
+    if (req.user.role !== 'VERIFICATION_OFFICER' && !['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(req.user.role)) {
+      throw new ForbiddenException('Invalid role');
     }
-    return this.tasksService.getActivityLog(taskId);
+    return this.tasksService.getActivityLog(taskId, req.user.id, req.user.role);
+  }
+
+  @Get(':id/report')
+  async verificationReport(@Param('id') taskId: string, @Req() req: any, @Res() res: Response) {
+    if (req.user.role !== 'VERIFICATION_OFFICER' && !['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(req.user.role)) {
+      throw new ForbiddenException('Invalid role');
+    }
+    const html = await this.tasksService.getVerificationReportHtml(taskId, req.user.id, req.user.role);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }
+
+  @Get(':id')
+  async getTaskDetails(@Param('id') taskId: string, @Req() req: any) {
+    if (req.user.role !== 'VERIFICATION_OFFICER' && !['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(req.user.role)) {
+      throw new ForbiddenException('Invalid role');
+    }
+    return this.tasksService.getTaskDetails(taskId, req.user.id, req.user.role);
+  }
+
+  @Post(':id/admin-review')
+  async adminReviewFieldVerification(
+    @Param('id') taskId: string,
+    @Body() dto: AdminFieldReviewDto,
+    @Req() req: any,
+  ) {
+    if (!['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(req.user.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+    return this.tasksService.adminReviewFieldVerification(taskId, req.user.id, dto);
   }
 
   @Post(':id/start')
@@ -96,6 +129,26 @@ export class VerificationTasksController {
       throw new ForbiddenException('Invalid role');
     }
     return this.tasksService.startVerification(taskId, req.user.id, dto);
+  }
+
+  @Post(':id/field-photos')
+  @UseInterceptors(
+    FilesInterceptor('files', 12, {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  async uploadFieldPhotosMultipart(
+    @Param('id') taskId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Req() req: any,
+  ) {
+    if (req.user.role !== 'VERIFICATION_OFFICER' && !['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      throw new ForbiddenException('Invalid role');
+    }
+    if (!files?.length) {
+      throw new BadRequestException('files[] required (multipart)');
+    }
+    return this.tasksService.uploadFieldPhotosToStorage(taskId, req.user.id, files);
   }
 
   @Post(':id/upload-photos')

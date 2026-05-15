@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
@@ -34,8 +35,21 @@ function isAllowedLocalDevOrigin(origin: string): boolean {
     }
 }
 
+function parseBodyLimitMb(): string {
+    const mb = Number(process.env.JSON_BODY_LIMIT_MB || '35');
+    if (!Number.isFinite(mb) || mb < 1) return '35mb';
+    return `${Math.min(mb, 100)}mb`;
+}
+
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule, { rawBody: true });
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+        rawBody: true,
+        bodyParser: false,
+    });
+
+    const bodyLimit = parseBodyLimitMb();
+    app.useBodyParser('json', { limit: bodyLimit });
+    app.useBodyParser('urlencoded', { extended: true, limit: bodyLimit });
 
     app.use(helmet());
 

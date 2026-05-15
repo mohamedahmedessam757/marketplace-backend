@@ -148,6 +148,7 @@ model User {
   verificationTasksCreated  VerificationTask[]        @relation("VerificationTasksCreated")
   verificationLinksCreated  VerificationLink[]        @relation("VerificationLinksCreated")
   verificationActivityLogs  VerificationActivityLog[] @relation("VerificationOfficerLogs")
+  verificationTaskPhotos    VerificationTaskPhoto[]   @relation("VerificationTaskPhotos")
 
   adminNotes     String?   @map("admin_notes") @db.Text
   suspendedUntil DateTime? @map("suspended_until") @db.Timestamptz
@@ -1790,12 +1791,31 @@ model VerificationTask {
   previousTask VerificationTask?         @relation("TaskCycles", fields: [previousTaskId], references: [id])
   nextTasks    VerificationTask[]        @relation("TaskCycles")
   links        VerificationLink[]
-  activityLogs VerificationActivityLog[]
+  activityLogs  VerificationActivityLog[]
+  fieldPhotos   VerificationTaskPhoto[]
 
   @@index([orderId])
   @@index([officerId])
   @@index([status])
   @@map("verification_tasks")
+}
+
+model VerificationTaskPhoto {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId      String   @map("task_id") @db.Uuid
+  officerId   String?  @map("officer_id") @db.Uuid
+  url         String
+  storagePath String   @map("storage_path")
+  contentType String?  @map("content_type")
+  sortOrder   Int      @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  task    VerificationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  officer User?            @relation("VerificationTaskPhotos", fields: [officerId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@map("verification_task_photos")
 }
 
 model VerificationLink {

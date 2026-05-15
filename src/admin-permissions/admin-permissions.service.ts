@@ -156,9 +156,16 @@ export class AdminPermissionsService {
         data: { status: 'SUSPENDED', suspendReason: 'Account deleted by Super Admin' }
       });
 
-      await tx.adminPermission.update({
+      await tx.adminPermission.upsert({
         where: { userId: targetUserId },
-        data: { isActive: false }
+        update: { isActive: false },
+        create: {
+          userId: targetUserId,
+          permissions: {},
+          isActive: false,
+          createdById: actorId,
+          updatedById: actorId,
+        },
       });
 
       await this.auditLogs.logAction({

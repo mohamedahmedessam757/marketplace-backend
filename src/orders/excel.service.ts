@@ -35,6 +35,13 @@ export class ExcelService {
         const isMerchant = user.role === 'VENDOR' || user.role === 'MERCHANT';
         const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(user.role);
         const isCustomer = user.role === 'CUSTOMER' && order.customerId === user.id;
+        let isVerificationOfficer = false;
+        if (user.role === 'VERIFICATION_OFFICER') {
+            const officerTask = await this.prisma.verificationTask.findFirst({
+                where: { orderId, officerId: user.id },
+            });
+            isVerificationOfficer = !!officerTask;
+        }
 
         // Verify merchant ownership via multiple potential sources (Robust scan for legacy data)
         const orderStoreId = order.storeId 
@@ -48,7 +55,7 @@ export class ExcelService {
             throw new ForbiddenException('Unauthorized access to this order invoice');
         }
         
-        if (!isAdmin && !isMerchant && !isCustomer) {
+        if (!isAdmin && !isMerchant && !isCustomer && !isVerificationOfficer) {
             console.error(`[ExcelService] 403 Forbidden: User role ${user.role} not authorized for order ${orderId}`);
             throw new ForbiddenException('Unauthorized access');
         }

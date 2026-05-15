@@ -2,6 +2,8 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+export const VERIFICATION_FIELD_PHOTOS_BUCKET = 'verification-field-photos';
+
 @Injectable()
 export class UploadsService {
     private supabase: SupabaseClient;
@@ -55,5 +57,40 @@ export class UploadsService {
             .getPublicUrl(fileName);
 
         return publicUrlData.publicUrl;
+    }
+
+    /** Field verification officer photos — returns public URL and storage path for DB row. */
+    async uploadVerificationFieldPhoto(
+        file: Express.Multer.File,
+        taskId: string,
+    ): Promise<{ url: string; storagePath: string }> {
+        if (!file?.buffer?.length) {
+            throw new BadRequestException('No file provided');
+        }
+
+        let ext = (file.originalname?.split('.').pop() || 'jpg').toLowerCase();
+        if (!/^(jpe?g|png|webp)$/.test(ext)) {
+            ext = file.mimetype?.includes('png') ? 'png' : file.mimetype?.includes('webp') ? 'webp' : 'jpg';
+        }
+
+        const storagePath = `tasks/${taskId}/${Date.now()}_${Math.random().toString(36).substring(2, 10)}.${ext}`;
+
+        const { error } = await this.supabase.storage
+            .from(VERIFICATION_FIELD_PHOTOS_BUCKET)
+            .upload(storagePath, file.buffer, {
+                contentType: file.mimetype || `image/${ext}`,
+                upsert: false,
+            });
+
+        if (error) {
+            console.error('Supabase field photo upload:', error);
+            throw new BadRequestException(`Upload failed: ${error.message}`);
+        }
+
+        const { data: urlData } = this.supabase.storage
+            .from(VERIFICATION_FIELD_PHOTOS_BUCKET)
+            .getPublicUrl(storagePath);
+
+        return { url: urlData.publicUrl, storagePath };
     }
 }

@@ -1,5 +1,19 @@
-import { IsEmail, IsString, IsEnum, IsArray, IsObject, IsOptional, MinLength } from 'class-validator';
+import { IsEmail, IsString, IsArray, IsObject, IsOptional, MinLength, IsIn } from 'class-validator';
 import { UserRole } from '@prisma/client';
+
+/** Roles assignable from Access Control UI (not CUSTOMER/VENDOR). */
+const ASSIGNABLE_ADMIN_ROLES = [
+  UserRole.ADMIN,
+  UserRole.SUPPORT,
+  UserRole.VERIFICATION_OFFICER,
+] as const;
+
+const UPDATABLE_ADMIN_ROLES = [
+  UserRole.ADMIN,
+  UserRole.SUPPORT,
+  UserRole.SUPER_ADMIN,
+  UserRole.VERIFICATION_OFFICER,
+] as const;
 
 export class PermissionActionDto {
   view: boolean;
@@ -24,7 +38,7 @@ export class CreateAdminDto {
   @IsString()
   name: string;
 
-  @IsEnum(['ADMIN', 'SUPPORT'])
+  @IsIn(ASSIGNABLE_ADMIN_ROLES)
   role: UserRole;
 
   @IsObject()
@@ -56,7 +70,7 @@ export class UpdatePermissionsDto {
   @IsOptional()
   blurredSections?: string[];
 
-  @IsEnum(['ADMIN', 'SUPPORT', 'SUPER_ADMIN'])
+  @IsIn(UPDATABLE_ADMIN_ROLES)
   @IsOptional()
   role?: UserRole;
 }
