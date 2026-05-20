@@ -38,17 +38,17 @@ export class AdminPermissionsController {
     return this.adminPermissionsService.getMyPermissions(userId);
   }
 
-  @Get(':userId')
-  @Roles(UserRole.SUPER_ADMIN)
-  async getAdminById(@Param('userId') userId: string) {
-    return this.adminPermissionsService.getAdminById(userId);
-  }
-
   @Post('create-admin')
   @Roles(UserRole.SUPER_ADMIN)
   async createAdmin(@Body() dto: CreateAdminDto, @Request() req) {
     const actorId = req.user.id || req.user.userId;
     return this.adminPermissionsService.createAdmin(dto, actorId);
+  }
+
+  @Get(':userId')
+  @Roles(UserRole.SUPER_ADMIN)
+  async getAdminById(@Param('userId') userId: string) {
+    return this.adminPermissionsService.getAdminById(userId);
   }
 
   @Put(':userId')

@@ -5,6 +5,12 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { ShipmentsService } from '../shipments/shipments.service';
 import { ActorType, OrderStatus } from '@prisma/client';
 
+type IssueWaybillOptions = {
+    automated?: boolean;
+    reason?: string;
+    throwIfAlreadyIssued?: boolean;
+};
+
 @Injectable()
 export class WaybillsService {
     private readonly logger = new Logger(WaybillsService.name);
@@ -18,10 +24,14 @@ export class WaybillsService {
 
     /**
      * Issue Waybills for an order.
-     * Admin only. The order MUST be in VERIFICATION_SUCCESS status.
+     * Internal issuance flow. The order MUST be in VERIFICATION_SUCCESS / READY_FOR_SHIPPING
+     * for outbound shipping, or RETURN_APPROVED for returns.
      * Creates one waybill per order part.
      */
-    async issueWaybillsForOrder(orderId: string, adminId: string) {
+    async issueWaybillsForOrder(orderId: string, actorId?: string | null, options: IssueWaybillOptions = {}) {
+        const automated = options.automated === true;
+        const throwIfAlreadyIssued = options.throwIfAlreadyIssued ?? !automated;
+
         // Fetch order with all needed relations
         const order = await (this.prisma.order as any).findUnique({
             where: { id: orderId } as any,
@@ -38,7 +48,9 @@ export class WaybillsService {
                 },
                 shippingAddresses: true,
                 invoices: true,
-                shippingWaybills: true,
+                shippingWaybills: {
+                    orderBy: { createdAt: 'asc' },
+                },
                 returns: {
                     orderBy: { createdAt: 'desc' },
                     take: 1
@@ -60,7 +72,12 @@ export class WaybillsService {
         const waybillsList = (order as any).shippingWaybills || [];
         // Only block if NOT a return and waybills already exist
         if (!isReturn && waybillsList.length > 0) {
-            throw new BadRequestException('Waybills have already been issued for this order.');
+            if (throwIfAlreadyIssued) {
+                throw new BadRequestException('Waybills have already been issued for this order.');
+            }
+
+            this.logger.log(`Waybills already exist for order ${order.orderNumber}; skipping duplicate automated issuance.`);
+            return { waybills: waybillsList, count: waybillsList.length, alreadyIssued: true };
         }
 
         const issuedWaybills: any[] = [];
@@ -130,7 +147,7 @@ export class WaybillsService {
                 finalPrice,
                 shippingRefund: returnCase?.shippingRefund || null, // Round-trip cost transparency
                 currency: 'AED',
-                issuedBy: adminId
+                issuedBy: actorId ?? null
             };
 
             const waybill = await (this.prisma as any).shippingWaybill.create({
@@ -150,10 +167,14 @@ export class WaybillsService {
                         titleEn: isReturn ? 'Return Label Issued 🔄' : 'Shipping Waybill Issued',
                         messageAr: isReturn 
                             ? `تم إصدار بوليصة إرجاع للطلب #${order.orderNumber}. يرجى ترقب وصول المرتجع للمستودع.`
-                            : `قامت الإدارة بإصدار بوليصة لطلبك الموثق #${order.orderNumber}. بانتظار استلام المندوب.`,
+                            : automated
+                                ? `أصدر النظام بوليصة شحن تلقائياً للطلب الموثق #${order.orderNumber}. بانتظار استلام المندوب.`
+                                : `قامت الإدارة بإصدار بوليصة لطلبك الموثق #${order.orderNumber}. بانتظار استلام المندوب.`,
                         messageEn: isReturn
                             ? `Return label issued for order #${order.orderNumber}. Please await the return shipment.`
-                            : `Admin issued waybill for your verified order #${order.orderNumber}. Pending courier pickup.`,
+                            : automated
+                                ? `The system automatically issued a waybill for verified order #${order.orderNumber}. Pending courier pickup.`
+                                : `Admin issued waybill for your verified order #${order.orderNumber}. Pending courier pickup.`,
                         link: `/merchant/orders/${order.id}`
                     } as any);
                 }
@@ -195,7 +216,7 @@ export class WaybillsService {
                     orderId: order.id,
                     waybillId: issuedWaybills[0]?.id, // Link to the first waybill
                     carrierType: 'NO_TRACKING',
-                }, adminId);
+                    }, actorId ?? null);
                 
                 this.logger.log(`Initialized shipment tracker for order ${order.orderNumber}`);
             }
@@ -206,22 +227,41 @@ export class WaybillsService {
         // Phase 2: Administrative Audit Logging
         await this.auditLogs.logAction({
             orderId,
-            action: 'WAYBILL_ISSUAL',
+            action: automated ? 'WAYBILL_AUTO_ISSUAL' : 'WAYBILL_ISSUAL',
             entity: 'Order',
-            actorType: ActorType.ADMIN,
-            actorId: adminId,
-            actorName: 'Admin',
+            actorType: automated ? ActorType.SYSTEM : ActorType.ADMIN,
+            actorId: actorId ?? undefined,
+            actorName: automated ? 'System Automation' : 'Admin',
             previousState: order.status,
             newState: order.status,
-            reason: 'Administrative issuance of shipping waybills for verified parts.',
+            reason: options.reason || (automated
+                ? 'System automatically issued shipping waybills after successful verification.'
+                : 'Administrative issuance of shipping waybills for verified parts.'),
             metadata: {
                 waybillCount: issuedWaybills.length,
                 waybillNumbers: issuedWaybills.map(wb => wb.waybillNumber),
+                automated,
                 timestamp: new Date().toISOString()
             }
         });
 
         return { waybills: issuedWaybills, count: issuedWaybills.length };
+    }
+
+    async autoIssueAfterVerificationSuccess(orderId: string, actorId?: string | null) {
+        try {
+            return await this.issueWaybillsForOrder(orderId, actorId, {
+                automated: true,
+                throwIfAlreadyIssued: false,
+                reason: 'Automatic waybill issuance triggered by admin-approved matching verification.',
+            });
+        } catch (error) {
+            this.logger.error(
+                `Automatic waybill issuance failed for order ${orderId}: ${error instanceof Error ? error.message : error}`,
+                error instanceof Error ? error.stack : undefined,
+            );
+            throw error;
+        }
     }
 
     /**

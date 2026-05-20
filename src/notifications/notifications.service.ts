@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationsGateway } from './notifications.gateway';
 
+const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class NotificationsService {
     private readonly logger = new Logger(NotificationsService.name);
@@ -63,6 +66,10 @@ export class NotificationsService {
     }
 
     async markAsRead(id: string, userId: string) {
+        if (!UUID_RE.test(id)) {
+            this.logger.warn(`markAsRead skipped: invalid notification id "${id}"`);
+            return null;
+        }
         const notif = await this.prisma.notification.findUnique({ where: { id } });
         if (!notif || notif.recipientId !== userId) return null;
 

@@ -15,8 +15,13 @@ export class AppController {
     }
 
     @Get('health')
-    healthCheck() {
-        return { status: 'healthy', timestamp: new Date().toISOString() };
+    async healthCheck() {
+        const dbOk = await this.prisma.isHealthy();
+        return {
+            status: dbOk ? 'healthy' : 'degraded',
+            database: dbOk ? 'connected' : 'unreachable',
+            timestamp: new Date().toISOString(),
+        };
     }
 
     @Get('system/status')

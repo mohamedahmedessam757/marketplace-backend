@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from './orders.service';
 import { OrderStatus, ActorType } from '@prisma/client';
+import { WaybillsService } from '../waybills/waybills.service';
 
 @Injectable()
 export class ShippingAutomationService {
@@ -11,7 +12,35 @@ export class ShippingAutomationService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly ordersService: OrdersService,
+        private readonly waybillsService: WaybillsService,
     ) {}
+
+    /**
+     * Safety net for transient failures: verified orders must not depend on a manual admin button.
+     * The immediate issuance happens in the verification approval flow; this keeps the invariant true.
+     */
+    @Cron(CronExpression.EVERY_5_MINUTES)
+    async handleVerifiedOrdersMissingWaybills() {
+        const orders = await this.prisma.order.findMany({
+            where: {
+                status: OrderStatus.VERIFICATION_SUCCESS,
+                shippingWaybills: { none: {} },
+            },
+            select: { id: true, orderNumber: true },
+            take: 8,
+        });
+
+        for (const order of orders) {
+            try {
+                await this.waybillsService.autoIssueAfterVerificationSuccess(order.id, null);
+                this.logger.log(`Auto-issued missing waybill for verified order ${order.orderNumber}`);
+            } catch (error) {
+                this.logger.error(
+                    `Failed to auto-issue missing waybill for ${order.orderNumber}: ${error instanceof Error ? error.message : error}`,
+                );
+            }
+        }
+    }
 
     /**
      * Runs every 6 hours to check for items that have been in the assembly cart for more than 7 days.

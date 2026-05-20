@@ -14,6 +14,12 @@ export class AdminPermissionsService {
     private notifications: NotificationsService,
   ) {}
 
+  private buildFullPhone(countryCode: string, localPhone: string): string {
+    const code = countryCode.startsWith('+') ? countryCode : `+${countryCode}`;
+    const digits = localPhone.replace(/\D/g, '');
+    return `${code}${digits}`;
+  }
+
   async createAdmin(dto: CreateAdminDto, createdById: string) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -23,15 +29,26 @@ export class AdminPermissionsService {
       throw new ConflictException('User with this email already exists');
     }
 
+    const fullPhone = this.buildFullPhone(dto.countryCode, dto.phone);
+    const existingPhone = await this.prisma.user.findUnique({
+      where: { phone: fullPhone },
+    });
+    if (existingPhone) {
+      throw new ConflictException('User with this phone number already exists');
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Create User
       const user = await tx.user.create({
         data: {
-          email: dto.email,
+          email: dto.email.trim().toLowerCase(),
           passwordHash: hashedPassword,
-          name: dto.name,
+          name: dto.name.trim(),
+          phone: fullPhone,
+          countryCode: dto.countryCode,
+          country: dto.country,
           role: dto.role,
           status: 'ACTIVE',
         },
@@ -76,11 +93,33 @@ export class AdminPermissionsService {
     // For now, let's assume any Super Admin can manage others, but usually, we'd restrict this.
     
     return this.prisma.$transaction(async (tx) => {
-      // Update User Role if provided
+      const userUpdate: {
+        role?: UserRole;
+        phone?: string;
+        countryCode?: string;
+        country?: string;
+      } = {};
+
       if (dto.role) {
+        userUpdate.role = dto.role;
+      }
+      if (dto.phone && dto.countryCode) {
+        const fullPhone = this.buildFullPhone(dto.countryCode, dto.phone);
+        const phoneTaken = await tx.user.findFirst({
+          where: { phone: fullPhone, id: { not: targetUserId } },
+        });
+        if (phoneTaken) {
+          throw new ConflictException('Phone number already in use');
+        }
+        userUpdate.phone = fullPhone;
+        userUpdate.countryCode = dto.countryCode;
+        if (dto.country) userUpdate.country = dto.country;
+      }
+
+      if (Object.keys(userUpdate).length > 0) {
         await tx.user.update({
           where: { id: targetUserId },
-          data: { role: dto.role }
+          data: userUpdate,
         });
       }
 

@@ -356,7 +356,10 @@ export class ViolationsService {
     if (tx) {
       return logic(tx);
     }
-    const created = await this.prisma.$transaction(logic);
+    const created = await this.prisma.$transaction(logic, {
+      timeout: 20_000,
+      maxWait: 10_000,
+    });
     if (targetType === ViolationTargetType.MERCHANT && targetStoreId) {
       await this.merchantPerformance.recalculateAndPersist(targetStoreId);
     }

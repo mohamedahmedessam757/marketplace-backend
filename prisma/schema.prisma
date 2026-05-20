@@ -72,6 +72,20 @@ enum OrderStatus {
   @@map("order_status")
 }
 
+enum OfferFulfillmentStatus {
+  AWAITING_PAYMENT
+  IN_PREPARATION
+  PREPARED
+  VERIFICATION
+  VERIFICATION_SUCCESS
+  READY_FOR_SHIPPING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+
+  @@map("offer_fulfillment_status")
+}
+
 enum ActorType {
   SYSTEM
   ADMIN
@@ -369,6 +383,12 @@ model StoreDocument {
   rejectedReason String?   @map("rejected_reason")
   expiresAt      DateTime? @map("expires_at") @db.Date
 
+  // 2026 Admin Re-verification Fields
+  reuploadRequested Boolean @default(false) @map("reupload_requested")
+  adminName         String? @map("admin_name")
+  adminSignature    String? @map("admin_signature") @db.Text
+  reuploadMessage   String? @map("reupload_message") @db.Text
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
@@ -417,6 +437,8 @@ model Order {
   verificationSubmittedAt      DateTime? @map("verification_submitted_at") @db.Timestamptz
   warranty_active_at           DateTime? @map("warranty_active_at") @db.Timestamptz
   warranty_end_at              DateTime? @map("warranty_end_at") @db.Timestamptz
+  /// First instant the order entered DELIVERED — source of truth for return/dispute & auto-complete window
+  deliveredAt                  DateTime? @map("delivered_at") @db.Timestamptz
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -465,6 +487,7 @@ model Order {
 model VerificationDocument {
   id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orderId String @map("order_id") @db.Uuid
+  offerId String? @map("offer_id") @db.Uuid
   storeId String @map("store_id") @db.Uuid
 
   images      Json    @default("[]")
@@ -499,12 +522,14 @@ model VerificationDocument {
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   order            Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  offer            Offer?                 @relation(fields: [offerId], references: [id], onDelete: SetNull)
   store            Store                  @relation(fields: [storeId], references: [id], onDelete: Cascade)
   adminReviewer    User?                  @relation(fields: [adminReviewedBy], references: [id])
   originalDocument VerificationDocument?  @relation("CorrectionChain", fields: [originalDocumentId], references: [id])
   corrections      VerificationDocument[] @relation("CorrectionChain")
 
   @@index([orderId])
+  @@index([offerId])
   @@index([storeId])
   @@index([adminStatus])
   @@map("verification_documents")
@@ -529,6 +554,10 @@ model Offer {
   offerImage       String?   @map("offer_image")
   cylinders        Int?      @map("cylinders")
   status           String    @default("pending") // pending | accepted | rejected | withdrawn
+  fulfillmentStatus OfferFulfillmentStatus @default(AWAITING_PAYMENT) @map("fulfillment_status")
+  preparedAt              DateTime? @map("prepared_at") @db.Timestamptz
+  verificationSubmittedAt DateTime? @map("verification_submitted_at") @db.Timestamptz
+  readyForShippingAt      DateTime? @map("ready_for_shipping_at") @db.Timestamptz
   canEditUntil     DateTime? @map("can_edit_until") @db.Timestamptz
   isWithdrawn      Boolean   @default(false) @map("is_withdrawn")
 
@@ -550,12 +579,14 @@ model Offer {
   // Partial shipping: link to the shipment created when this offer was shipped from cart
   cartShipment Shipment? @relation("CartShipmentOffers", fields: [cartShipmentId], references: [id])
 
-  rejection OfferRejection?
-  payments  PaymentTransaction[]
-  returns   ReturnRequest[]
-  disputes  Dispute[]
+  rejection               OfferRejection?
+  payments                PaymentTransaction[]
+  returns                 ReturnRequest[]
+  disputes                Dispute[]
+  verificationDocuments   VerificationDocument[]
 
   @@index([orderId])
+  @@index([fulfillmentStatus])
   @@index([orderPartId])
   @@index([storeId])
   @@map("offers")
@@ -706,6 +737,10 @@ model ReturnRequest {
   penaltyType       String?  @map("penalty_type")
   netRefundAmount   Decimal? @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
 
+  // Adjudication fee attribution (2026)
+  feeBearer                 String?  @map("fee_bearer")
+  shippingCompanyLiability  Decimal? @default(0) @map("shipping_company_liability") @db.Decimal(14, 2)
+
   // Shipping Payment Tracking (Phase 1)
   shippingPayee         String? @map("shipping_payee")
   shippingPaymentStatus String? @default("PENDING") @map("shipping_payment_status")
@@ -761,6 +796,10 @@ model Dispute {
   penaltyAmount     Decimal? @default(0) @map("penalty_amount") @db.Decimal(14, 2)
   penaltyType       String?  @map("penalty_type")
   netRefundAmount   Decimal? @default(0) @map("net_refund_amount") @db.Decimal(14, 2)
+
+  // Adjudication fee attribution (2026)
+  feeBearer                 String?  @map("fee_bearer")
+  shippingCompanyLiability  Decimal? @default(0) @map("shipping_company_liability") @db.Decimal(14, 2)
 
   // Shipping Payment Tracking (Phase 1)
   shippingPayee         String? @map("shipping_payee")

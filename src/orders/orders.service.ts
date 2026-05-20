@@ -11,6 +11,10 @@ import { ChatService } from '../chat/chat.service';
 import { ShipmentsService } from '../shipments/shipments.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { UsersService } from '../users/users.service';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from './order-time.constants';
+import { WaybillsService } from '../waybills/waybills.service';
+import { OfferFulfillmentService } from './offer-fulfillment.service';
+import { OfferFulfillmentStatus } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -23,6 +27,8 @@ export class OrdersService {
         private shipmentsService: ShipmentsService,
         private loyaltyService: LoyaltyService,
         private usersService: UsersService,
+        private waybillsService: WaybillsService,
+        private offerFulfillment: OfferFulfillmentService,
     ) { }
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -299,14 +305,27 @@ export class OrdersService {
                 take,
                 orderBy: { createdAt: 'desc' },
                 include: {
-                    parts: { select: { id: true, name: true, quantity: true } },
+                    parts: { select: { id: true, name: true, quantity: true, description: true, images: true, notes: true } },
                     customer: { select: { id: true, name: true, email: true, avatar: true } },
                     review: { select: { id: true, rating: true } },
                     offers: {
                         where: { status: { not: 'rejected' } },
                         orderBy: { createdAt: 'asc' },
                         include: {
-                            store: { select: { id: true, name: true, storeCode: true, logo: true } }
+                            store: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    storeCode: true,
+                                    logo: true,
+                                    rating: true,
+                                    _count: {
+                                        select: {
+                                            reviews: { where: { adminStatus: 'PUBLISHED' } },
+                                        },
+                                    },
+                                },
+                            },
                         }
                     },
                     verificationDocuments: {
@@ -355,7 +374,8 @@ export class OrdersService {
         };
     }
 
-    async findOne(id: string) {
+    async findOne(id: string, options?: { includeAuditLogs?: boolean }) {
+        const includeAuditLogs = options?.includeAuditLogs ?? true;
         const order = await this.prisma.order.findUnique({
             where: { id },
             include: {
@@ -375,6 +395,11 @@ export class OrdersService {
                                 logo: true,
                                 loyaltyTier: true,
                                 rating: true,
+                                _count: {
+                                    select: {
+                                        reviews: { where: { adminStatus: 'PUBLISHED' } },
+                                    },
+                                },
                             },
                         },
                     },
@@ -383,7 +408,9 @@ export class OrdersService {
                     orderBy: { issuedAt: 'desc' }
                 },
                 shippingWaybills: { orderBy: { issuedAt: 'desc' } },
-                auditLogs: { orderBy: { timestamp: 'desc' } },
+                ...(includeAuditLogs
+                    ? { auditLogs: { orderBy: { timestamp: 'desc' as const } } }
+                    : {}),
                 verificationDocuments: { orderBy: { createdAt: 'desc' } },
                 _count: {
                     select: { offers: true }
@@ -398,7 +425,8 @@ export class OrdersService {
      * Enhanced findOne with user role context for visibility filtering (2026 Blind Auction)
      */
     async findOneWithContext(id: string, user: any) {
-        const order = await this.findOne(id);
+        const includeAuditLogs = user?.role !== 'CUSTOMER';
+        const order = await this.findOne(id, { includeAuditLogs });
 
         const now = new Date();
         
@@ -470,14 +498,22 @@ export class OrdersService {
 
             const isTransitioningToWarranty = newStatus === OrderStatus.COMPLETED && hasAnyWarranty;
 
+            const effectiveStatus = isTransitioningToWarranty ? OrderStatus.WARRANTY_ACTIVE : newStatus;
+            const now = new Date();
+            const isFirstDeliveredTransition =
+                newStatus === OrderStatus.DELIVERED &&
+                effectiveStatus === OrderStatus.DELIVERED &&
+                !order.deliveredAt;
+
             const updatedOrder = await tx.order.update({
                 where: { id: orderId },
                 data: {
-                    status: isTransitioningToWarranty ? OrderStatus.WARRANTY_ACTIVE : newStatus,
-                    updatedAt: new Date(),
-                    warranty_active_at: isTransitioningToWarranty ? new Date() : undefined,
+                    status: effectiveStatus,
+                    updatedAt: now,
+                    warranty_active_at: isTransitioningToWarranty ? now : undefined,
                     warranty_end_at: isTransitioningToWarranty ? finalWarrantyEnd : undefined,
                     selectionDeadlineAt: newStatus === OrderStatus.AWAITING_SELECTION ? new Date(Date.now() + 24 * 60 * 60 * 1000) : undefined,
+                    deliveredAt: isFirstDeliveredTransition ? now : undefined,
                 },
             });
 
@@ -931,66 +967,33 @@ export class OrdersService {
         return result.updatedOrder;
     }
 
-    async markAsPrepared(orderId: string, storeId: string) {
+    async markAsPrepared(orderId: string, storeId: string, offerId?: string) {
+        const result = await this.offerFulfillment.markAsPreparedForStore(
+            orderId,
+            storeId,
+            offerId,
+        );
+
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
-            include: { offers: true }
+            select: { orderNumber: true },
         });
 
-        if (!order) {
-            throw new NotFoundException('Order not found');
-        }
-
-        // Validate Authorization: Must have an accepted offer for this 
-        const hasAcceptedOffer = order.offers.some(o => o.status === 'accepted' && o.storeId === storeId);
-        if (!hasAcceptedOffer) {
-            throw new ForbiddenException('You are not authorized to physically prepare this order. No accepted offers found for your store.');
-        }
-
-        // Validate FSM Boundary
-        this.fsm.validateTransition(order.status, OrderStatus.PREPARED);
-
-        const updatedOrder = await this.prisma.order.update({
-            where: { id: orderId },
-            data: { status: OrderStatus.PREPARED }
-        });
-
-        // Audit Log System Note
-        await this.auditLogs.logAction({
-            orderId: order.id,
-            action: 'MARK_PREPARED',
-            entity: 'Order',
-            actorType: ActorType.VENDOR,
-            actorId: storeId,
-            actorName: 'Store Vendor',
-            previousState: order.status,
-            newState: OrderStatus.PREPARED,
-            reason: 'Merchant successfully finalized preparation for shipping',
-        });
-
-        // Dispatch Customer Hook
-        this.notifications.create({
-            recipientId: order.customerId,
-            recipientRole: 'CUSTOMER',
-            titleAr: 'طلبك جاهز للشحن! ✨',
-            titleEn: 'Order Ready for Pickup! ✨',
-            messageAr: `خبر رائع! التاجر انتهى من تجهيز طلبك #${order.orderNumber} وهو الآن ينتظر شركة الشحن لاستلامه وإرساله لك.`,
-            messageEn: `Great news! The vendor finished preparing your order #${order.orderNumber}. Awaiting shipping courier pickup.`,
-            type: 'ORDER',
-            link: `/dashboard/orders/${order.id}`
-        }).catch(e => console.error('Failed to notify customer upon preparation completion', e));
-
-        // Add Merchant Reminder for Documentation
         this.notifications.notifyMerchantByStoreId(storeId, {
             titleAr: 'توثيق حالة القطعة إلزامي!',
             titleEn: 'Part Verification Required!',
-            messageAr: `تم تجهيز طلب #${order.orderNumber}. يرجى رفع التوثيق لتتمكن من تسليمه للمندوب ومتابعة الطلب.`,
-            messageEn: `Order #${order.orderNumber} is prepared. Please upload verification documents to proceed with handover.`,
+            messageAr: `تم تجهيز قطعتك في الطلب #${order?.orderNumber || orderId}. يرجى رفع التوثيق للمتابعة.`,
+            messageEn: `Your part on order #${order?.orderNumber || orderId} is prepared. Please upload verification.`,
             type: 'ORDER',
             link: `/merchant/orders/${orderId}`,
-        }).catch(e => console.error('Failed to notify merchant upon preparation', e));
+        }).catch((e) => console.error('Failed to notify merchant upon preparation', e));
 
-        return updatedOrder;
+        return this.prisma.order.findUnique({ where: { id: orderId } });
+    }
+
+    async getOfferFulfillmentSummary(orderId: string) {
+        const paidOffers = await this.offerFulfillment.getPaidAcceptedOffers(orderId);
+        return this.offerFulfillment.getFulfillmentSummary(paidOffers);
     }
     async rejectOffer(orderId: string, offerId: string, customerId: string, reason: string, customReason?: string) {
         // 1. Verify existence and ownership
@@ -1152,12 +1155,20 @@ export class OrdersService {
     }
 
     async getAssemblyCart(customerId: string) {
-        // Find orders in PREPARATION status (paid, waiting to be shipped)
+        const cartOrderStatuses: OrderStatus[] = [
+            OrderStatus.PREPARATION,
+            OrderStatus.PREPARED,
+            OrderStatus.VERIFICATION,
+            OrderStatus.VERIFICATION_SUCCESS,
+            OrderStatus.READY_FOR_SHIPPING,
+            OrderStatus.PARTIALLY_SHIPPED,
+        ];
+
         const orders = await this.prisma.order.findMany({
             where: {
                 customerId,
-                status: { in: [OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED] },
-                requestType: 'multiple'
+                status: { in: cartOrderStatuses },
+                requestType: 'multiple',
             },
             include: {
                 parts: true,
@@ -1169,14 +1180,15 @@ export class OrdersService {
                     }
                 },
                 offers: {
-                    where: { 
-                        status: 'accepted',
-                        shippedFromCart: false
+                    where: {
+                        status: { in: ['accepted', 'ACCEPTED'] },
+                        shippedFromCart: false,
                     },
-                    include: { 
+                    include: {
                         store: true,
-                        payments: { where: { status: 'SUCCESS' } }
-                    }
+                        orderPart: true,
+                        payments: { where: { status: 'SUCCESS' } },
+                    },
                 },
                 payments: {
                     where: { status: 'SUCCESS' }
@@ -1201,7 +1213,8 @@ export class OrdersService {
             const acceptedOffers = order.offers.length > 0 ? order.offers : (order.acceptedOffer ? [order.acceptedOffer] : []);
 
             for (const offer of acceptedOffers as any[]) {
-                // Find matching part if any
+                if (!offer.payments?.length) continue;
+
                 const part = order.parts.find(p => p.id === offer.orderPartId) || order.parts[0];
                 const partName = part?.name || order.partName || 'Multi-Part Order';
                 const partImages = (part?.images as string[]) || [];
@@ -1211,8 +1224,13 @@ export class OrdersService {
                 const offerPayment = offer.payments?.[0];
                 const finalPrice = offerPayment?.totalAmount ? Number(offerPayment.totalAmount) : (Number(offer.unitPrice) + Number(offer.shippingCost));
 
+                const fulfillmentStatus = offer.fulfillmentStatus as OfferFulfillmentStatus;
+                const canSelectForShipping =
+                    fulfillmentStatus === OfferFulfillmentStatus.READY_FOR_SHIPPING;
+                const lockReason = this.offerFulfillment.getLockReason(fulfillmentStatus);
+
                 cartItems.push({
-                    id: order.id, // Using order ID as the cart item ID for shipping
+                    id: order.id,
                     offerId: offer.id,
                     orderNumber: order.orderNumber,
                     name: partName,
@@ -1230,11 +1248,15 @@ export class OrdersService {
                     vehicleModel: order.vehicleModel,
                     vehicleYear: order.vehicleYear,
                     vin: order.vin,
-                    partsCount: 1, // Set to 1 as this card represents a single part from the assembly
+                    partsCount: 1,
                     requestType: order.requestType || 'N/A',
                     shippingType: order.shippingType || 'N/A',
                     shippingAddress: order.shippingAddresses?.[0] || null,
-                    totalPaid: finalPrice
+                    totalPaid: finalPrice,
+                    fulfillmentStatus,
+                    canSelectForShipping,
+                    lockReasonAr: lockReason.ar,
+                    lockReasonEn: lockReason.en,
                 });
             }
         }
@@ -1245,10 +1267,18 @@ export class OrdersService {
     async getMerchantAssemblyCart(userId: string, storeId: string) {
         if (!storeId) return [];
 
-        // Find orders in PREPARATION status where this merchant has an accepted offer
+        const cartOrderStatuses: OrderStatus[] = [
+            OrderStatus.PREPARATION,
+            OrderStatus.PREPARED,
+            OrderStatus.VERIFICATION,
+            OrderStatus.VERIFICATION_SUCCESS,
+            OrderStatus.READY_FOR_SHIPPING,
+            OrderStatus.PARTIALLY_SHIPPED,
+        ];
+
         const orders = await this.prisma.order.findMany({
             where: {
-                status: { in: [OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED] },
+                status: { in: cartOrderStatuses },
                 requestType: 'multiple',
                 offers: {
                     some: {
@@ -1289,6 +1319,7 @@ export class OrdersService {
             let expiryDate = new Date(paidAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
             for (const offer of order.offers as any[]) {
+                if (!offer.payments?.length) continue;
                 const isMyOffer = offer.storeId === storeId;
                 const part = order.parts.find(p => p.id === offer.orderPartId) || order.parts[0];
                 const partName = part?.name || order.partName || 'Multi-Part Order';
@@ -1304,6 +1335,12 @@ export class OrdersService {
                 const finalPrice = isMyOffer 
                     ? (offerPayment?.totalAmount ? Number(offerPayment.totalAmount) : (Number(offer.unitPrice) + Number(offer.shippingCost)))
                     : 0;
+
+                const fulfillmentStatus = offer.fulfillmentStatus as OfferFulfillmentStatus;
+                const canSelectForShipping =
+                    isMyOffer &&
+                    fulfillmentStatus === OfferFulfillmentStatus.READY_FOR_SHIPPING;
+                const lockReason = this.offerFulfillment.getLockReason(fulfillmentStatus);
 
                 cartItems.push({
                     id: order.id,
@@ -1329,7 +1366,11 @@ export class OrdersService {
                     shippingType: order.shippingType || 'N/A',
                     shippingAddress: isMyOffer ? (order.shippingAddresses?.[0] || null) : null,
                     totalPaid: finalPrice,
-                    isMyOffer: isMyOffer
+                    isMyOffer: isMyOffer,
+                    fulfillmentStatus,
+                    canSelectForShipping,
+                    lockReasonAr: lockReason.ar,
+                    lockReasonEn: lockReason.en,
                 });
             }
         }
@@ -1368,8 +1409,9 @@ export class OrdersService {
         const deliveredItems = [];
         for (const order of orders) {
             // Re-use logic to format item, similar to assembly-cart
-            let deliveredAt = order.updatedAt; // We use updatedAt as delivered timestamp
-            let returnExpiryDate = new Date(deliveredAt.getTime() + 3 * 24 * 60 * 60 * 1000);
+            const deliveredAt = order.deliveredAt ?? order.updatedAt;
+            const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
+            let returnExpiryDate = new Date(deliveredAt.getTime() + windowMs);
             let isReturnEligible = Date.now() <= returnExpiryDate.getTime();
 
             const firstPayment = order.payments?.sort((a, b) => (a.paidAt?.getTime() || 0) - (b.paidAt?.getTime() || 0))[0];
@@ -1531,17 +1573,26 @@ export class OrdersService {
         // Get details of all requested offers
         const offers = await this.prisma.offer.findMany({
             where: { id: { in: allOfferIds }, status: 'accepted', shippedFromCart: false },
-            include: { order: true }
+            include: {
+                order: true,
+                payments: { where: { status: 'SUCCESS' } },
+            },
         });
 
-        // Filter by ownership and state (must be in PREPARATION, PARTIALLY_SHIPPED or VERIFICATION_SUCCESS)
-        const validOffers = offers.filter(o => 
-            o.order.customerId === customerId && 
-            ([OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED, OrderStatus.VERIFICATION_SUCCESS] as OrderStatus[]).includes(o.order.status)
-        );
-        
+        const validOffers = offers.filter((o) => {
+            if (o.order.customerId !== customerId) return false;
+            if (!o.payments?.some((p) => p.status === 'SUCCESS')) return false;
+            return (
+                o.fulfillmentStatus === OfferFulfillmentStatus.READY_FOR_SHIPPING &&
+                !o.shippedFromCart
+            );
+        });
+
         if (validOffers.length === 0) {
-            return { success: false, reason: 'No valid pending items found in your cart or items already shipped.' };
+            return {
+                success: false,
+                reason: 'No items are ready for shipping. Each part must be prepared, verified, and marked ready by its merchant.',
+            };
         }
 
         // Actor info for logging
@@ -1568,9 +1619,12 @@ export class OrdersService {
                     data: {
                         shippedFromCart: true,
                         shippedFromCartAt: new Date(),
-                        cartShipmentId: shipment.id
-                    }
+                        cartShipmentId: shipment.id,
+                        fulfillmentStatus: OfferFulfillmentStatus.SHIPPED,
+                    },
                 });
+
+                await this.offerFulfillment.recomputeOrderStatus(orderId);
 
                 // 3. Check if ALL accepted offers for this order are now shipped
                 const remainingPending = await this.prisma.offer.count({
@@ -1631,145 +1685,98 @@ export class OrdersService {
         return { success: true, count: successCount, results };
     }
 
-    async requestShippingByMerchant(orderId: string, storeId: string, userId: string) {
-        const order = await this.prisma.order.findUnique({
-            where: { id: orderId },
-            include: { offers: true }
-        });
-
+    async requestShippingByMerchant(
+        orderId: string,
+        storeId: string,
+        userId: string,
+        offerId?: string,
+    ) {
+        const order = await this.prisma.order.findUnique({ where: { id: orderId } });
         if (!order) throw new NotFoundException('Order not found');
 
-        // Verify merchant has an accepted offer — check both cased versions
-        const hasAcceptedOffer = order.offers.some(
-            o => ['ACCEPTED', 'accepted'].includes(String(o.status)) && o.storeId === storeId
-        );
-        if (!hasAcceptedOffer) {
-            throw new ForbiddenException('You are not authorized to request shipping for this order.');
-        }
-
-        // Must be in VERIFICATION_SUCCESS state
-        if (order.status !== OrderStatus.VERIFICATION_SUCCESS) {
-            throw new BadRequestException(`Order must be in VERIFICATION_SUCCESS state. Current: ${order.status}`);
-        }
-
-        // Transition order status
-        const updatedOrder = await this.transitionStatus(
+        const result = await this.offerFulfillment.markOfferReadyForStore(
             orderId,
-            OrderStatus.READY_FOR_SHIPPING,
-            { id: storeId, type: ActorType.VENDOR, name: 'Store Vendor' },
-            'Merchant requested shipment delivery to administration'
+            storeId,
+            offerId,
         );
 
-        // Create the shipment record
-        await this.shipmentsService.create({ orderId }, userId);
-
-        // Notify Admin that a new shipment is awaiting pickup
         await this.notifications.notifyAdmins({
-            titleAr: 'طلب شحنة جديد ينتظر الاستلام',
-            titleEn: 'New Shipment Request Awaiting Pickup',
-            messageAr: `الطلب #${order.orderNumber} جاهز للتسليم لشركة الشحن. يرجى استلامه من التاجر.`,
-            messageEn: `Order #${order.orderNumber} is ready for carrier pickup. Please collect from merchant.`,
+            titleAr: 'قطعة جاهزة للتسليم للإدارة',
+            titleEn: 'Part ready for admin pickup',
+            messageAr: `قطعة من الطلب #${order.orderNumber} جاهزة للتسليم.`,
+            messageEn: `A part from order #${order.orderNumber} is ready for pickup.`,
             type: 'ORDER_UPDATE',
             link: `/admin/dashboard/shipping`,
         });
 
-        return updatedOrder;
+        return this.prisma.order.findUnique({ where: { id: orderId } });
     }
 
 
-    async submitVerification(orderId: string, storeId: string, data: any) {
+    async submitVerification(
+        orderId: string,
+        storeId: string,
+        data: any,
+        offerId?: string,
+    ) {
         const order = await this.prisma.order.findUnique({
-             where: { id: orderId },
-             include: { offers: true }
+            where: { id: orderId },
+            include: { offers: true },
         });
         if (!order) throw new NotFoundException('Order not found');
-        
-        const hasAcceptedOffer = order.offers.some(o => o.status === 'accepted' && o.storeId === storeId);
-        if (!hasAcceptedOffer) {
-            throw new ForbiddenException('Not your order');
-        }
-        
-        if (order.status !== OrderStatus.PREPARED) throw new BadRequestException('Order must be in PREPARED state to verify.');
-        
-        let parsedImages = [];
-        if (typeof data.images === 'string') {
-            try { parsedImages = JSON.parse(data.images); } catch(e) { parsedImages = [data.images]; }
-        } else if (Array.isArray(data.images)) {
-            parsedImages = data.images;
+
+        let targetOfferId = offerId;
+        if (!targetOfferId) {
+            const mine = order.offers.find(
+                (o) =>
+                    ['accepted', 'ACCEPTED'].includes(o.status) &&
+                    o.storeId === storeId,
+            );
+            if (!mine) throw new ForbiddenException('Not your order');
+            targetOfferId = mine.id;
         }
 
-        try {
-            const availableOfficer = await this.prisma.user.findFirst({
-                where: { role: 'VERIFICATION_OFFICER', status: 'ACTIVE' },
-                orderBy: { updatedAt: 'asc' },
+        const availableOfficer = await this.prisma.user.findFirst({
+            where: { role: 'VERIFICATION_OFFICER', status: 'ACTIVE' },
+            orderBy: { updatedAt: 'asc' },
+        });
+
+        const task = await this.prisma.verificationTask.create({
+            data: {
+                orderId,
+                officerId: availableOfficer?.id ?? null,
+                status: availableOfficer ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
+                assignedAt: availableOfficer ? new Date() : null,
+            },
+        });
+
+        await this.prisma.order.update({
+            where: { id: orderId },
+            data: {
+                verificationSubmittedAt: new Date(),
+                verificationTaskId: task.id,
+            },
+        });
+
+        if (availableOfficer) {
+            await this.notifications.create({
+                recipientId: availableOfficer.id,
+                recipientRole: 'VERIFICATION_OFFICER',
+                type: 'system_alert',
+                titleAr: 'مهمة مطابقة جديدة',
+                titleEn: 'New verification task',
+                messageAr: `تم إسناد مهمة مطابقة للطلب #${order.orderNumber} إليك.`,
+                messageEn: `Verification task for order #${order.orderNumber} assigned to you.`,
+                link: `/dashboard/verification-task-details/${task.id}`,
             });
-
-            const task = await this.prisma.verificationTask.create({
-                data: {
-                    orderId,
-                    officerId: availableOfficer?.id ?? null,
-                    status: availableOfficer ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
-                    assignedAt: availableOfficer ? new Date() : null,
-                },
-            });
-
-            if (availableOfficer) {
-                await this.notifications.create({
-                    recipientId: availableOfficer.id,
-                    recipientRole: 'VERIFICATION_OFFICER',
-                    type: 'system_alert',
-                    titleAr: 'مهمة مطابقة جديدة',
-                    titleEn: 'New verification task',
-                    messageAr: `تم إسناد مهمة مطابقة للطلب #${order.orderNumber} إليك.`,
-                    messageEn: `Verification task for order #${order.orderNumber} assigned to you.`,
-                    link: `/dashboard/verification-task-details/${task.id}`,
-                });
-            }
-
-            const [doc] = await this.prisma.$transaction([
-                this.prisma.verificationDocument.create({
-                    data: {
-                        orderId,
-                        storeId,
-                        images: parsedImages,
-                        videoUrl: data.videoUrl,
-                        description: data.description,
-                        recipientName: data.recipientName,
-                        recipientSignature: data.recipientSignature,
-                        signatureType: data.signatureType || 'DRAWN',
-                        signatureText: data.signatureText || null,
-                        handoverDate: data.handoverDate ? new Date(data.handoverDate) : null,
-                        handoverTime: data.handoverTime,
-                    }
-                }),
-                this.prisma.order.update({
-                    where: { id: orderId },
-                    data: { status: OrderStatus.VERIFICATION, verificationSubmittedAt: new Date(), verificationTaskId: task.id }
-                })
-            ]);
-
-            await this.auditLogs.logAction({
-                orderId, action: 'SUBMIT_VERIFICATION', entity: 'Order',
-                actorType: ActorType.VENDOR, actorId: storeId, actorName: 'Merchant',
-                previousState: order.status, newState: OrderStatus.VERIFICATION
-            });
-            
-            const admins = await this.prisma.user.findMany({ where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } });
-            for (const admin of admins) {
-                await this.notifications.create({
-                    recipientId: admin.id, recipientRole: 'ADMIN', type: 'system_alert',
-                    titleAr: 'توثيق طلب جديد للمراجعة', titleEn: 'New Order Verification Review',
-                    messageAr: `قام المتجر برفع توثيق الطلب #${order.orderNumber}. بانتظار مراجعتك.`,
-                    messageEn: `Store uploaded verification for order #${order.orderNumber}. Pending review.`,
-                    link: `/admin/orders/${order.id}`
-                });
-            }
-            
-            return { success: true, doc };
-        } catch (e) {
-            require('fs').writeFileSync('./error_log_2.txt', (e.stack || e.message) + '\n\nPAYLOAD:\n' + JSON.stringify(data));
-            throw e;
         }
+
+        return this.offerFulfillment.submitOfferVerification(
+            orderId,
+            targetOfferId,
+            storeId,
+            data,
+        );
     }
 
     async adminReviewVerification(orderId: string, adminId: string, data: any) {
@@ -1835,6 +1842,22 @@ export class OrdersService {
                 })
             ] : [])
         ]);
+
+        if (latestDoc.offerId) {
+            await this.offerFulfillment.applyVerificationDecision(
+                orderId,
+                latestDoc.offerId,
+                decision === 'APPROVED',
+            );
+            const refreshed = await this.prisma.order.findUnique({
+                where: { id: orderId },
+            });
+            if (refreshed) newOrderStatus = refreshed.status;
+        }
+
+        if (newOrderStatus === OrderStatus.VERIFICATION_SUCCESS) {
+            await this.waybillsService.autoIssueAfterVerificationSuccess(orderId, adminId);
+        }
 
         await this.auditLogs.logAction({
             orderId, action: `VERIFICATION_${decision}`, entity: 'Order',

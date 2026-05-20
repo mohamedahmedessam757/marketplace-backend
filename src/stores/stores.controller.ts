@@ -94,9 +94,9 @@ export class StoresController {
         @Request() req,
         @Param('id') id: string,
         @Param('docType') docType: string,
-        @Body() body: { status: string, reason?: string }
+        @Body() body: { status: string, reason?: string, adminName?: string, adminSignature?: string }
     ) {
-        return this.storesService.updateDocumentStatus(req.user.id, id, docType, body.status, body.reason);
+        return this.storesService.updateDocumentStatus(req.user.id, id, docType, body.status, body.reason, body.adminName, body.adminSignature);
     }
 
     @Patch(':id/restrictions')

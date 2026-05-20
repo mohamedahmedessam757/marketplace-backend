@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
@@ -10,6 +10,8 @@ import { MerchantPerformanceService } from '../merchant-performance/merchant-per
 
 @Injectable()
 export class ReviewsService {
+  private readonly logger = new Logger(ReviewsService.name);
+
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
@@ -19,31 +21,59 @@ export class ReviewsService {
   ) {}
 
   async create(customerId: string, createReviewDto: CreateReviewDto) {
-    // 1. Validate Order belongs to Customer and is in CLOSED state
-    const order = await this.prisma.order.findUnique({
-      where: { id: createReviewDto.orderId },
-      include: { customer: true }
-    });
+    const orderId = createReviewDto.orderId;
+
+    const [order, existingReview] = await Promise.all([
+      this.prisma.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          customerId: true,
+          status: true,
+          orderNumber: true,
+          storeId: true,
+          offers: {
+            where: { status: { in: ['accepted', 'ACCEPTED'] } },
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: { storeId: true },
+          },
+        },
+      }),
+      this.prisma.review.findUnique({
+        where: { orderId },
+        select: { id: true },
+      }),
+    ]);
 
     if (!order) {
       throw new NotFoundException('Order not found');
     }
-    
+
     if (order.customerId !== customerId) {
       throw new BadRequestException('You do not have permission to review this order');
     }
 
-    if (order.status !== 'CLOSED' && order.status !== 'DELIVERED' && order.status !== 'COMPLETED') {
-        throw new BadRequestException('Order must be delivered or closed to be reviewed');
+    const reviewableStatuses = ['CLOSED', 'DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
+    if (!reviewableStatuses.includes(String(order.status))) {
+      throw new BadRequestException('Order must be delivered or closed to be reviewed');
     }
-
-    // 2. Prevent duplicate reviews
-    const existingReview = await this.prisma.review.findUnique({
-      where: { orderId: createReviewDto.orderId },
-    });
 
     if (existingReview) {
       throw new BadRequestException('You have already reviewed this order');
+    }
+
+    let storeId = createReviewDto.storeId?.trim();
+    if (!storeId) {
+      storeId =
+        order.offers?.[0]?.storeId ||
+        (order.storeId && String(order.storeId)) ||
+        undefined;
+    }
+    if (!storeId) {
+      throw new BadRequestException(
+        'Could not resolve store for this order. Please refresh and try again.',
+      );
     }
 
     // 3. Create the review as PENDING
@@ -51,31 +81,38 @@ export class ReviewsService {
       data: {
         orderId: createReviewDto.orderId,
         customerId,
-        storeId: createReviewDto.storeId,
+        storeId,
         rating: createReviewDto.rating,
         comment: createReviewDto.comment,
         adminStatus: 'PENDING',
       },
     });
 
-    // 4. Notify Admins
-    await this.notifications.notifyAdmins({
-      titleAr: 'تقييم جديد للمراجعة',
-      titleEn: 'New Review for Moderation',
-      messageAr: `قام العميل بوضع تقييم للطلب ${order.orderNumber}. بانتظار موافقتك.`,
-      messageEn: `A customer has left a review on order ${order.orderNumber}. Awaiting your approval.`,
-      type: 'alert',
-      metadata: { reviewId: review.id }
-    });
+    // 4–5. Side effects after response (faster submit for customer)
+    void this.notifications
+      .notifyAdmins({
+        titleAr: 'تقييم جديد للمراجعة',
+        titleEn: 'New Review for Moderation',
+        messageAr: `قام العميل بوضع تقييم للطلب ${order.orderNumber}. بانتظار موافقتك.`,
+        messageEn: `A customer has left a review on order ${order.orderNumber}. Awaiting your approval.`,
+        type: 'alert',
+        metadata: { reviewId: review.id },
+      })
+      .catch((err) => this.logger.warn('Review admin notify failed', err));
 
-    // 5. Audit Log (2026 Customer Feedback)
-    await this.auditLogs.logAction({
+    void this.auditLogs
+      .logAction({
         entity: 'REVIEW',
         action: 'REVIEW_CREATED',
         actorType: 'CUSTOMER',
         actorId: customerId,
-        metadata: { reviewId: review.id, orderId: createReviewDto.orderId, rating: createReviewDto.rating }
-    });
+        metadata: {
+          reviewId: review.id,
+          orderId: createReviewDto.orderId,
+          rating: createReviewDto.rating,
+        },
+      })
+      .catch(() => undefined);
 
     return review;
   }

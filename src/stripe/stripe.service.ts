@@ -99,6 +99,11 @@ export class StripeService {
         return await this.stripe.paymentIntents.create(params);
     }
 
+    /** Retrieve an existing PaymentIntent (idempotent payment retries). */
+    async retrievePaymentIntent(paymentIntentId: string): Promise<any> {
+        return await this.stripe.paymentIntents.retrieve(paymentIntentId);
+    }
+
     /**
      * Get or Create a Stripe Customer for a user
      */
@@ -214,6 +219,23 @@ export class StripeService {
             this.logger.error(`Failed to execute payout for ${connectedAccountId}`, error.message);
             throw new BadRequestException(`Payout failed: ${error.message}`);
         }
+    }
+
+    /**
+     * Remaining refundable amount on a PaymentIntent (AED), from Stripe charge state.
+     */
+    async getMaxRefundableAmountAed(paymentIntentId: string): Promise<number> {
+        const pi = await this.stripe.paymentIntents.retrieve(paymentIntentId, {
+            expand: ['latest_charge'],
+        });
+        const charge = (pi as any).latest_charge;
+        if (charge && typeof charge !== 'string') {
+            const remaining = (Number(charge.amount) - Number(charge.amount_refunded || 0)) / 100;
+            return Math.max(0, Math.round(remaining * 100) / 100);
+        }
+        const received = Number((pi as any).amount_received || pi.amount || 0) / 100;
+        const refunded = Number((pi as any).amount_refunded || 0) / 100;
+        return Math.max(0, Math.round((received - refunded) * 100) / 100);
     }
 
     /**

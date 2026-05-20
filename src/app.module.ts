@@ -41,6 +41,7 @@ import { MaintenanceGuard } from './platform-settings/maintenance.guard';
         ]),
         ConfigModule.forRoot({
             isGlobal: true,
+            envFilePath: ['.env', '../.env'],
         }),
         UsersModule,
         AuthModule,

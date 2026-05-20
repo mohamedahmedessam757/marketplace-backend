@@ -5,9 +5,10 @@ import { VerificationTasksPublicController } from './verification-tasks-public.c
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { UploadsModule } from '../uploads/uploads.module';
+import { WaybillsModule } from '../waybills/waybills.module';
 
 @Module({
-  imports: [NotificationsModule, AuditLogsModule, UploadsModule],
+  imports: [NotificationsModule, AuditLogsModule, UploadsModule, WaybillsModule],
   providers: [VerificationTasksService],
   controllers: [VerificationTasksController, VerificationTasksPublicController],
   exports: [VerificationTasksService],

@@ -9,6 +9,7 @@ import { ActorType, OrderStatus, Prisma, UserRole, UserStatus } from '@prisma/cl
 import { PrismaService } from '../prisma/prisma.service';
 import { assertVerificationTaskAccess } from './verification-task-access';
 import { UploadsService, VERIFICATION_FIELD_PHOTOS_BUCKET } from '../uploads/uploads.service';
+import { WaybillsService } from '../waybills/waybills.service';
 import * as crypto from 'crypto';
 
 /** Narrow delegate for `VerificationTaskPhoto` (editor/Prisma client shapes can desync until `npx prisma generate`). */
@@ -100,6 +101,7 @@ export class VerificationTasksService {
     private notifications: NotificationsService,
     private auditLogs: AuditLogsService,
     private uploads: UploadsService,
+    private waybillsService: WaybillsService,
   ) {}
 
   private get verificationTaskPhotoRows(): VerificationTaskPhotoRepo {
@@ -833,6 +835,22 @@ export class VerificationTasksService {
     });
   }
 
+  private adminTasksListInclude() {
+    return {
+      officer: { select: { id: true, name: true, email: true } },
+      order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          partName: true,
+          vehicleMake: true,
+          vehicleModel: true,
+          vehicleYear: true,
+        },
+      },
+    };
+  }
+
   async getMyTasks(officerId: string) {
     return this.prisma.verificationTask.findMany({
       where: { officerId },
@@ -842,6 +860,16 @@ export class VerificationTasksService {
         }
       },
       orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  /** Full history for admin dashboard (all statuses, newest first). */
+  async listAllTasksForAdmin(limit = 500) {
+    const safeLimit = Math.min(Math.max(limit, 1), 500);
+    return this.prisma.verificationTask.findMany({
+      include: this.adminTasksListInclude(),
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: safeLimit,
     });
   }
 
@@ -860,23 +888,13 @@ export class VerificationTasksService {
     });
   }
 
-  /** Tasks where the field officer finished with MATCHING and an admin must confirm. */
+  /** Tasks where the field officer finished and an admin must confirm (match or non-match). */
   async getAdminQueue() {
     return this.prisma.verificationTask.findMany({
-      where: { status: 'AWAITING_ADMIN_APPROVAL' },
-      include: {
-        officer: { select: { id: true, name: true, email: true } },
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            partName: true,
-            vehicleMake: true,
-            vehicleModel: true,
-            vehicleYear: true,
-          },
-        },
+      where: {
+        status: { in: ['AWAITING_ADMIN_APPROVAL', 'AWAITING_CORRECTION'] },
       },
+      include: this.adminTasksListInclude(),
       orderBy: { updatedAt: 'desc' },
     });
   }
@@ -890,33 +908,58 @@ export class VerificationTasksService {
       where: { id: taskId },
       include: {
         order: {
-          include: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            rejectionCount: true,
+            customerId: true,
             verificationDocuments: { orderBy: { createdAt: 'desc' }, take: 1 },
           },
         },
       },
     });
     if (!task) throw new NotFoundException('Task not found');
-    if (task.status !== 'AWAITING_ADMIN_APPROVAL') {
+    if (!['AWAITING_ADMIN_APPROVAL', 'AWAITING_CORRECTION'].includes(task.status)) {
       throw new BadRequestException('Task is not awaiting admin field approval');
     }
 
+    const officerDecision = task.decision ?? 'MATCHING';
     let newOrderStatus: OrderStatus = task.order.status;
     let correctionDeadline: Date | null = null;
     let newRejectionCount = task.order.rejectionCount;
 
     if (dto.approved) {
-      if (task.order.status === OrderStatus.VERIFICATION_SUCCESS) {
-        newOrderStatus = OrderStatus.READY_FOR_SHIPPING;
+      // Admin agrees with the officer's field decision
+      if (officerDecision === 'NON_MATCHING') {
+        newRejectionCount += 1;
+        if (newRejectionCount >= 2) {
+          newOrderStatus = OrderStatus.CANCELLED;
+          correctionDeadline = null;
+        } else {
+          newOrderStatus = OrderStatus.CORRECTION_PERIOD;
+          correctionDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        }
+      } else {
+        newOrderStatus = OrderStatus.VERIFICATION_SUCCESS;
+        correctionDeadline = null;
       }
     } else {
-      newRejectionCount += 1;
-      if (newRejectionCount >= 2) {
-        newOrderStatus = OrderStatus.CANCELLED;
+      // Admin rejects the officer's recommendation
+      if (officerDecision === 'NON_MATCHING') {
+        // Admin overrides: part is acceptable — continue verification flow
+        newOrderStatus = OrderStatus.VERIFICATION;
         correctionDeadline = null;
       } else {
-        newOrderStatus = OrderStatus.CORRECTION_PERIOD;
-        correctionDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        // Officer said match but admin disagrees — merchant must correct
+        newRejectionCount += 1;
+        if (newRejectionCount >= 2) {
+          newOrderStatus = OrderStatus.CANCELLED;
+          correctionDeadline = null;
+        } else {
+          newOrderStatus = OrderStatus.CORRECTION_PERIOD;
+          correctionDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        }
       }
     }
 
@@ -931,12 +974,12 @@ export class VerificationTasksService {
         rejectionCount: newRejectionCount,
       };
 
-      if (dto.approved) {
-        if (newOrderStatus === OrderStatus.READY_FOR_SHIPPING) {
-          orderData.correctionDeadlineAt = null;
-        }
-      } else {
+      if (newOrderStatus === OrderStatus.CORRECTION_PERIOD) {
         orderData.correctionDeadlineAt = correctionDeadline;
+      } else if (newOrderStatus === OrderStatus.VERIFICATION_SUCCESS || newOrderStatus === OrderStatus.VERIFICATION) {
+        orderData.correctionDeadlineAt = null;
+      } else if (!dto.approved && newOrderStatus === OrderStatus.CANCELLED) {
+        orderData.correctionDeadlineAt = null;
       }
 
       await tx.order.update({
@@ -953,6 +996,10 @@ export class VerificationTasksService {
         },
       });
     });
+
+    if (newOrderStatus === OrderStatus.VERIFICATION_SUCCESS) {
+      await this.waybillsService.autoIssueAfterVerificationSuccess(task.orderId, adminId);
+    }
 
     await this.auditLogs
       .logAction({
@@ -972,40 +1019,16 @@ export class VerificationTasksService {
       })
       .catch((err) => this.logger.warn(`audit log field verification review: ${err}`));
 
-    const storeId = task.order.verificationDocuments?.[0]?.storeId;
-    if (storeId) {
-      void this.notifications
-        .notifyMerchantByStoreId(storeId, {
-          titleAr: dto.approved ? 'تم اعتماد المطابقة الميدانية' : 'تم رفض اعتماد المطابقة الميدانية',
-          titleEn: dto.approved ? 'Field verification approved' : 'Field verification rejected',
-          messageAr: dto.approved
-            ? `تم اعتماد نتيجة موظف المطابقة للطلب #${task.order.orderNumber}.`
-            : `رفض المشرف نتيجة المطابقة الميدانية للطلب #${task.order.orderNumber}. يرجى اتباع تعليمات التصحيح.`,
-          messageEn: dto.approved
-            ? `Admin approved the field verification for order #${task.order.orderNumber}.`
-            : `Admin rejected the field verification for order #${task.order.orderNumber}. Please follow correction instructions.`,
-          type: dto.approved ? 'system_alert' : 'system_alert',
-          link: `/merchant/orders/${task.order.id}`,
-        })
-        .catch((e) => this.logger.warn(`merchant notify field review: ${e}`));
-    }
-
-    if (task.officerId) {
-      void this.notifications
-        .notifyUser(task.officerId, 'VERIFICATION_OFFICER', {
-          titleAr: dto.approved ? 'تم اعتماد تقريرك' : 'تم رفض التقرير من الإدارة',
-          titleEn: dto.approved ? 'Your report was approved' : 'Admin rejected your report',
-          messageAr: dto.approved
-            ? `تم اعتماد مطابقة الطلب #${task.order.orderNumber} من قبل الإدارة.`
-            : `رفض المشرف اعتماد مطابقة الطلب #${task.order.orderNumber}.`,
-          messageEn: dto.approved
-            ? `Admin approved matching for order #${task.order.orderNumber}.`
-            : `Admin did not approve matching for order #${task.order.orderNumber}.`,
-          type: 'system',
-          link: `/admin/verification-tasks/${taskId}`,
-        })
-        .catch((e) => this.logger.warn(`officer notify field review: ${e}`));
-    }
+    void this.dispatchFieldAdminReviewNotifications({
+      taskId,
+      order: task.order,
+      storeId: task.order.verificationDocuments?.[0]?.storeId ?? null,
+      officerId: task.officerId,
+      approved: dto.approved,
+      officerDecision,
+      newOrderStatus,
+      newRejectionCount,
+    }).catch((e) => this.logger.warn(`field admin review notifications: ${e}`));
 
     return { success: true, orderStatus: newOrderStatus, taskStatus: dto.approved ? 'ADMIN_APPROVED' : 'ADMIN_REJECTED' };
   }
@@ -1029,7 +1052,15 @@ export class VerificationTasksService {
       : null;
 
     const orderTaskHistory = await this.prisma.verificationTask.findMany({
-      where: { orderId: task.orderId, id: { not: taskId } },
+      where: {
+        orderId: task.orderId,
+        id: { not: taskId },
+        OR: [
+          { decision: { not: null } },
+          { completedAt: { not: null } },
+          { status: { in: ['AWAITING_ADMIN_APPROVAL', 'AWAITING_CORRECTION', 'ADMIN_APPROVED', 'ADMIN_REJECTED'] } },
+        ],
+      },
       orderBy: { cycleNumber: 'desc' },
       select: {
         id: true,
@@ -1037,10 +1068,16 @@ export class VerificationTasksService {
         status: true,
         decision: true,
         decisionReason: true,
+        officerNotes: true,
         officerPhotos: true,
         reportUrl: true,
         completedAt: true,
         createdAt: true,
+        officer: { select: { id: true, name: true, email: true } },
+        fieldPhotos: {
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          select: { url: true },
+        },
       },
     });
 
@@ -1139,6 +1176,102 @@ export class VerificationTasksService {
     return { success: true };
   }
 
+  /** Merchant, customer, and officer alerts after admin confirms field verification (aligned with orders adminReviewVerification). */
+  private async dispatchFieldAdminReviewNotifications(ctx: {
+    taskId: string;
+    order: { id: string; orderNumber: string; customerId: string };
+    storeId: string | null;
+    officerId: string | null;
+    approved: boolean;
+    officerDecision: string;
+    newOrderStatus: OrderStatus;
+    newRejectionCount: number;
+  }) {
+    const { order, storeId, officerId, approved, officerDecision, newOrderStatus, newRejectionCount } = ctx;
+    const link = `/merchant/orders/${order.id}`;
+
+    if (storeId) {
+      if (newOrderStatus === OrderStatus.CORRECTION_PERIOD) {
+        await this.notifications.notifyMerchantByStoreId(storeId, {
+          titleAr: '⚠️ رفض مطابقة القطعة - مطلوب تصحيح',
+          titleEn: '⚠️ Verification Rejected - Correction Required',
+          messageAr: `تم اكتشاف عدم مطابقة في الطلب #${order.orderNumber}. أمامك 48 ساعة لتصحيح القطعة وإعادة التوثيق.`,
+          messageEn: `Non-matching part detected for #${order.orderNumber}. You have 48h to submit correction.`,
+          type: 'system_alert',
+          link,
+        });
+      } else if (newOrderStatus === OrderStatus.CANCELLED && newRejectionCount >= 2) {
+        await this.notifications.notifyMerchantByStoreId(storeId, {
+          titleAr: '❌ رفض نهائي وإلغاء الطلب',
+          titleEn: '❌ Final Rejection & Order Cancelled',
+          messageAr: `تم رفض مطابقة الطلب #${order.orderNumber} للمرة الثانية. تم إلغاء الطلب وسحب المبلغ.`,
+          messageEn: `Order #${order.orderNumber} verification rejected twice. Order cancelled.`,
+          type: 'system_alert',
+          link,
+        });
+      } else if (newOrderStatus === OrderStatus.VERIFICATION_SUCCESS) {
+        await this.notifications.notifyMerchantByStoreId(storeId, {
+          titleAr: 'تم قبول مطابقة القطعة',
+          titleEn: 'Part Verification Approved',
+          messageAr: `تم الموافقة على توثيق الطلب #${order.orderNumber}. يمكنك الآن تسليمه للمندوب ومتابعة الشحن.`,
+          messageEn: `Verification for #${order.orderNumber} approved. You can now handover to courier.`,
+          type: 'system_alert',
+          link,
+        });
+      } else if (newOrderStatus === OrderStatus.VERIFICATION && !approved && officerDecision === 'NON_MATCHING') {
+        await this.notifications.notifyMerchantByStoreId(storeId, {
+          titleAr: 'تم تجاوز عدم المطابقة',
+          titleEn: 'Non-match overridden by admin',
+          messageAr: `رفض الإدارة توصية عدم المطابقة للطلب #${order.orderNumber}. يستمر الطلب في مسار التوثيق.`,
+          messageEn: `Admin overrode the non-match recommendation for order #${order.orderNumber}. Verification continues.`,
+          type: 'system_alert',
+          link,
+        });
+      }
+    }
+
+    if (newOrderStatus === OrderStatus.CANCELLED && newRejectionCount >= 2) {
+      await this.notifications.create({
+        recipientId: order.customerId,
+        recipientRole: 'CUSTOMER',
+        type: 'system_alert',
+        titleAr: '❌ إلغاء الطلب لعدم المطابقة',
+        titleEn: '❌ Order Cancelled due to Non-Matching',
+        messageAr: `تم إلغاء طلبك #${order.orderNumber} لعدم مطابقة القطعة من المتجر. سيتم استرجاع مبلغك قريباً.`,
+        messageEn: `Your order #${order.orderNumber} was cancelled due to non-matching part. Refund will be processed soon.`,
+        link: `/customer/orders/${order.id}`,
+      });
+    }
+
+    if (officerId) {
+      const officerTitleAr = approved ? 'تم اعتماد تقريرك' : 'تم رفض التقرير من الإدارة';
+      const officerTitleEn = approved ? 'Your report was approved' : 'Admin rejected your report';
+      let officerMsgAr: string;
+      let officerMsgEn: string;
+      if (approved && officerDecision === 'MATCHING') {
+        officerMsgAr = `تم اعتماد مطابقة الطلب #${order.orderNumber} من قبل الإدارة.`;
+        officerMsgEn = `Admin approved your matching report for order #${order.orderNumber}.`;
+      } else if (approved && officerDecision === 'NON_MATCHING') {
+        officerMsgAr = `تم اعتماد توصية عدم المطابقة للطلب #${order.orderNumber} — بدأت فترة التصحيح للمتجر.`;
+        officerMsgEn = `Admin approved your non-match report for order #${order.orderNumber}; merchant correction period started.`;
+      } else if (!approved && officerDecision === 'MATCHING') {
+        officerMsgAr = `رفض الإدارة اعتماد المطابقة للطلب #${order.orderNumber} — يُطلب من المتجر التصحيح.`;
+        officerMsgEn = `Admin rejected your match report for order #${order.orderNumber}; merchant must correct.`;
+      } else {
+        officerMsgAr = `رفض الإدارة توصية عدم المطابقة للطلب #${order.orderNumber}.`;
+        officerMsgEn = `Admin rejected your non-match recommendation for order #${order.orderNumber}.`;
+      }
+      await this.notifications.notifyUser(officerId, 'VERIFICATION_OFFICER', {
+        titleAr: officerTitleAr,
+        titleEn: officerTitleEn,
+        messageAr: officerMsgAr,
+        messageEn: officerMsgEn,
+        type: 'system',
+        link: `/admin/verification-tasks/${ctx.taskId}`,
+      });
+    }
+  }
+
   private async dispatchVerificationCompletionNotifications(task: {
     id: string;
     order: { id: string; orderNumber: string; verificationDocuments?: { storeId: string | null }[] };
@@ -1149,32 +1282,30 @@ export class VerificationTasksService {
       messageAr: `قام موظف المطابقة بإنهاء المهمة للطلب #${task.order.orderNumber} بقرار: ${dto.decision === 'MATCHING' ? 'مطابق' : 'غير مطابق'}`,
       messageEn: `Verification Officer completed task for Order #${task.order.orderNumber} with decision: ${dto.decision}`,
       type: 'system',
-      link: `/admin/orders/${task.order.id}`,
+      link: `/dashboard/verification-tasks`,
     });
 
     const storeId = task.order.verificationDocuments?.[0]?.storeId;
     if (!storeId) return;
 
     try {
-      if (dto.decision === 'NON_MATCHING') {
-        await this.notifications.notifyMerchantByStoreId(storeId, {
-          titleAr: '⚠️ غير مطابق — مطلوب تصحيح خلال 48 ساعة',
-          titleEn: '⚠️ Non-matching — 48h correction required',
-          messageAr: `أبلغ موظف المطابقة بعدم مطابقة الطلب #${task.order.orderNumber}. لديك 48 ساعة لتصحيح الطلب وإعادة الإرسال.`,
-          messageEn: `Field officer reported non-match for order #${task.order.orderNumber}. You have 48 hours to correct and resubmit.`,
-          type: 'system_alert',
-          link: `/merchant/orders/${task.order.id}`,
-        });
-      } else {
-        await this.notifications.notifyMerchantByStoreId(storeId, {
-          titleAr: 'تحديث في حالة المطابقة',
-          titleEn: 'Verification Status Update',
-          messageAr: `أنهى موظف المطابقة فحص الطلب #${task.order.orderNumber} بنتيجة مطابق — بانتظار اعتماد الإدارة.`,
-          messageEn: `Field officer completed inspection for order #${task.order.orderNumber} as matching — pending admin approval.`,
-          type: 'system_alert',
-          link: `/merchant/orders/${task.order.id}`,
-        });
-      }
+      const pendingAdminAr =
+        dto.decision === 'NON_MATCHING'
+          ? `أنهى موظف المطابقة فحص الطلب #${task.order.orderNumber} بتوصية «غير مطابق» — بانتظار اعتماد الإدارة قبل بدء فترة التصحيح.`
+          : `أنهى موظف المطابقة فحص الطلب #${task.order.orderNumber} بتوصية «مطابق» — بانتظار اعتماد الإدارة.`;
+      const pendingAdminEn =
+        dto.decision === 'NON_MATCHING'
+          ? `Field officer reported non-match for order #${task.order.orderNumber} — awaiting admin approval before any correction period.`
+          : `Field officer reported a match for order #${task.order.orderNumber} — awaiting admin approval.`;
+
+      await this.notifications.notifyMerchantByStoreId(storeId, {
+        titleAr: 'تحديث المطابقة الميدانية — بانتظار الإدارة',
+        titleEn: 'Field verification — pending admin approval',
+        messageAr: pendingAdminAr,
+        messageEn: pendingAdminEn,
+        type: 'system_alert',
+        link: `/merchant/orders/${task.order.id}`,
+      });
     } catch (e: any) {
       this.logger.warn(`Failed to notify merchant for task ${task.id}: ${e?.message ?? e}`);
     }
@@ -1208,8 +1339,8 @@ export class VerificationTasksService {
       throw new BadRequestException('At least one verification photo is required (upload via field-photos first)');
     }
 
-    const taskStatus =
-      dto.decision === 'MATCHING' ? 'AWAITING_ADMIN_APPROVAL' : 'AWAITING_CORRECTION';
+    // Officer submits a recommendation only — admin must approve before order status changes.
+    const taskStatus = 'AWAITING_ADMIN_APPROVAL';
 
     const reportUrl = this.verificationReportPath(taskId);
 
@@ -1229,17 +1360,6 @@ export class VerificationTasksService {
                 reportUrl,
             }
         });
-
-        if (dto.decision === 'NON_MATCHING') {
-          const correctionDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
-          await tx.order.update({
-            where: { id: task.orderId },
-            data: {
-              status: OrderStatus.CORRECTION_PERIOD,
-              correctionDeadlineAt: correctionDeadline,
-            },
-          });
-        }
 
         await tx.verificationActivityLog.create({
             data: {

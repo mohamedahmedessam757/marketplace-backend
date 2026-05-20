@@ -41,6 +41,100 @@ const STATUS_LABELS: Record<string, { ar: string; en: string }> = {
     RETURN_TO_CUSTOMER:        { ar: 'جاري إعادة القطعة إليك 🚚 بعد مراجعة طلب الإرجاع.', en: 'Part is being returned to you 🚚 after reviewing the return request.' },
 };
 
+/** Operational copy for merchants (their sold order — not “your shipment to you”). */
+const MERCHANT_STATUS_LABELS: Record<string, { ar: string; en: string }> = {
+    RECEIVED_AT_HUB:           { ar: 'استُلمت شحنة الطلب في مركز المنصة وجاري الفحص.', en: 'Order shipment received at hub; inspection in progress.' },
+    QUALITY_CHECK_PASSED:      { ar: 'اجتازت شحنة الطلب فحص الجودة.', en: 'Order shipment passed quality check.' },
+    PACKAGED_FOR_SHIPPING:     { ar: 'تم تغليف شحنة الطلب وهي جاهزة للإرسال.', en: 'Order shipment packaged and ready to ship.' },
+    AWAITING_CARRIER_PICKUP:   { ar: 'شحنة الطلب بانتظار استلام المندوب/شركة الشحن.', en: 'Order shipment awaiting carrier pickup.' },
+    PICKED_UP_BY_CARRIER:      { ar: 'استلمت شركة الشحن شحنة الطلب — في الطريق للعميل.', en: 'Carrier picked up the order shipment — en route to customer.' },
+    IN_TRANSIT_TO_DESTINATION: { ar: 'شحنة الطلب في الطريق إلى وجهة العميل.', en: 'Order shipment in transit to customer.' },
+    ARRIVED_AT_LOCAL_FACILITY: { ar: 'شحنة الطلب وصلت مركز التوزيع المحلي.', en: 'Order shipment arrived at local facility.' },
+    CUSTOMS_CLEARANCE:         { ar: 'شحنة الطلب في التخليص الجمركي.', en: 'Order shipment in customs clearance.' },
+    AT_LOCAL_WAREHOUSE:        { ar: 'شحنة الطلب في مستودع الشحن المحلي.', en: 'Order shipment at local warehouse.' },
+    OUT_FOR_DELIVERY:          { ar: 'شحنة الطلب خرجت للتسليم للعميل.', en: 'Order shipment out for delivery to customer.' },
+    DELIVERY_ATTEMPTED:        { ar: 'محاولة تسليم للعميل لم تنجح — قد تُعاد المحاولة.', en: 'Delivery attempt to customer failed — may retry.' },
+    DELIVERED_TO_CUSTOMER:     { ar: 'تم تسليم الطلب للعميل بنجاح.', en: 'Order delivered to customer successfully.' },
+    RETURN_LABEL_ISSUED:       { ar: 'صدرت بوليصة إرجاع لطلبك.', en: 'Return label issued for your order.' },
+    RETURN_STARTED:            { ar: 'بدأ مسار إرجاع شحنة الطلب.', en: 'Return journey started for order shipment.' },
+    RECEIVED_FROM_CUSTOMER:    { ar: 'استُلم المرتجع من العميل في المركز.', en: 'Return received from customer at hub.' },
+    DELIVERED_TO_VENDOR:       { ar: 'وصل المرتجع إلى متجرك للمراجعة.', en: 'Return delivered to your store for review.' },
+    EXCHANGE_COMPLETED:        { ar: 'اكتمل استبدال القطعة — جاري إرسال البديل للعميل.', en: 'Exchange completed — replacement shipping to customer.' },
+    IN_TRANSIT_TO_CUSTOMER:    { ar: 'الشحنة البديلة في الطريق للعميل.', en: 'Replacement shipment in transit to customer.' },
+    RETURN_COMPLETED_TO_CUSTOMER: { ar: 'اكتمل إرجاع الشحنة للعميل.', en: 'Return to customer completed.' },
+    RETURN_TO_SENDER_INITIATED:{ ar: 'بدأت إجراءات إرجاع الشحنة للمرسل.', en: 'Return-to-sender process started.' },
+    RETURNED_TO_SENDER:        { ar: 'أُعيدت الشحنة للمرسل.', en: 'Shipment returned to sender.' },
+    CUSTOMS_DELAY:             { ar: 'تأخير جمركي على شحنة الطلب.', en: 'Customs delay on order shipment.' },
+    RETURN_WAYBILL_ISSUED:     { ar: 'صدرت بوليصة إرجاع للطلب.', en: 'Return waybill issued for order.' },
+    RETURN_RECEIVED:           { ar: 'استُلم المرتجع في المركز.', en: 'Return received at hub.' },
+    EXCHANGE_SHIPPED:          { ar: 'شُحن البديل للعميل.', en: 'Exchange part shipped to customer.' },
+    RETURN_TO_CUSTOMER:        { ar: 'جاري إرجاع القطعة للعميل.', en: 'Part return to customer in progress.' },
+};
+
+/** Short operational copy for platform admins. */
+const ADMIN_STATUS_LABELS: Record<string, { ar: string; en: string }> = {
+    RECEIVED_AT_HUB:           { ar: 'استلام في المركز.', en: 'Received at hub.' },
+    QUALITY_CHECK_PASSED:      { ar: 'اجتاز فحص الجودة.', en: 'Quality check passed.' },
+    PACKAGED_FOR_SHIPPING:     { ar: 'تم التغليف.', en: 'Packaged.' },
+    AWAITING_CARRIER_PICKUP:   { ar: 'بانتظار المندوب.', en: 'Awaiting carrier.' },
+    PICKED_UP_BY_CARRIER:      { ar: 'تسليم لشركة الشحن.', en: 'Handed to carrier.' },
+    IN_TRANSIT_TO_DESTINATION: { ar: 'في الطريق.', en: 'In transit.' },
+    ARRIVED_AT_LOCAL_FACILITY: { ar: 'وصل المركز المحلي.', en: 'At local facility.' },
+    CUSTOMS_CLEARANCE:         { ar: 'تخليص جمركي.', en: 'Customs clearance.' },
+    AT_LOCAL_WAREHOUSE:        { ar: 'في المستودع المحلي.', en: 'At local warehouse.' },
+    OUT_FOR_DELIVERY:          { ar: 'خارج للتسليم.', en: 'Out for delivery.' },
+    DELIVERY_ATTEMPTED:        { ar: 'محاولة تسليم فاشلة.', en: 'Delivery attempt failed.' },
+    DELIVERED_TO_CUSTOMER:     { ar: 'تم التسليم للعميل.', en: 'Delivered to customer.' },
+    RETURN_LABEL_ISSUED:       { ar: 'بوليصة إرجاع.', en: 'Return label issued.' },
+    RETURN_STARTED:            { ar: 'بدء الإرجاع.', en: 'Return started.' },
+    RECEIVED_FROM_CUSTOMER:    { ar: 'استلام من العميل.', en: 'Received from customer.' },
+    DELIVERED_TO_VENDOR:       { ar: 'تسليم للتاجر.', en: 'Delivered to vendor.' },
+    EXCHANGE_COMPLETED:        { ar: 'اكتمل الاستبدال.', en: 'Exchange completed.' },
+    IN_TRANSIT_TO_CUSTOMER:    { ar: 'في الطريق للعميل.', en: 'In transit to customer.' },
+    RETURN_COMPLETED_TO_CUSTOMER: { ar: 'إرجاع مكتمل للعميل.', en: 'Return completed to customer.' },
+    RETURN_TO_SENDER_INITIATED:{ ar: 'إرجاع للمرسل.', en: 'Return to sender.' },
+    RETURNED_TO_SENDER:        { ar: 'أُعيد للمرسل.', en: 'Returned to sender.' },
+    CUSTOMS_DELAY:             { ar: 'تأخير جمركي.', en: 'Customs delay.' },
+    RETURN_WAYBILL_ISSUED:     { ar: 'بوليصة إرجاع.', en: 'Return waybill.' },
+    RETURN_RECEIVED:           { ar: 'مرتجع في المركز.', en: 'Return at hub.' },
+    EXCHANGE_SHIPPED:          { ar: 'شحن بديل.', en: 'Exchange shipped.' },
+    RETURN_TO_CUSTOMER:        { ar: 'إرجاع للعميل.', en: 'Return to customer.' },
+};
+
+function buildShipmentNotifyBodies(
+    status: ShipmentStatus,
+    orderNumber: string,
+    note: string | undefined,
+    customsSuffixAr: string,
+    customsSuffixEn: string,
+) {
+    const customer = STATUS_LABELS[status];
+    const merchant = MERCHANT_STATUS_LABELS[status] ?? {
+        ar: `تحديث مرحلة الشحن (${status}).`,
+        en: `Shipping stage updated (${status}).`,
+    };
+    const admin = ADMIN_STATUS_LABELS[status] ?? {
+        ar: `حالة الشحنة: ${status}.`,
+        en: `Shipment status: ${status}.`,
+    };
+    const noteAr = note ? `\n${note}` : '';
+    const noteEn = note ? `\n${note}` : '';
+    return {
+        customer: {
+            ar: `طلب #${orderNumber}: ${customer.ar}${noteAr}${customsSuffixAr}`,
+            en: `Order #${orderNumber}: ${customer.en}${noteEn}${customsSuffixEn}`,
+        },
+        merchant: {
+            ar: `طلب #${orderNumber}: ${merchant.ar}${noteAr}${status === ShipmentStatus.CUSTOMS_DELAY ? customsSuffixAr : ''}`,
+            en: `Order #${orderNumber}: ${merchant.en}${noteEn}${status === ShipmentStatus.CUSTOMS_DELAY ? customsSuffixEn : ''}`,
+        },
+        admin: {
+            ar: `طلب #${orderNumber}: ${admin.ar}${noteAr}${status === ShipmentStatus.CUSTOMS_DELAY ? customsSuffixAr : ''}`,
+            en: `Order #${orderNumber}: ${admin.en}${noteEn}${status === ShipmentStatus.CUSTOMS_DELAY ? customsSuffixEn : ''}`,
+        },
+    };
+}
+
 @Injectable()
 export class ShipmentsService {
     constructor(
@@ -50,7 +144,7 @@ export class ShipmentsService {
         private users: UsersService
     ) {}
 
-    async create(data: CreateShipmentDto, userId: string) {
+    async create(data: CreateShipmentDto, userId?: string | null) {
         // Updated for 2026 Partial Shipping: Multiple shipments per order are allowed
         // Idempotency check now includes waybillId to allow separate shipments for the same order
         const existing = await this.prisma.shipment.findFirst({
@@ -72,7 +166,7 @@ export class ShipmentsService {
                 carrierName: data.carrierName,
                 trackingNumber: data.trackingNumber,
                 carrierApiUrl: data.carrierApiUrl,
-                updatedBy: userId,
+                updatedBy: userId ?? null,
                 // Starts at RECEIVED_AT_HUB - the admin will update the 12-step status
                 status: 'RECEIVED_AT_HUB',
             }
@@ -83,19 +177,19 @@ export class ShipmentsService {
                 shipmentId: shipment.id,
                 fromStatus: null,
                 toStatus: 'RECEIVED_AT_HUB',
-                changedBy: userId,
-                source: 'MANUAL',
-                notes: 'Shipment created by merchant request'
+                changedBy: userId ?? null,
+                source: userId ? 'MANUAL' : 'SYSTEM',
+                notes: userId ? 'Shipment created by merchant request' : 'Shipment created by automated waybill issuance'
             }
         });
 
         // 2026 Audit Trail: Log to global audit system
-        const actor = await this.users.findById(userId);
+        const actor = userId ? await this.users.findById(userId) : null;
         await this.auditLogs.logAction({
             action: 'CREATE',
             entity: 'SHIPMENT',
             actorType: (actor?.role as any) || 'SYSTEM',
-            actorId: userId,
+            actorId: userId ?? undefined,
             actorName: actor?.name || 'System',
             newState: JSON.stringify({ status: 'RECEIVED_AT_HUB', orderId: data.orderId }),
             reason: 'Shipment initialization at hub',
@@ -174,14 +268,16 @@ export class ShipmentsService {
             });
         }
 
-        // When delivered → update order to DELIVERED
+        // When delivered → update order to DELIVERED (delivered_at set once)
         if (isDelivered && shipment.order) {
+            const prev = shipment.order;
             await this.prisma.order.update({
                 where: { id: shipment.orderId },
-                data: { 
+                data: {
                     status: 'DELIVERED',
-                    updatedAt: new Date()
-                }
+                    updatedAt: new Date(),
+                    deliveredAt: prev.deliveredAt ?? new Date(),
+                },
             });
         }
 
@@ -389,6 +485,7 @@ export class ShipmentsService {
         });
     }
 
+    /** Role-specific shipment alerts: customer, merchant (store), and admins each get tailored copy. */
     private async notifyRelevantUsers(
         orderId: string,
         status: ShipmentStatus,
@@ -396,12 +493,11 @@ export class ShipmentsService {
         customsDelayInput?: string
     ) {
         const order = await this.prisma.order.findUnique({ where: { id: orderId } });
-        if (!order) return;
+        if (!order?.customerId) return;
+
+        if (!STATUS_LABELS[status]) return;
 
         const labels = STATUS_LABELS[status];
-        if (!labels) return;
-
-        // Attach customs delay message if applicable
         const customsSuffixAr = (status === ShipmentStatus.CUSTOMS_DELAY)
             ? `\n${labels.ar}${customsDelayInput ? '\n' + customsDelayInput : ''}`
             : '';
@@ -409,37 +505,51 @@ export class ShipmentsService {
             ? `\n${labels.en}${customsDelayInput ? '\n' + customsDelayInput : ''}`
             : '';
 
-        const notifyData = {
+        const bodies = buildShipmentNotifyBodies(
+            status,
+            order.orderNumber,
+            note,
+            customsSuffixAr,
+            customsSuffixEn,
+        );
+
+        await this.notifications.create({
+            recipientId: order.customerId,
+            recipientRole: 'CUSTOMER',
             titleAr: 'تحديث شحنتك 🚚',
-            titleEn: 'Shipment Update 🚚',
-            messageAr: `طلب #${order.orderNumber}: ${labels.ar}${note ? '\n' + note : ''}${customsSuffixAr}`,
-            messageEn: `Order #${order.orderNumber}: ${labels.en}${note ? '\n' + note : ''}${customsSuffixEn}`,
+            titleEn: 'Your shipment update 🚚',
+            messageAr: bodies.customer.ar,
+            messageEn: bodies.customer.en,
             type: 'ORDER_UPDATE',
-            link: `/dashboard/orders/${order.id}`,
-        };
+            link: `/customer/orders/${order.id}`,
+        });
 
-        // Notify Customer
-        await this.notifications.create({ ...notifyData, recipientId: order.customerId, recipientRole: 'CUSTOMER' });
-
-        // Notify Vendor (via accepted offer → store owner)
         const acceptedOffer = await this.prisma.offer.findFirst({
             where: {
-                orderId: orderId,
-                status: { in: ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'] }
-            }
+                orderId,
+                status: { in: ['ACCEPTED', 'COMPLETED', 'SHIPPED', 'DELIVERED'] },
+            },
+            select: { storeId: true },
         });
 
         if (acceptedOffer?.storeId) {
-            const store = await this.prisma.store.findUnique({ where: { id: acceptedOffer.storeId } });
-            if (store?.ownerId) {
-                await this.notifications.create({ ...notifyData, recipientId: store.ownerId, recipientRole: 'MERCHANT' });
-            }
+            await this.notifications.notifyMerchantByStoreId(acceptedOffer.storeId, {
+                titleAr: 'تحديث شحن طلبك 📦',
+                titleEn: 'Order shipment update 📦',
+                messageAr: bodies.merchant.ar,
+                messageEn: bodies.merchant.en,
+                type: 'SHIPMENT_UPDATE',
+                link: `/merchant/orders/${order.id}`,
+            });
         }
 
-        // Notify Admins
         await this.notifications.notifyAdmins({
-            ...notifyData,
-            type: 'SHIPMENT_UPDATE', // More specific type for admin
+            titleAr: 'تحديث حالة شحنة 📋',
+            titleEn: 'Shipment status update 📋',
+            messageAr: bodies.admin.ar,
+            messageEn: bodies.admin.en,
+            type: 'SHIPMENT_UPDATE',
+            link: `/admin/dashboard/shipping`,
         });
     }
 }

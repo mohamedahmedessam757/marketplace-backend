@@ -75,6 +75,13 @@ export class ReviewsController {
     return this.reviewsService.getMerchantStats(req.user.id);
   }
 
+  /** Read-only impact rules for any authenticated user (merchant featured badge, admin UI). */
+  @Get('impact-rules')
+  @UseGuards(JwtAuthGuard)
+  getImpactRulesForUser() {
+    return this.reviewsService.getRatingImpactRules();
+  }
+
   // --- RATING IMPACT RULES (ADMIN) ---
 
   @Get('admin/impact-rules')

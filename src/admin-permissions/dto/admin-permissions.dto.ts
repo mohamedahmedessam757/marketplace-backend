@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsArray, IsObject, IsOptional, MinLength, IsIn } from 'class-validator';
+import { IsEmail, IsString, IsArray, IsObject, IsOptional, MinLength, IsIn, IsNotEmpty, Matches } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 /** Roles assignable from Access Control UI (not CUSTOMER/VENDOR). */
@@ -36,7 +36,21 @@ export class CreateAdminDto {
   password: string;
 
   @IsString()
+  @IsNotEmpty()
   name: string;
+
+  /** Local digits without country code (e.g. 512345678) */
+  @IsString()
+  @Matches(/^\d{8,12}$/, { message: 'Phone must be 8–12 digits' })
+  phone: string;
+
+  @IsString()
+  @Matches(/^\+\d{1,4}$/, { message: 'Country code must be like +966' })
+  countryCode: string;
+
+  @IsString()
+  @IsNotEmpty()
+  country: string;
 
   @IsIn(ASSIGNABLE_ADMIN_ROLES)
   role: UserRole;
@@ -73,6 +87,20 @@ export class UpdatePermissionsDto {
   @IsIn(UPDATABLE_ADMIN_ROLES)
   @IsOptional()
   role?: UserRole;
+
+  @IsString()
+  @Matches(/^\d{8,12}$/)
+  @IsOptional()
+  phone?: string;
+
+  @IsString()
+  @Matches(/^\+\d{1,4}$/)
+  @IsOptional()
+  countryCode?: string;
+
+  @IsString()
+  @IsOptional()
+  country?: string;
 }
 
 export class ChangeAdminPasswordDto {

@@ -9,15 +9,17 @@ import { ShipmentsModule } from '../shipments/shipments.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { UsersModule } from '../users/users.module';
 import { WarrantySchedulerService } from './warranty-scheduler.service';
+import { WaybillsModule } from '../waybills/waybills.module';
 
 import { ExcelService } from './excel.service';
 
 import { ShippingAutomationService } from './shipping-automation.service';
+import { OfferFulfillmentService } from './offer-fulfillment.service';
 
 @Module({
-    imports: [PrismaModule, NotificationsModule, ChatModule, ShipmentsModule, LoyaltyModule, UsersModule],
+    imports: [PrismaModule, NotificationsModule, ChatModule, ShipmentsModule, LoyaltyModule, UsersModule, WaybillsModule],
     controllers: [OrdersController],
-    providers: [OrdersService, OrderStateMachine, WarrantySchedulerService, ExcelService, ShippingAutomationService],
-    exports: [OrderStateMachine, OrdersService, ExcelService], // Export for Scheduler and others
+    providers: [OrdersService, OrderStateMachine, WarrantySchedulerService, ExcelService, ShippingAutomationService, OfferFulfillmentService],
+    exports: [OrderStateMachine, OrdersService, ExcelService, OfferFulfillmentService],
 })
 export class OrdersModule { }

@@ -6,9 +6,16 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { EscrowService } from './escrow.service';
 import { StripeModule } from '../stripe/stripe.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
-    imports: [PrismaModule, NotificationsModule, AuditLogsModule, forwardRef(() => StripeModule)],
+    imports: [
+        PrismaModule,
+        NotificationsModule,
+        AuditLogsModule,
+        forwardRef(() => StripeModule),
+        forwardRef(() => OrdersModule),
+    ],
     controllers: [PaymentsController],
     providers: [PaymentsService, EscrowService],
     exports: [PaymentsService, EscrowService],

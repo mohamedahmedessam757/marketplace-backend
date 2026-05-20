@@ -12,7 +12,7 @@ export class ReturnsController {
 
     @Post('request')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }))
+    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 50 * 1024 * 1024 } }))
     async requestReturn(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
@@ -35,7 +35,7 @@ export class ReturnsController {
 
     @Post('dispute')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }))
+    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 50 * 1024 * 1024 } }))
     async escalateDispute(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
@@ -160,13 +160,17 @@ export class ReturnsController {
             throw new BadRequestException('Response Text is required');
         }
 
+        if (!body.action || !['APPROVE', 'REJECT'].includes(body.action)) {
+            throw new BadRequestException('action is required (APPROVE or REJECT)');
+        }
+
         return this.returnsService.respondToDispute(
             req.user.id,
             req.params.id,
             body.responseText,
             files,
             body.evidenceUrls,
-            body.action || 'REJECT' // Default to REJECT for disputes unless specified
+            body.action,
         );
     }
 
@@ -181,7 +185,7 @@ export class ReturnsController {
 
     @Post(':id/verdict')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
-    @Permissions('shipping', 'edit')
+    @Permissions('resolution', 'edit')
     async issueVerdict(
         @Request() req,
         @Param('id') id: string,
@@ -208,7 +212,7 @@ export class ReturnsController {
 
     @Patch(':id/verdict')
     @UseGuards(JwtAuthGuard, PermissionsGuard)
-    @Permissions('shipping', 'edit')
+    @Permissions('resolution', 'edit')
     async updateVerdict(
         @Request() req,
         @Param('id') id: string,

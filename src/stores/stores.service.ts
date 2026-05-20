@@ -124,21 +124,19 @@ export class StoresService {
     async uploadDocument(userId: string, dto: UploadStoreDocumentDto) {
         const store = await this.findMyStore(userId);
 
-        // 1. Check for active business (Orders, Returns, Disputes)
+        // 1. Check for active orders/returns/disputes (2026 Governance)
         const activeBusinessCount = await this.prisma.order.count({
             where: {
                 storeId: store.id,
                 OR: [
-                    { status: { in: [OrderStatus.PREPARATION, OrderStatus.SHIPPED] } },
+                    { status: { in: [OrderStatus.PREPARATION, OrderStatus.SHIPPED, OrderStatus.VERIFICATION, OrderStatus.PREPARED] } },
                     { returns: { some: { status: { notIn: ['COMPLETED', 'REJECTED', 'CANCELLED'] } } } },
                     { disputes: { some: { status: { notIn: ['RESOLVED', 'CLOSED'] } } } }
                 ]
             }
         });
 
-        if (activeBusinessCount > 0) {
-            throw new ForbiddenException('Cannot update documents while you have active orders, returns, or disputes.');
-        }
+        const hasActiveBusiness = activeBusinessCount > 0;
 
         // 2. Upsert document
         const doc = await this.prisma.storeDocument.upsert({
@@ -146,6 +144,10 @@ export class StoresService {
             update: {
                 fileUrl: dto.fileUrl,
                 status: 'pending',
+                reuploadRequested: false,
+                reuploadMessage: null,
+                adminName: null,
+                adminSignature: null,
                 updatedAt: new Date(),
             },
             create: {
@@ -165,34 +167,52 @@ export class StoresService {
             metadata: { storeId: store.id, docType: dto.docType }
         });
 
-        // 3. Auto-suspend for legal documents (CR, LICENSE)
+        // 3. Conditional Review Transition (Graceful Governance)
         if (dto.docType === 'CR' || dto.docType === 'LICENSE') {
-            await this.prisma.store.update({
-                where: { id: store.id },
-                data: { status: StoreStatus.PENDING_REVIEW }
-            });
-            
-            // Notify merchant
-            this.notificationsService.create({
-                recipientId: userId,
-                recipientRole: 'MERCHANT',
-                titleAr: 'تم تعليق الحساب مؤقتاً للمراجعة',
-                titleEn: 'Account temporarily suspended for review',
-                messageAr: 'لقد قمت بتحديث مستندات قانونية هامة (السجل التجاري أو الرخصة). تم تعليق حسابك مؤقتاً حتى يقوم المسؤول بمراجعة التحديثات وتفعيل المتجر.',
-                messageEn: 'You have updated important legal documents (CR or License). Your account is temporarily suspended until an admin reviews the updates.',
-                type: 'SYSTEM',
-                link: '/dashboard/merchant/store'
-            }).catch(e => console.error('Failed to notify merchant of auto-suspension', e));
+            if (!hasActiveBusiness) {
+                // No active orders: Lock account for review immediately
+                await this.prisma.store.update({
+                    where: { id: store.id },
+                    data: { status: StoreStatus.PENDING_REVIEW }
+                });
+                
+                this.notificationsService.create({
+                    recipientId: userId,
+                    recipientRole: 'MERCHANT',
+                    titleAr: 'تم تعليق الحساب مؤقتاً للمراجعة',
+                    titleEn: 'Account temporarily suspended for review',
+                    messageAr: 'لقد قمت بتحديث مستندات قانونية هامة. تم تعليق حسابك مؤقتاً حتى يقوم المسؤول بمراجعة التحديثات وتفعيل المتجر.',
+                    messageEn: 'You have updated important legal documents. Your account is temporarily suspended until an admin reviews the updates.',
+                    type: 'SYSTEM',
+                    link: '/dashboard/merchant/store'
+                }).catch(() => {});
+            } else {
+                // Active orders exist: Queue review for later to prevent business interruption
+                this.notificationsService.create({
+                    recipientId: userId,
+                    recipientRole: 'MERCHANT',
+                    titleAr: 'تم استلام المستندات - المراجعة مجدولة',
+                    titleEn: 'Documents Received - Review Queued',
+                    messageAr: 'تم استلام المستندات بنجاح. نظراً لوجود طلبات نشطة، سيتم بدء المراجعة الرسمية وتعليق الحساب للمراجعة فور اكتمال طلباتك الحالية لضمان استمرارية عملك.',
+                    messageEn: 'Documents received successfully. Due to active orders, formal review and suspension will begin once your current orders are fulfilled to ensure business continuity.',
+                    type: 'ALERT',
+                    link: '/dashboard/merchant/store'
+                }).catch(() => {});
+            }
 
-            // Notify Admin about Auto-Suspension for Review
+            // Notify Admin about the Update
             this.notificationsService.notifyAdmins({
-                titleAr: 'تحديث مستندات قانونية - متجر معلق',
-                titleEn: 'Legal Docs Updated - Store Suspended',
-                messageAr: `قام المتجر (${store.name}) بتحديث مستندات (${dto.docType}). تم تعليق المتجر للمراجعة.`,
-                messageEn: `Store (${store.name}) updated documents (${dto.docType}). Store suspended for review.`,
+                titleAr: hasActiveBusiness ? 'تحديث مستندات قانونية - المراجعة مجدولة' : 'تحديث مستندات قانونية - متجر معلق',
+                titleEn: hasActiveBusiness ? 'Legal Docs Updated - Review Queued' : 'Legal Docs Updated - Store Suspended',
+                messageAr: hasActiveBusiness 
+                    ? `قام المتجر (${store.name}) بتحديث مستندات (${dto.docType}). المتجر لديه طلبات نشطة، لذا المراجعة مجدولة.`
+                    : `قام المتجر (${store.name}) بتحديث مستندات (${dto.docType}). تم تعليق المتجر للمراجعة.`,
+                messageEn: hasActiveBusiness
+                    ? `Store (${store.name}) updated documents (${dto.docType}). Store has active orders, review is queued.`
+                    : `Store (${store.name}) updated documents (${dto.docType}). Store suspended for review.`,
                 type: 'SYSTEM',
                 link: `/admin/stores/${store.id}`,
-                metadata: { storeId: store.id, docType: dto.docType }
+                metadata: { storeId: store.id, docType: dto.docType, hasActiveBusiness }
             }).catch(() => {});
         } else {
             // Notify Admin about standard document upload
@@ -339,47 +359,16 @@ export class StoresService {
             }
         });
 
-        // 3. Real-time Metric Calculation (Strict Financial Accuracy)
-        // Lifetime Earnings: Sum of (unitPrice + shippingCost - commission) for ALL successful payments
-        const allSuccessfulPayments = await this.prisma.paymentTransaction.findMany({
-            where: {
-                status: 'SUCCESS',
-                offer: { storeId: id }
-            },
-            select: {
-                unitPrice: true,
-                shippingCost: true,
-                commission: true,
-                order: { select: { status: true } }
-            }
-        });
-
-        let lifetimeEarnings = 0;
-        let availableBalance = 0;
-        let pendingBalance = 0;
-
-        allSuccessfulPayments.forEach(p => {
-            const netAmount = Number(p.unitPrice) + Number(p.shippingCost) - Number(p.commission);
-            lifetimeEarnings += netAmount;
-
-            if (p.order?.status === 'COMPLETED') {
-                availableBalance += netAmount;
-            } else if ([
-                'PREPARATION', 'SHIPPED', 'DELIVERED', 'VERIFICATION', 
-                'PREPARED', 'READY_FOR_SHIPPING', 'DISPUTED'
-            ].includes(p.order?.status as string)) {
-                pendingBalance += netAmount;
-            }
-        });
-
-        // Calculate Performance Score (Success Rate: Delivered/Completed/Fullfilled vs Total)
+        // 3. Performance score from inclusive orders
         const totalCount = inclusiveOrders.length;
-        const successCount = inclusiveOrders.filter(o => 
-            ['DELIVERED', 'COMPLETED', 'VERIFICATION_SUCCESS'].includes(o.status)
+        const successCount = inclusiveOrders.filter(o =>
+            ['DELIVERED', 'COMPLETED', 'VERIFICATION_SUCCESS'].includes(o.status),
         ).length;
         const calculatedScore = totalCount > 0 ? (successCount / totalCount) * 100 : 0;
 
-        // 4. Inject Dynamic Data into Store Object
+        // 4. Inject Dynamic Data — preserve authoritative balances from DB
+        // (store.balance, store.pendingBalance, store.frozenBalance, store.lifetimeEarnings
+        //  are kept in sync by escrow.service / payments.service / returns.service)
         const s = store as any;
         const enrichedStore = {
             ...store,
@@ -390,13 +379,14 @@ export class StoresService {
             orders: inclusiveOrders,
             walletTransactions: s.owner ? s.owner.walletTransactions || [] : [],
             withdrawalRequests: s.withdrawalRequests || [],
-            lifetimeEarnings: Math.max(0, lifetimeEarnings),
-            balance: Math.max(0, availableBalance), 
-            pendingBalance: Math.max(0, pendingBalance),
+            balance: Number(store.balance),
+            pendingBalance: Number(store.pendingBalance),
+            frozenBalance: Number(store.frozenBalance),
+            lifetimeEarnings: Number(store.lifetimeEarnings),
             performanceScore: calculatedScore,
             _count: {
                 ...(s._count || {}),
-                orders: totalCount // Corrected metadata count
+                orders: totalCount
             }
         };
 
@@ -504,17 +494,23 @@ export class StoresService {
         return result;
     }
 
-    async updateDocumentStatus(adminId: string, storeId: string, docType: string, status: string, reason?: string) {
-        // Find specific doc by type for this store (using the composite key logic or findFirst)
-        // Since schema has @@unique([storeId, docType]), we can use findUnique if Prisma generated it,
-        // or findFirst. To be safe given pure string inputs:
-
-        // Map string to Enum if needed, but schema uses enum. 
-        // Let's assume input is valid or cast it.
-
+    async updateDocumentStatus(
+        adminId: string, 
+        storeId: string, 
+        docType: string, 
+        status: string, 
+        reason?: string,
+        adminName?: string,
+        adminSignature?: string
+    ) {
+        // Find specific doc by type for this store
         const dataToUpdate: any = {
             status,
             rejectedReason: reason,
+            reuploadRequested: status === 'reupload_requested',
+            reuploadMessage: status === 'reupload_requested' ? reason : null,
+            adminName: status === 'reupload_requested' ? adminName : null,
+            adminSignature: status === 'reupload_requested' ? adminSignature : null,
             updatedAt: new Date()
         };
 
@@ -522,6 +518,7 @@ export class StoresService {
             const nextYear = new Date();
             nextYear.setDate(nextYear.getDate() + 365);
             dataToUpdate.expiresAt = nextYear;
+            dataToUpdate.reuploadRequested = false;
         }
 
         const updated = await this.prisma.storeDocument.updateMany({
@@ -540,7 +537,7 @@ export class StoresService {
 
         // --- Task 11.3: Log Individual Document Activity ---
         await this.auditLogs.logAction({
-            action: `DOC_${status.toUpperCase()}`,
+            action: status === 'reupload_requested' ? 'DOC_REUPLOAD_REQUEST' : `DOC_${status.toUpperCase()}`,
             entity: 'STORE_DOCUMENT',
             actorType: 'ADMIN',
             actorId: adminId,
@@ -549,23 +546,43 @@ export class StoresService {
                 storeId, 
                 storeName: store?.name || 'Unknown Store',
                 docType, 
-                status 
+                status,
+                adminName
             }
         });
 
-        // Notify if rejected
-        if (status === 'rejected' || status === 'REJECTED') {
-            if (store && store.ownerId) {
+        // Notify Merchant about status update
+        if (store && store.ownerId) {
+            const isApproved = status === 'approved' || status === 'ACTIVE';
+            const isReupload = status === 'reupload_requested';
+            const isRejected = status === 'rejected' || status === 'REJECTED';
+
+            if (isApproved) {
                 this.notificationsService.create({
                     recipientId: store.ownerId,
                     recipientRole: 'MERCHANT',
-                    titleAr: 'تحديث بخصوص المستندات المرفوعة',
-                    titleEn: 'Update regarding your uploaded documents',
-                    messageAr: `تم رفض المستند الخاص بك (${docType}) من قبل الإدارة. السبب: ${reason || 'يرجى مراجعة البيانات وإعادة الرفع'}.`,
-                    messageEn: `Your document (${docType}) was rejected by the administration. Reason: ${reason || 'Please review and re-upload'}.`,
-                    type: 'SYSTEM',
-                    link: '/dashboard/merchant/documents'
-                }).catch(e => console.error('Failed to notify merchant of explicit rejection', e));
+                    titleAr: '🎉 تم اعتماد المستند بنجاح',
+                    titleEn: '🎉 Document Approved Successfully',
+                    messageAr: `تمت مراجعة واعتماد مستندك (${docType}) من قبل الإدارة بنجاح.`,
+                    messageEn: `Your document (${docType}) has been successfully reviewed and approved by administration.`,
+                    type: 'SUCCESS',
+                    link: '/dashboard/merchant/store'
+                }).catch(() => {});
+            } else if (isReupload || isRejected) {
+                this.notificationsService.create({
+                    recipientId: store.ownerId,
+                    recipientRole: 'MERCHANT',
+                    titleAr: isReupload ? 'مستند يحتاج إلى إعادة رفع' : 'تم رفض المستند',
+                    titleEn: isReupload ? 'Document needs re-upload' : 'Document Rejected',
+                    messageAr: isReupload 
+                        ? `قام المسؤول (${adminName || 'الإدارة'}) بطلب إعادة رفع المستند (${docType}). السبب: ${reason || 'يرجى المراجعة'}.`
+                        : `تم رفض المستند الخاص بك (${docType}) من قبل الإدارة. السبب: ${reason || 'يرجى مراجعة البيانات وإعادة الرفع'}.`,
+                    messageEn: isReupload
+                        ? `Admin (${adminName || 'System'}) requested re-upload for (${docType}). Reason: ${reason || 'Please review'}.`
+                        : `Your document (${docType}) was rejected by the administration. Reason: ${reason || 'Please review and re-upload'}.`,
+                    type: isReupload ? 'ALERT' : 'SYSTEM',
+                    link: '/dashboard/merchant/store'
+                }).catch(e => console.error('Failed to notify merchant of document status update', e));
             }
         }
 

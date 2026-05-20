@@ -6,6 +6,7 @@ import { OrdersService } from '../orders/orders.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OrderStatus, ActorType, ViolationTargetType } from '@prisma/client';
 import { ViolationsService } from '../violations/violations.service';
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../orders/order-time.constants';
 
 @Injectable()
 export class OrderCleanupService {
@@ -23,6 +24,10 @@ export class OrderCleanupService {
     @Cron(CronExpression.EVERY_MINUTE)
     async handleCron() {
         this.logger.debug('Running Order Cleanup Job...');
+        if (!(await this.prisma.ensureConnected())) {
+            this.logger.warn('Skipping order cleanup — database unreachable.');
+            return;
+        }
         await this.handleCollectingOffersReveal();
         await this.expireAwaitingSelection();
         await this.expireAwaitingPayment();
@@ -63,13 +68,14 @@ export class OrderCleanupService {
                     continue;
                 }
 
-                this.logger.log(`Auto-completing delivered order ${order.orderNumber} (ID: ${order.id}) after 3-day return window`);
+                const hoursLabel = POST_DELIVERY_RETURN_DISPUTE_HOURS;
+                this.logger.log(`Auto-completing delivered order ${order.orderNumber} (ID: ${order.id}) after ${hoursLabel}h return window`);
 
                 await this.ordersService.transitionStatus(
                     order.id,
                     OrderStatus.COMPLETED,
                     { type: ActorType.SYSTEM, id: 'system-scheduler', name: 'System Scheduler' },
-                    'System: Auto-completed after 3-day return window expired'
+                    `System: Auto-completed after ${hoursLabel}-hour return/dispute window expired`
                 );
 
                 // Notify Customer
@@ -78,8 +84,8 @@ export class OrderCleanupService {
                     recipientRole: 'CUSTOMER',
                     titleAr: 'انتهاء فترة الاسترجاع للطلب',
                     titleEn: 'Return period expired for order',
-                    messageAr: `تم اكتمال الطلب رقم #${order.orderNumber} بنجاح نظراً لمرور مهلة الاسترجاع (3 أيام).`,
-                    messageEn: `Order #${order.orderNumber} has been successfully completed since the return window (3 days) expired.`,
+                    messageAr: `تم اكتمال الطلب رقم #${order.orderNumber} بنجاح نظراً لمرور مهلة الإرجاع أو النزاع (${hoursLabel} ساعة).`,
+                    messageEn: `Order #${order.orderNumber} has been completed because the ${hoursLabel}-hour return/dispute window has expired.`,
                     type: 'system_alert',
                     link: `/dashboard/orders`
                 });

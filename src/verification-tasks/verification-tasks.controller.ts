@@ -37,6 +37,14 @@ export class VerificationTasksController {
     return this.tasksService.getAdminQueue();
   }
 
+  @Get('admin/all')
+  async listAllTasksForAdmin(@Req() req: any) {
+    if (!['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(req.user.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+    return this.tasksService.listAllTasksForAdmin();
+  }
+
   @Get('order/:orderId')
   async getTasksByOrder(@Param('orderId') orderId: string, @Req() req: any) {
     if (!['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(req.user.role)) {

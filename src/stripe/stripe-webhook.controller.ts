@@ -41,12 +41,16 @@ export class StripeWebhookController {
             switch (event.type) {
                 case 'payment_intent.succeeded':
                     const paymentIntent = event.data.object;
-                    this.logger.log(`PaymentIntent for ${paymentIntent.amount} was successful!`);
+                    this.logger.log(
+                        `PaymentIntent succeeded: ${this.formatStripeAmount(paymentIntent.amount, paymentIntent.currency)}`,
+                    );
                     await this.paymentsService.fulfillStripePayment(paymentIntent.id);
                     break;
                 case 'payment_intent.payment_failed':
                     const failedIntent = event.data.object;
-                    this.logger.warn(`PaymentIntent for ${failedIntent.amount} failed: ${failedIntent.last_payment_error?.message}`);
+                    this.logger.warn(
+                        `PaymentIntent failed (${this.formatStripeAmount(failedIntent.amount, failedIntent.currency)}): ${failedIntent.last_payment_error?.message}`,
+                    );
                     await this.paymentsService.handlePaymentFailure(failedIntent.id);
                     break;
                 case 'account.updated':
@@ -87,5 +91,11 @@ export class StripeWebhookController {
         }
 
         res.json({received: true});
+    }
+
+    /** Stripe amounts are in minor units (AED fils): 57000 → 570.00 AED */
+    private formatStripeAmount(amountMinor: number, currency = 'aed'): string {
+        const major = (amountMinor / 100).toFixed(2);
+        return `${major} ${String(currency).toUpperCase()} (stripe_minor=${amountMinor})`;
     }
 }

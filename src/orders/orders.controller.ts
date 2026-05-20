@@ -71,10 +71,19 @@ export class OrdersController {
     }
 
     @Patch(':id/merchant-request-shipping')
-    requestShippingByMerchant(@Request() req, @Param('id') orderId: string) {
+    requestShippingByMerchant(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Body() body: { offerId?: string },
+    ) {
         const storeId = req.user.storeId;
         if (!storeId) throw new ForbiddenException('Only verified merchants can request shipping.');
-        return this.ordersService.requestShippingByMerchant(orderId, storeId, req.user.id);
+        return this.ordersService.requestShippingByMerchant(
+            orderId,
+            storeId,
+            req.user.id,
+            body?.offerId,
+        );
     }
 
     @Get(':id')
@@ -152,27 +161,69 @@ export class OrdersController {
         return this.ordersService.updateAdminNotes(orderId, notes, req.user);
     }
 
+    @Get(':id/fulfillment-summary')
+    getFulfillmentSummary(@Param('id') orderId: string) {
+        return this.ordersService.getOfferFulfillmentSummary(orderId);
+    }
+
     @Patch(':id/prepare')
     markAsPrepared(
         @Request() req,
         @Param('id') orderId: string,
+        @Body() body: { offerId?: string },
     ) {
         const storeId = req.user.storeId;
         if (!storeId) {
             throw new ForbiddenException('Only verified merchants can mark orders as prepared.');
         }
-        return this.ordersService.markAsPrepared(orderId, storeId);
+        return this.ordersService.markAsPrepared(orderId, storeId, body?.offerId);
+    }
+
+    @Patch(':id/offers/:offerId/prepared')
+    markOfferPrepared(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Param('offerId') offerId: string,
+    ) {
+        const storeId = req.user.storeId;
+        if (!storeId) {
+            throw new ForbiddenException('Only verified merchants can mark offers as prepared.');
+        }
+        return this.ordersService.markAsPrepared(orderId, storeId, offerId);
     }
 
     @Post(':id/verification')
     submitVerification(
         @Request() req,
         @Param('id') orderId: string,
-        @Body() data: any
+        @Body() data: any,
     ) {
         const storeId = req.user.storeId;
         if (!storeId) throw new ForbiddenException('Only verified merchants can submit verification docs.');
-        return this.ordersService.submitVerification(orderId, storeId, data);
+        return this.ordersService.submitVerification(orderId, storeId, data, data?.offerId);
+    }
+
+    @Post(':id/offers/:offerId/verification')
+    submitOfferVerification(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Param('offerId') offerId: string,
+        @Body() data: any,
+    ) {
+        const storeId = req.user.storeId;
+        if (!storeId) throw new ForbiddenException('Only verified merchants can submit verification docs.');
+        return this.ordersService.submitVerification(orderId, storeId, data, offerId);
+    }
+
+    @Patch(':id/offers/:offerId/ready-for-shipping')
+    markOfferReadyForShipping(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Param('offerId') offerId: string,
+    ) {
+        const storeId = req.user.storeId;
+        if (!storeId) throw new ForbiddenException('Only verified merchants can mark ready for shipping.');
+        return this.ordersService.requestShippingByMerchant(orderId, storeId, req.user.id, offerId);
     }
     @Patch(':id/verification/review')
     adminReviewVerification(
