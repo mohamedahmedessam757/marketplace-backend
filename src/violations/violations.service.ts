@@ -82,6 +82,88 @@ export class ViolationsService {
     this.typeCache.clear();
   }
 
+  private recipientRoleForTarget(targetType: ViolationTargetType): string {
+    return targetType === ViolationTargetType.MERCHANT ? 'MERCHANT' : 'CUSTOMER';
+  }
+
+  private computePenaltyExpiresAt(
+    action: PenaltyActionType,
+    threshold?: { suspendDurationDays?: number | null } | null,
+  ): Date | null {
+    if (action !== PenaltyActionType.TEMPORARY_SUSPENSION) return null;
+    const duration = threshold?.suspendDurationDays || 7;
+    const until = new Date();
+    until.setDate(until.getDate() + duration);
+    return until;
+  }
+
+  private async applyPenaltyEffects(
+    penalty: {
+      id: string;
+      action: PenaltyActionType;
+      targetUserId: string;
+      targetStoreId: string | null;
+      targetType: ViolationTargetType;
+      threshold?: { nameAr?: string; nameEn?: string; suspendDurationDays?: number | null } | null;
+    },
+    tx: any,
+  ): Promise<Date | null> {
+    const { action, targetUserId, targetStoreId, targetType } = penalty;
+    const expiresAt = this.computePenaltyExpiresAt(action, penalty.threshold ?? null);
+
+    if (action === PenaltyActionType.PERMANENT_BAN) {
+      if (targetType === ViolationTargetType.MERCHANT && targetStoreId) {
+        await tx.store.update({ where: { id: targetStoreId }, data: { status: 'BLOCKED' } });
+      }
+      await tx.user.update({ where: { id: targetUserId }, data: { status: 'BLOCKED' } });
+    } else if (action === PenaltyActionType.TEMPORARY_SUSPENSION && expiresAt) {
+      if (targetType === ViolationTargetType.MERCHANT && targetStoreId) {
+        await tx.store.update({
+          where: { id: targetStoreId },
+          data: { status: 'SUSPENDED', suspendedUntil: expiresAt },
+        });
+      }
+      await tx.user.update({
+        where: { id: targetUserId },
+        data: {
+          status: 'SUSPENDED',
+          suspendedUntil: expiresAt,
+          suspendReason: `Automatic penalty: ${penalty.threshold?.nameEn || action}`,
+        },
+      });
+    } else if (action === PenaltyActionType.FREEZE_BALANCE) {
+      await tx.user.update({
+        where: { id: targetUserId },
+        data: { withdrawalsFrozen: true },
+      });
+      if (targetType === ViolationTargetType.MERCHANT && targetStoreId) {
+        const store = await tx.store.findUnique({
+          where: { id: targetStoreId },
+          select: { balance: true },
+        });
+        if (store) {
+          const bal = Number(store.balance);
+          if (bal > 0) {
+            await tx.store.update({
+              where: { id: targetStoreId },
+              data: { frozenBalance: { increment: bal }, balance: 0 },
+            });
+          }
+        }
+      }
+    } else if (action === PenaltyActionType.RESTRICT_PURCHASE) {
+      await tx.user.update({
+        where: { id: targetUserId },
+        data: {
+          recoveryStatus: 'PURCHASE_RESTRICTED',
+          adminNotes: `Purchase restricted by automatic penalty ${penalty.id}`,
+        },
+      });
+    }
+
+    return expiresAt;
+  }
+
   // --- VIOLATION TYPES (CRUD) ---
 
   async createViolationType(dto: CreateViolationTypeDto, adminId: string) {
@@ -304,13 +386,14 @@ export class ViolationsService {
       // 7. Notification (Bilingual)
       await this.notifications.create({
         recipientId: targetUserId,
-        recipientRole: targetType === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+        recipientRole: this.recipientRoleForTarget(targetType),
         type: 'alert',
         titleAr: 'مخالفة جديدة مسجلة 🚨',
         titleEn: 'New Violation Recorded 🚨',
         messageAr: `تم تسجيل مخالفة "${vType.nameAr}" بحق حسابك. النقاط المسجلة: ${points}${fineAmount > 0 ? `، الغرامة: ${fineAmount} درهم` : ''}.`,
         messageEn: `A violation "${vType.nameEn}" has been recorded. Points: ${points}${fineAmount > 0 ? `, Fine: ${fineAmount} AED` : ''}.`,
-        metadata: { violationId: violation.id, points, fineAmount },
+        link: 'violations',
+        metadata: { violationId: violation.id, points, fineAmount, tab: 'history' },
       });
 
       // 7.1 Notify Admin Group (Oversight)
@@ -328,8 +411,14 @@ export class ViolationsService {
         messageAr: adminMsgAr,
         messageEn: adminMsgEn,
         type: 'VIOLATION',
-        link: '/dashboard/violations',
-        metadata: { violationId: violation.id, targetUserId, source, code: vType.code }
+        link: 'violations',
+        metadata: {
+          violationId: violation.id,
+          targetUserId,
+          source,
+          code: vType.code,
+          tab: 'violations',
+        },
       });
 
       // 8. Check for Penalties
@@ -416,11 +505,11 @@ export class ViolationsService {
       // 2. If resolution is VIOLATION_ISSUED, trigger the violation issuance
       if (dto.resolution === 'VIOLATION_ISSUED') {
         const vType = await tx.violationType.findFirst({
-          where: { nameEn: 'Exceeded Allowed Return Rate' }
+          where: { code: 'EXCEEDED_RETURN_RATE' },
         });
 
         if (!vType) {
-          throw new BadRequestException('Violation type "Exceeded Allowed Return Rate" not found in database.');
+          throw new BadRequestException('Violation type EXCEEDED_RETURN_RATE not found in database.');
         }
 
         await this.issueViolation({
@@ -439,7 +528,8 @@ export class ViolationsService {
           titleEn: '✅ Account Review Update',
           messageAr: 'تمت مراجعة نشاط حسابك، وحسابك الآن في وضع سليم. شكراً لالتزامك.',
           messageEn: 'Your account review was successful, and your account is in good standing.',
-          link: '/dashboard'
+          link: 'violations',
+          metadata: { tab: 'history' },
         });
       }
 
@@ -473,27 +563,52 @@ export class ViolationsService {
       });
 
       if (!existing) {
-        // Create a pending penalty action for admin approval
-        await prisma.penaltyAction.create({
+        const expiresAt = this.computePenaltyExpiresAt(threshold.action, threshold);
+        const penalty = await prisma.penaltyAction.create({
           data: {
             targetUserId: userId,
             targetStoreId: storeId,
             targetType,
             thresholdId: threshold.id,
             action: threshold.action,
-            status: 'PENDING_APPROVAL',
-            adminNotes: `Automatically triggered by score ${score} reaching threshold ${threshold.thresholdPoints}`,
+            status: PenaltyActionStatus.EXECUTED,
+            adminNotes: `Auto-executed: score ${score} reached threshold ${threshold.thresholdPoints}`,
+            executedAt: new Date(),
+            approvedAt: new Date(),
+            expiresAt,
+          },
+          include: { threshold: true },
+        });
+
+        if (threshold.action !== PenaltyActionType.WARNING) {
+          await this.applyPenaltyEffects(penalty, prisma);
+        }
+
+        await this.notifications.notifyAdmins({
+          titleAr: 'تم تطبيق عقوبة تلقائياً ⚠️',
+          titleEn: 'Penalty Auto-Applied ⚠️',
+          messageAr: `تجاوز مستخدم حد النقاط للعقوبة: ${threshold.nameAr}. تم التطبيق تلقائياً — للمراجعة والتدقيق.`,
+          messageEn: `A user exceeded the points threshold for: ${threshold.nameEn}. Applied automatically — review for audit.`,
+          type: 'VIOLATION',
+          link: 'violations',
+          metadata: {
+            tab: 'penalties',
+            penaltyId: penalty.id,
+            userId,
+            thresholdId: threshold.id,
           },
         });
 
-        // Notify Admins
-        await this.notifications.notifyAdmins({
-          titleAr: 'عقوبة جديدة بانتظار الموافقة ⚠️',
-          titleEn: 'New Penalty Pending Approval ⚠️',
-          messageAr: `تجاوز مستخدم حد النقاط للعقوبة: ${threshold.nameAr}. يرجى المراجعة واتخاذ القرار.`,
-          messageEn: `A user exceeded the points threshold for: ${threshold.nameEn}. Please review and take action.`,
+        await this.notifications.create({
+          recipientId: userId,
+          recipientRole: this.recipientRoleForTarget(targetType),
           type: 'alert',
-          metadata: { userId, thresholdId: threshold.id },
+          titleAr: 'تنبيه: تطبيق عقوبة تلقائية ⚠️',
+          titleEn: 'Automatic Penalty Applied ⚠️',
+          messageAr: `تم تطبيق إجراء إداري (${threshold.nameAr}) تلقائياً بسبب تجاوز حد النقاط.`,
+          messageEn: `An administrative action (${threshold.nameEn}) was applied automatically due to points threshold.`,
+          link: 'violations',
+          metadata: { tab: 'history', penaltyId: penalty.id, action: threshold.action },
         });
       }
     }
@@ -534,7 +649,8 @@ export class ViolationsService {
         messageAr: `تم تقديم طلب طعن في المخالفة رقم ${violation.id.split('-').pop()}.`,
         messageEn: `An appeal has been submitted for violation #${violation.id.split('-').pop()}.`,
         type: 'support',
-        metadata: { appealId: appeal.id, violationId },
+        link: 'violations',
+        metadata: { appealId: appeal.id, violationId, tab: 'appeals' },
       });
 
       return appeal;
@@ -608,7 +724,7 @@ export class ViolationsService {
       // Notify User
       await this.notifications.create({
         recipientId: appeal.userId,
-        recipientRole: appeal.violation.targetType === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+        recipientRole: this.recipientRoleForTarget(appeal.violation.targetType),
         type: 'alert',
         titleAr: dto.status === 'APPROVED' ? 'تم قبول الطعن بنجاح ✅' : 'تم رفض الطعن ❌',
         titleEn: dto.status === 'APPROVED' ? 'Appeal Approved Successfully ✅' : 'Appeal Rejected ❌',
@@ -618,7 +734,8 @@ export class ViolationsService {
         messageEn: dto.status === 'APPROVED'
           ? `Your appeal has been approved and points have been dropped.`
           : `Your appeal has been rejected. Admin notes: ${dto.adminResponse || 'None'}`,
-        metadata: { appealId, status: dto.status },
+        link: 'violations',
+        metadata: { appealId, status: dto.status, violationId: appeal.violationId, tab: 'history' },
       });
 
       // Audit Log
@@ -663,44 +780,29 @@ export class ViolationsService {
       });
 
       if (dto.status === 'APPROVED') {
-        const { action, targetUserId, targetStoreId, targetType } = penalty;
-        
-        // Execute Action
-        if (action === 'PERMANENT_BAN') {
-          if (targetType === 'MERCHANT' && targetStoreId) {
-            await tx.store.update({ where: { id: targetStoreId }, data: { status: 'BLOCKED' } });
-          } else {
-            await tx.user.update({ where: { id: targetUserId }, data: { status: 'BLOCKED' } });
-          }
-        } else if (action === 'TEMPORARY_SUSPENSION') {
-          const duration = penalty.threshold?.suspendDurationDays || 7;
-          const until = new Date();
-          until.setDate(until.getDate() + duration);
-
-          if (targetType === 'MERCHANT' && targetStoreId) {
-            await tx.store.update({ where: { id: targetStoreId }, data: { status: 'SUSPENDED', suspendedUntil: until } });
-          } else {
-            // Standard user suspension (Note: Current User model doesn't have suspendedUntil, I should add it or use status)
-            // For now, let's use status
-            await tx.user.update({ where: { id: targetUserId }, data: { status: 'SUSPENDED' } });
-          }
-        }
+        const expiresAt = await this.applyPenaltyEffects(
+          { ...penalty, threshold: penalty.threshold },
+          tx,
+        );
 
         await tx.penaltyAction.update({
-            where: { id },
-            data: { executedAt: new Date() }
+          where: { id },
+          data: {
+            executedAt: new Date(),
+            expiresAt: expiresAt ?? undefined,
+          },
         });
 
-        // Notify User
         await this.notifications.create({
-          recipientId: targetUserId,
-          recipientRole: targetType === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+          recipientId: penalty.targetUserId,
+          recipientRole: this.recipientRoleForTarget(penalty.targetType),
           type: 'alert',
           titleAr: 'تنبيه إداري: تطبيق عقوبة ⚠️',
           titleEn: 'Admin Alert: Penalty Applied ⚠️',
           messageAr: `تم تطبيق إجراء إداري بحق حسابك (${penalty.threshold?.nameAr}). السبب: تجاوز حد النقاط.`,
           messageEn: `An administrative action has been applied to your account (${penalty.threshold?.nameEn}) due to points threshold.`,
-          metadata: { penaltyId: id, action },
+          link: 'violations',
+          metadata: { penaltyId: id, action: penalty.action, tab: 'history' },
         });
       }
 
@@ -775,6 +877,154 @@ export class ViolationsService {
   // - Idempotent via `unique_key` (one violation per code+order+target)
   // - Never throws into the caller's flow (failures are logged)
   // =====================================================================
+
+  /** Chat / contact-sharing violations with role-appropriate type codes. */
+  async autoIssueOffPlatformContact(input: {
+    targetUserId: string;
+    targetType: ViolationTargetType;
+    targetStoreId?: string | null;
+    chatId: string;
+    orderId?: string | null;
+  }): Promise<any | null> {
+    const day = new Date().toISOString().slice(0, 10);
+    const code =
+      input.targetType === ViolationTargetType.MERCHANT
+        ? 'MERCHANT_SHARE_CONTACT'
+        : 'SHARE_CONTACT_OFF_PLATFORM';
+
+    let violation = await this.autoIssue({
+      code,
+      targetUserId: input.targetUserId,
+      targetStoreId: input.targetStoreId,
+      targetType: input.targetType,
+      orderId: input.orderId ?? undefined,
+      reason: `Off-platform contact sharing detected in chat ${input.chatId}`,
+      metadata: { chatId: input.chatId },
+      dedupSuffix: `chat:${input.chatId}:${day}`,
+    });
+
+    if (!violation && input.targetType === ViolationTargetType.MERCHANT) {
+      violation = await this.autoIssue({
+        code: 'LOW_OFFER_QUALITY',
+        targetUserId: input.targetUserId,
+        targetStoreId: input.targetStoreId,
+        targetType: input.targetType,
+        orderId: input.orderId ?? undefined,
+        reason: `Off-platform contact sharing in chat ${input.chatId} (governance fallback)`,
+        metadata: { chatId: input.chatId, fallback: true },
+        dedupSuffix: `chat-contact:${input.chatId}:${day}`,
+      });
+    }
+
+    return violation;
+  }
+
+  /**
+   * Audit record after admin-applied FRAUD penalty (financial action stays manual in returns.service).
+   */
+  async createFraudAuditRecord(input: {
+    targetUserId: string;
+    targetStoreId: string;
+    orderId?: string | null;
+    caseId: string;
+    penaltyAmount: number;
+    adminId: string;
+  }) {
+    const vType = await this.resolveTypeByCode('COUNTERFEIT_BANNED_PRODUCT');
+    if (!vType) {
+      this.logger.warn('[createFraudAuditRecord] COUNTERFEIT_BANNED_PRODUCT type missing');
+      return null;
+    }
+
+    const uniqueKey = `FRAUD:${input.caseId}:${input.targetUserId}`;
+    const existing = await this.prisma.violation.findUnique({ where: { uniqueKey } });
+    if (existing) return existing;
+
+    const decayAt = new Date();
+    decayAt.setDate(decayAt.getDate() + vType.decayDays);
+
+    return this.prisma.$transaction(async (tx) => {
+      const violation = await tx.violation.create({
+        data: {
+          typeId: vType.id,
+          targetUserId: input.targetUserId,
+          targetStoreId: input.targetStoreId,
+          targetType: ViolationTargetType.MERCHANT,
+          points: vType.points,
+          fineAmount: input.penaltyAmount,
+          adminNotes: `Fraud penalty audit for case ${input.caseId}. Financial penalty already applied by admin.`,
+          orderId: input.orderId ?? null,
+          issuedBy: input.adminId,
+          source: ViolationSource.MANUAL,
+          uniqueKey,
+          decayAt,
+        },
+        include: { type: true },
+      });
+
+      const user = await tx.user.findUnique({
+        where: { id: input.targetUserId },
+        select: { violationScore: true },
+      });
+      const previousScore = user?.violationScore ?? 0;
+      const newScore = previousScore + vType.points;
+      await tx.user.update({
+        where: { id: input.targetUserId },
+        data: { violationScore: newScore },
+      });
+
+      await tx.violationScoreLog.create({
+        data: {
+          targetUserId: input.targetUserId,
+          targetType: ViolationTargetType.MERCHANT,
+          previousScore,
+          newScore,
+          changeAmount: vType.points,
+          reason: `Fraud audit record for case ${input.caseId}`,
+          violationId: violation.id,
+        },
+      });
+
+      await tx.penaltyAction.create({
+        data: {
+          targetUserId: input.targetUserId,
+          targetStoreId: input.targetStoreId,
+          targetType: ViolationTargetType.MERCHANT,
+          action: PenaltyActionType.PERMANENT_BAN,
+          status: PenaltyActionStatus.EXECUTED,
+          adminNotes: `Fraud case ${input.caseId} — penalty ${input.penaltyAmount} AED (applied in verdict flow)`,
+          approvedBy: input.adminId,
+          approvedAt: new Date(),
+          executedAt: new Date(),
+        },
+      });
+
+      await this.notifications.create({
+        recipientId: input.targetUserId,
+        recipientRole: 'MERCHANT',
+        type: 'alert',
+        titleAr: 'سجل مخالفة احتيال — للمراجعة',
+        titleEn: 'Fraud Violation Record — For Review',
+        messageAr: `تم تسجيل مخالفة احتيال بحق حسابك بمبلغ ${input.penaltyAmount} درهم. راجع صفحة المخالفات للتفاصيل.`,
+        messageEn: `A fraud violation was recorded for ${input.penaltyAmount} AED. See the violations page for details.`,
+        link: 'violations',
+        metadata: { violationId: violation.id, caseId: input.caseId, tab: 'history' },
+      });
+
+      await this.notifications.notifyAdmins({
+        titleAr: 'تم تسجيل مخالفة احتيال (قرار أدمن)',
+        titleEn: 'Fraud Violation Recorded (Admin Verdict)',
+        messageAr: `تم إنشاء سجل مخالفة احتيال للمتجر بمبلغ ${input.penaltyAmount} درهم للقضية ${input.caseId}.`,
+        messageEn: `Fraud violation audit created for store, amount ${input.penaltyAmount} AED, case ${input.caseId}.`,
+        type: 'VIOLATION',
+        link: 'violations',
+        metadata: { violationId: violation.id, caseId: input.caseId, tab: 'violations' },
+      });
+
+      return violation;
+    });
+  }
+
   async autoIssue(input: AutoIssueInput): Promise<any | null> {
     try {
       const vType = await this.resolveTypeByCode(input.code);
@@ -880,8 +1130,8 @@ export class ViolationsService {
       messageAr: `طلب من الإدارة قرار بشأن إلغاء مكافآت الولاء بسبب: ${input.reasonAr}.`,
       messageEn: `Admin decision needed on loyalty rewards cancellation. Reason: ${input.reasonEn}.`,
       type: 'LOYALTY_REVIEW',
-      link: '/dashboard/violations',
-      metadata: { alertId: alert.id, userId: input.userId, triggeredByType: input.triggeredByType },
+      link: 'violations',
+      metadata: { alertId: alert.id, userId: input.userId, triggeredByType: input.triggeredByType, tab: 'loyalty_reviews' },
     });
 
     await this.auditLogs.logAction(
@@ -1062,14 +1312,14 @@ export class ViolationsService {
 
     await this.notifications.create({
       recipientId: violation.targetUserId,
-      recipientRole: violation.targetType === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+      recipientRole: this.recipientRoleForTarget(violation.targetType),
       type: 'VIOLATION',
       titleAr: 'تم إسقاط مخالفة بحقك ✅',
       titleEn: 'Violation Dropped by Admin ✅',
       messageAr: `تم إسقاط المخالفة "${violation.type.nameAr}" واستعادة ${violation.points} نقطة. السبب: ${reason}`,
       messageEn: `Violation "${violation.type.nameEn}" was dropped and ${violation.points} points were restored. Reason: ${reason}`,
-      link: '/dashboard/violations',
-      metadata: { violationId, restoredPoints: violation.points },
+      link: 'violations',
+      metadata: { violationId, restoredPoints: violation.points, tab: 'history' },
     });
 
     if (merchantStoreId) {

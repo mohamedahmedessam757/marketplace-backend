@@ -77,7 +77,7 @@ export class ViolationDecayService {
             // Notify User
             await this.notifications.create({
               recipientId: violation.targetUserId,
-              recipientRole: violation.targetType === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+              recipientRole: violation.targetType === 'MERCHANT' ? 'MERCHANT' : 'CUSTOMER',
               type: 'system',
               titleAr: 'تحلل نقاط مخالفة 📉',
               titleEn: 'Violation Points Decayed 📉',
@@ -129,7 +129,7 @@ export class ViolationDecayService {
           // Notify User
           await this.notifications.create({
             recipientId: penalty.targetUserId,
-            recipientRole: penalty.targetType === 'MERCHANT' ? 'VENDOR' : 'CUSTOMER',
+            recipientRole: penalty.targetType === 'MERCHANT' ? 'MERCHANT' : 'CUSTOMER',
             type: 'system',
             titleAr: 'انتهت فترة العقوبة 🔓',
             titleEn: 'Penalty Period Ended 🔓',

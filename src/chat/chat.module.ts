@@ -7,9 +7,10 @@ import { ChatGateway } from './chat.gateway';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { JwtAuthSharedModule } from '../auth/jwt-auth-shared.module';
+import { ViolationsModule } from '../violations/violations.module';
 
 @Module({
-    imports: [JwtAuthSharedModule, NotificationsModule, AuditLogsModule],
+    imports: [JwtAuthSharedModule, NotificationsModule, AuditLogsModule, ViolationsModule],
     controllers: [ChatController, PublicChatController],
     providers: [ChatService, PrismaService, ChatGateway],
     exports: [ChatService, ChatGateway],

@@ -189,13 +189,6 @@ export class OrderCleanupService {
                                         dedupSuffix: store.id,
                                     });
                                 }
-
-                                await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
-                                    titleAr: 'مخالفة: إلغاء طلب لتأخر التجهيز', titleEn: 'Violation: Cancelled for Delay',
-                                    messageAr: `تم إلغاء الطلب #${order.orderNumber} وتسجيل مخالفة تأخير لعدم التزامكم بالمهلة القصوى (7 أيام).`,
-                                    messageEn: `Order #${order.orderNumber} was cancelled and a violation recorded due to failure to prepare within the 7-day limit.`,
-                                    type: 'system_alert', link: `/merchant/orders`
-                                });
                             }
                         }
                     }
@@ -242,8 +235,13 @@ export class OrderCleanupService {
                 },
             },
             include: {
-                _count: { select: { offers: true } }
-            }
+                parts: { select: { id: true, name: true } },
+                offers: {
+                    where: { status: { not: 'rejected' } },
+                    select: { id: true, orderPartId: true },
+                },
+                _count: { select: { offers: true } },
+            },
         });
 
         for (const order of readyToReveal) {
@@ -269,6 +267,39 @@ export class OrderCleanupService {
                         type: 'OFFER',
                         link: `/dashboard/orders/${order.id}`
                     });
+
+                    // Multi-part: some parts received no offers — customer can reorder those parts from order details
+                    if (
+                        order.requestType === 'multiple' &&
+                        order.parts.length > 1
+                    ) {
+                        const partIdsWithOffers = new Set(
+                            order.offers
+                                .map((o) => o.orderPartId)
+                                .filter((id): id is string => !!id),
+                        );
+                        const partsWithoutOffers = order.parts.filter(
+                            (p) => !partIdsWithOffers.has(p.id),
+                        );
+
+                        if (
+                            partsWithoutOffers.length > 0 &&
+                            partsWithoutOffers.length < order.parts.length
+                        ) {
+                            const missingCount = partsWithoutOffers.length;
+                            const totalCount = order.parts.length;
+                            await this.notificationsService.create({
+                                recipientId: order.customerId,
+                                recipientRole: 'CUSTOMER',
+                                titleAr: 'قطع بدون عروض في طلبك',
+                                titleEn: 'Parts Without Offers',
+                                messageAr: `لم تصل عروض لـ ${missingCount} من ${totalCount} قطع في الطلب #${order.orderNumber}. يمكنك إعادة طلب هذه القطع من صفحة تفاصيل الطلب بينما يستمر الطلب للقطع الأخرى.`,
+                                messageEn: `No offers were received for ${missingCount} of ${totalCount} parts in order #${order.orderNumber}. You can reorder those parts from the order details page while the rest of your order continues.`,
+                                type: 'system_alert',
+                                link: `/dashboard/orders/${order.id}`,
+                            });
+                        }
+                    }
                 } else {
                     await this.notificationsService.create({
                         recipientId: order.customerId,
@@ -395,7 +426,7 @@ export class OrderCleanupService {
                     messageAr: `تم إلغاء طلبك (#${order.orderNumber}) لعدم إتمام خطوة السداد خلال الـ 24 ساعة المحددة.`,
                     messageEn: `Your order (#${order.orderNumber}) was cancelled as payment was not completed within the 24h limit.`,
                     type: 'system_alert',
-                    link: `/dashboard/orders`
+                    link: 'orders',
                 });
 
                 // Notify Merchants
@@ -545,15 +576,6 @@ export class OrderCleanupService {
                                 dedupSuffix: store.id,
                             });
                         }
-
-                        await this.notificationsService.notifyMerchantByStoreId(offer.storeId, {
-                            titleAr: 'مخالفة نظام: تم إلغاء الطلب لتأخر التجهيز',
-                            titleEn: 'System Violation: Cancelled for Delay',
-                            messageAr: `تم مصادرة وإلغاء الطلب #${order.orderNumber} وتسجيل الاستهتار بالوقت في ملف المخالفات الخاص بالمتجر نظراً لعدم التزامكم بتجهيزه بعد إنتهاء الـ 48 ساعة الأولى والمهلة الثانية الإضافية 24 ساعة.`,
-                            messageEn: `Order #${order.orderNumber} was cancelled and an SLA violation recorded due to complete failure to prepare within 48h and the 24h grace extension.`,
-                            type: 'system_alert',
-                            link: `/merchant/orders`
-                        });
                     }
                 }
 
@@ -656,13 +678,6 @@ export class OrderCleanupService {
                             metadata: { orderNumber: order.orderNumber },
                         });
                     }
-
-                    await this.notificationsService.notifyMerchantByStoreId(order.storeId, {
-                        titleAr: 'إلغاء الطلب: انتهاء مهلة التصحيح', titleEn: 'Order Cancelled: Correction Timeout',
-                        messageAr: `تم إلغاء الطلب #${order.orderNumber} لعدم رفعك التوثيق المصحح خلال 48 ساعة. سيتم إرجاع المبلغ للعميل وتطبيق مخالفة.`,
-                        messageEn: `Order #${order.orderNumber} cancelled because corrected verification was not provided within 48h.`,
-                        type: 'system_alert', link: `/merchant/orders`
-                    });
                 }
                 
                 // Notify Customer

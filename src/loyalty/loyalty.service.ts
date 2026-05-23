@@ -5,6 +5,7 @@ import { LoyaltyGateway } from './loyalty.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MerchantPerformanceService } from '../merchant-performance/merchant-performance.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { sumMerchantShareByStore } from '../payments/merchant-wallet-metrics.util';
 
 @Injectable()
 export class LoyaltyService {
@@ -141,6 +142,20 @@ export class LoyaltyService {
       this.logger.warn(`[LoyaltyWarning] Order ${orderId} ineligible. Status: ${order.status}, Disputes: ${order.disputes.length}, Returns: ${order.returns.length}`);
       return;
     }
+
+    const existingOrderProfit = await this.prisma.walletTransaction.findFirst({
+      where: {
+        userId: order.customerId,
+        transactionType: 'ORDER_PROFIT',
+        metadata: { path: ['orderId'], equals: orderId },
+      },
+    });
+    if (existingOrderProfit) {
+      this.logger.warn(`[LoyaltyEngine] Order ${orderId} rewards already granted. Skipping duplicate.`);
+      return;
+    }
+
+    await this.applyMerchantCompletionCounters(orderId);
 
     // 3. Compute Financial Basis
     const totalCommission = order.payments.reduce((sum, p) => sum + Number(p.commission || 0), 0);
@@ -291,20 +306,32 @@ export class LoyaltyService {
       });
     }
 
-    // 11. MERCHANT SIDE — lifetime earnings + completed order count + centralized performance tier
-    if (order.storeId && order.store) {
-      const newLifetimeEarnings = Number(order.store.lifetimeEarnings) + orderTotalAmount;
+    // 11. MERCHANT SIDE handled in applyMerchantCompletionCounters (multi-part via offer.storeId)
+
+    return { earnedPoints, earnedProfit, newTier };
+  }
+
+  /** Increment lifetime earnings (unitPrice share) + completed order count per store on the order. */
+  private async applyMerchantCompletionCounters(orderId: string): Promise<void> {
+    const payments = await this.prisma.paymentTransaction.findMany({
+      where: { orderId, status: 'SUCCESS' },
+      include: { offer: { select: { storeId: true } } },
+    });
+
+    const byStore = sumMerchantShareByStore(payments);
+    if (byStore.size === 0) return;
+
+    for (const [storeId, share] of byStore.entries()) {
+      if (share <= 0) continue;
       await this.prisma.store.update({
-        where: { id: order.storeId },
+        where: { id: storeId },
         data: {
-          lifetimeEarnings: newLifetimeEarnings,
+          lifetimeEarnings: { increment: share },
           completedOrdersCount: { increment: 1 },
         },
       });
-      await this.merchantPerformance.recalculateAndPersist(order.storeId);
+      await this.merchantPerformance.recalculateAndPersist(storeId);
     }
-
-    return { earnedPoints, earnedProfit, newTier };
   }
 
   /**

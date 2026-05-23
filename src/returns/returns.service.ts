@@ -1797,6 +1797,26 @@ export class ReturnsService {
             console.error('[ReturnsService] autoIssue post-verdict failed:', autoErr?.message || autoErr);
         }
 
+        if (extra?.penaltyType === 'FRAUD') {
+            try {
+                const fraudStore = caseRecord.store
+                    || (caseRecord.order as any)?.store
+                    || caseRecord.order?.acceptedOffer?.store;
+                if (fraudStore?.ownerId) {
+                    await this.violationsService.createFraudAuditRecord({
+                        targetUserId: fraudStore.ownerId,
+                        targetStoreId: fraudStore.id,
+                        orderId: caseRecord.orderId,
+                        caseId,
+                        penaltyAmount: Number(extra?.penaltyAmount || 50000),
+                        adminId,
+                    });
+                }
+            } catch (fraudAuditErr: any) {
+                console.error('[ReturnsService] fraud audit record failed:', fraudAuditErr?.message || fraudAuditErr);
+            }
+        }
+
         return result;
     }
 
@@ -2001,7 +2021,6 @@ export class ReturnsService {
                 select: { id: true, ownerId: true }
             });
             if (store?.ownerId) {
-                // 2026 Auto-Violation: merchant ignored a return request past 48h
                 await this.violationsService.autoIssue({
                     code: 'LATE_RETURN_PROCESSING',
                     targetUserId: store.ownerId,
@@ -2010,17 +2029,6 @@ export class ReturnsService {
                     orderId: ret.orderId,
                     reason: `Merchant did not respond to return request #${ret.id} within 48h.`,
                     metadata: { returnRequestId: ret.id, orderNumber: ret.order.orderNumber },
-                });
-
-                await this.notificationsService.create({
-                    recipientId: store.ownerId,
-                    recipientRole: 'VENDOR',
-                    titleAr: 'تنبيه: تم تصعيد طلب إرجاع للإدارة ⚠️',
-                    titleEn: 'Warning: Return Escalated to Admin ⚠️',
-                    messageAr: `تم تصعيد طلب الإرجاع للطلب #${ret.order.orderNumber} للإدارة لعدم ردكم خلال المهلة. يرجى المتابعة مع الإدارة.`,
-                    messageEn: `The return request for Order #${ret.order.orderNumber} has been escalated to admin due to no response.`,
-                    type: 'RETURN',
-                    link: '/dashboard/merchant/resolution'
                 });
             }
         }
@@ -2067,7 +2075,6 @@ export class ReturnsService {
                 select: { id: true, ownerId: true }
             });
             if (store?.ownerId) {
-                // 2026 Auto-Violation: merchant ignored a dispute past 48h
                 await this.violationsService.autoIssue({
                     code: 'LATE_DISPUTE_RESPONSE',
                     targetUserId: store.ownerId,
@@ -2076,17 +2083,6 @@ export class ReturnsService {
                     orderId: dispute.orderId,
                     reason: `Merchant did not respond to dispute #${dispute.id} within 48h.`,
                     metadata: { disputeId: dispute.id, orderNumber: dispute.order.orderNumber },
-                });
-
-                await this.notificationsService.create({
-                    recipientId: store.ownerId,
-                    recipientRole: 'VENDOR',
-                    titleAr: 'تنبيه: تم تصعيد نزاع للإدارة ⚠️',
-                    titleEn: 'Warning: Case Escalated to Admin ⚠️',
-                    messageAr: `تم تصعيد النزاع للطلب #${dispute.order.orderNumber} للإدارة لعدم ردكم خلال المهلة. يرجى المتابعة مع الإدارة.`,
-                    messageEn: `The dispute for Order #${dispute.order.orderNumber} has been escalated to admin due to no response.`,
-                    type: 'DISPUTE',
-                    link: '/dashboard/merchant/resolution'
                 });
             }
         }

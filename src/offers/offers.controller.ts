@@ -35,6 +35,13 @@ export class OffersController {
         return this.offersService.withdraw(req.user.id, id);
     }
 
+    @Post(':id/voluntary-withdraw')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.VENDOR)
+    voluntaryWithdraw(@Request() req, @Param('id') id: string) {
+        return this.offersService.voluntaryWithdraw(req.user.id, id);
+    }
+
     @Delete(':id')
     @UseGuards(RolesGuard)
     @Roles(UserRole.VENDOR)

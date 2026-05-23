@@ -12,6 +12,7 @@ import { SecurityMaintenanceService } from './security-maintenance.service';
 import { WarrantyExpirationService } from './warranty-expiration.service';
 import { WithdrawalReminderService } from './withdrawal-reminder.service';
 import { MerchantGovernanceService } from './merchant-governance.service';
+import { OfferGovernanceNotifyService } from './offer-governance-notify.service';
 import { MerchantPerformanceModule } from '../merchant-performance/merchant-performance.module';
 import { MerchantPerformanceCronService } from '../merchant-performance/merchant-performance-cron.service';
 import { ViolationsModule } from '../violations/violations.module';
@@ -36,6 +37,7 @@ import { ViolationsModule } from '../violations/violations.module';
         WithdrawalReminderService,
         MerchantGovernanceService,
         MerchantPerformanceCronService,
+        OfferGovernanceNotifyService,
     ],
 })
 export class SchedulerModule { }

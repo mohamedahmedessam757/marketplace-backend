@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ActorType } from '@prisma/client';
+import { ViolationsService } from '../violations/violations.service';
+import { ViolationTargetType } from '@prisma/client';
 
 /**
  * MerchantGovernanceService (2026 Compliance)
@@ -16,6 +17,7 @@ export class MerchantGovernanceService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly notifications: NotificationsService,
+        private readonly violationsService: ViolationsService,
     ) { }
 
     @Cron(CronExpression.EVERY_HOUR)
@@ -47,34 +49,37 @@ export class MerchantGovernanceService {
                 if (violationRate > 5) {
                     this.logger.warn(`Merchant Violation Alert: ${store.name} has a violation rate of ${violationRate.toFixed(2)}%`);
 
-                    // 1. Notify Admins
-                    await this.notifications.notifyAdmins({
-                        titleAr: 'تنبيه حوكمة: متجر عالي الخطورة',
-                        titleEn: 'Governance Alert: High Risk Store',
-                        messageAr: `المتجر "${store.name}" سجل نسبة مخالفات (تعديل/سحب عروض) بلغت ${violationRate.toFixed(1)}%. يرجى مراجعة نشاط المتجر.`,
-                        messageEn: `Store "${store.name}" has a high violation rate (Edits/Withdrawals) of ${violationRate.toFixed(1)}%. Please review store activity.`,
-                        type: 'system_alert',
-                        link: `/admin/stores/${store.id}`,
-                        metadata: { 
-                            storeId: store.id, 
-                            violationRate, 
+                    const violation = await this.violationsService.autoIssue({
+                        code: 'LOW_OFFER_QUALITY',
+                        targetUserId: store.ownerId,
+                        targetStoreId: store.id,
+                        targetType: ViolationTargetType.MERCHANT,
+                        reason: `Offer edit/withdrawal rate ${violationRate.toFixed(1)}% exceeds 5% threshold.`,
+                        metadata: {
+                            violationRate,
                             totalOffers: store.totalOffersSent,
                             edits: store.editCount,
-                            withdrawals: store.withdrawalCount
-                        }
+                            withdrawals: store.withdrawalCount,
+                        },
+                        dedupSuffix: `governance:${store.id}`,
                     });
 
-                    // 2. Warn Merchant (Educational Warning before suspension)
-                    await this.notifications.create({
-                        recipientId: store.ownerId,
-                        recipientRole: 'VENDOR',
-                        titleAr: 'تنبيه بخصوص جودة العروض ⚠️',
-                        titleEn: 'Notice Regarding Offer Quality ⚠️',
-                        messageAr: 'نلاحظ كثرة التعديلات أو الانسحابات من عروضك. يرجى التأكد من دقة العرض قبل إرساله لتجنب تقييد حسابك مستقبلاً.',
-                        messageEn: 'We have noticed a high rate of edits or withdrawals on your offers. Please ensure offer accuracy before submission to avoid future account restrictions.',
-                        type: 'system_alert',
-                        link: '/dashboard/merchant/governance'
-                    }).catch(() => {});
+                    if (violation) {
+                        await this.notifications.notifyAdmins({
+                            titleAr: 'تنبيه حوكمة: متجر عالي الخطورة',
+                            titleEn: 'Governance Alert: High Risk Store',
+                            messageAr: `المتجر "${store.name}" سجل نسبة مخالفات (تعديل/سحب عروض) بلغت ${violationRate.toFixed(1)}%. تم تسجيل مخالفة تلقائياً.`,
+                            messageEn: `Store "${store.name}" has a high edit/withdrawal rate of ${violationRate.toFixed(1)}%. A violation was auto-recorded.`,
+                            type: 'VIOLATION',
+                            link: 'violations',
+                            metadata: {
+                                storeId: store.id,
+                                violationId: violation.id,
+                                violationRate,
+                                tab: 'violations',
+                            },
+                        });
+                    }
                 }
             }
         } catch (error) {

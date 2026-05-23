@@ -560,6 +560,7 @@ model Offer {
   readyForShippingAt      DateTime? @map("ready_for_shipping_at") @db.Timestamptz
   canEditUntil     DateTime? @map("can_edit_until") @db.Timestamptz
   isWithdrawn      Boolean   @default(false) @map("is_withdrawn")
+  withdrawalType   String?   @map("withdrawal_type")
 
   // Partial Shipping from Assembly Cart (2026)
   shippedFromCart   Boolean   @default(false) @map("shipped_from_cart")

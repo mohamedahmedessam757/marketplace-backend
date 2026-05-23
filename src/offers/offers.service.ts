@@ -5,6 +5,7 @@ import { StoresService } from '../stores/stores.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { ActorType, OrderStatus } from '@prisma/client';
+import { getVoluntaryWithdrawEnd } from './offer-governance.util';
 
 @Injectable()
 export class OffersService {
@@ -196,8 +197,8 @@ export class OffersService {
                 recipientRole: 'VENDOR',
                 titleAr: 'تم إرسال عرضك بنجاح ✅',
                 titleEn: 'Offer Submitted Successfully ✅',
-                messageAr: 'لديك 15 دقيقة للتعديل على العرض بحرية. بعد ذلك، سيتم قفل العرض ولن تتمكن إلا من سحبه نهائياً مع تسجيل مخالفة.',
-                messageEn: 'You have a 15-minute window to edit your offer freely. After that, it will be locked and you can only withdraw it (counts as a violation).',
+                messageAr: 'لديك 15 دقيقة لتعديل أو حذف عرضك مجاناً. بعدها يمكنك الانسحاب الطوعي من الطلب حتى ساعة قبل مرحلة اختيار العميل. إذا انسحبت لن تتمكن من تقديم عرض على هذا الطلب مرة أخرى.',
+                messageEn: 'You have 15 minutes to edit or delete your offer for free. After that, you may voluntarily withdraw from this request until 1 hour before customer selection. If you withdraw, you cannot bid on this request again.',
                 type: 'system_alert',
                 link: `/dashboard/merchant/orders/${orderInfo.id}`
             }).catch(() => {});
@@ -230,19 +231,35 @@ export class OffersService {
      */
     async findMyOffersByOrder(userId: string, orderId: string) {
         const store = await this.storesService.findMyStore(userId);
-        if (!store) return [];
+        if (!store) {
+            return { activeOffers: [], isBlockedFromOrder: false };
+        }
 
-        return this.prisma.offer.findMany({
-            where: { 
-                orderId, 
-                storeId: store.id,
-                isWithdrawn: false // Exclude withdrawn offers from active view
-            },
-            include: {
-                store: { select: { id: true, name: true, storeCode: true } }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        const [activeOffers, withdrawnCount] = await Promise.all([
+            this.prisma.offer.findMany({
+                where: {
+                    orderId,
+                    storeId: store.id,
+                    isWithdrawn: false,
+                },
+                include: {
+                    store: { select: { id: true, name: true, storeCode: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+            }),
+            this.prisma.offer.count({
+                where: {
+                    orderId,
+                    storeId: store.id,
+                    isWithdrawn: true,
+                },
+            }),
+        ]);
+
+        return {
+            activeOffers,
+            isBlockedFromOrder: withdrawnCount > 0,
+        };
     }
 
     /**
@@ -284,7 +301,9 @@ export class OffersService {
 
         const now = new Date();
         if (existing.canEditUntil && now > existing.canEditUntil) {
-            throw new BadRequestException('The 15-minute edit window for this offer has expired. You can only withdraw it now.');
+            throw new BadRequestException(
+                'The 15-minute edit window has expired. Use voluntary withdrawal from the request page if still within the allowed period.',
+            );
         }
 
         if (order.offersStopAt && now > order.offersStopAt) {
@@ -343,7 +362,105 @@ export class OffersService {
     }
 
     /**
-     * Permanent Withdrawal of an offer (Marketplace Governance 2026)
+     * Voluntary withdrawal — after 15m free window, before 1h pre-selection.
+     * Blocks re-bidding on this order; does not count as governance violation.
+     */
+    async voluntaryWithdraw(userId: string, offerId: string) {
+        const store = await this.storesService.findMyStore(userId);
+        if (!store) throw new NotFoundException('Store not found.');
+
+        const existing = await this.prisma.offer.findUnique({
+            where: { id: offerId },
+            select: {
+                id: true,
+                storeId: true,
+                orderId: true,
+                isWithdrawn: true,
+                canEditUntil: true,
+                order: {
+                    select: {
+                        status: true,
+                        orderNumber: true,
+                        revealOffersAt: true,
+                        createdAt: true,
+                    },
+                },
+            },
+        });
+
+        if (!existing) throw new NotFoundException('Offer not found.');
+        if (existing.storeId !== store.id) throw new ForbiddenException('Not your offer.');
+        if (existing.isWithdrawn) throw new BadRequestException('Already withdrawn.');
+
+        const order = existing.order;
+        if (
+            !order ||
+            (order.status !== OrderStatus.COLLECTING_OFFERS &&
+                order.status !== OrderStatus.AWAITING_OFFERS)
+        ) {
+            throw new BadRequestException('Voluntary withdrawal is not available for this order status.');
+        }
+
+        const now = new Date();
+        const canEditUntil = existing.canEditUntil ? new Date(existing.canEditUntil) : null;
+        if (!canEditUntil || now <= canEditUntil) {
+            throw new BadRequestException(
+                'Use free cancel during the 15-minute edit window instead of voluntary withdrawal.',
+            );
+        }
+
+        const voluntaryEnd = getVoluntaryWithdrawEnd({
+            revealOffersAt: order.revealOffersAt,
+            createdAt: order.createdAt,
+        });
+        if (now >= voluntaryEnd) {
+            throw new BadRequestException(
+                'The voluntary withdrawal window has closed (1 hour before customer selection).',
+            );
+        }
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            return await tx.offer.update({
+                where: { id: offerId },
+                data: {
+                    status: 'withdrawn',
+                    isWithdrawn: true,
+                    withdrawalType: 'voluntary',
+                    updatedAt: new Date(),
+                },
+                include: { store: { select: { id: true, name: true, ownerId: true } } },
+            });
+        });
+
+        await this.auditLogs.logAction({
+            orderId: existing.orderId,
+            action: 'VOLUNTARY_WITHDRAW_OFFER',
+            entity: 'Offer',
+            actorType: ActorType.VENDOR,
+            actorId: userId,
+            actorName: result.store?.name || 'Vendor',
+            newState: 'withdrawn',
+            metadata: { offerId, withdrawalType: 'voluntary' },
+        });
+
+        this.notificationsService
+            .create({
+                recipientId: userId,
+                recipientRole: 'VENDOR',
+                titleAr: 'تم الانسحاب من الطلب',
+                titleEn: 'Withdrawn from Request',
+                messageAr: `تم الانسحاب من الطلب #${order.orderNumber}. لن تتمكن من تقديم عرض على هذا الطلب مرة أخرى. يمكنك التقديم على طلبات أخرى.`,
+                messageEn: `You withdrew from request #${order.orderNumber}. You cannot submit another offer on this request. You may still bid on other requests.`,
+                type: 'system_alert',
+                link: `/dashboard/merchant/orders/${existing.orderId}`,
+            })
+            .catch(() => {});
+
+        return result;
+    }
+
+    /**
+     * Violation withdrawal (legacy/admin) — increments governance counters.
      */
     async withdraw(userId: string, offerId: string) {
         const store = await this.storesService.findMyStore(userId);
@@ -351,12 +468,49 @@ export class OffersService {
 
         const existing = await this.prisma.offer.findUnique({
             where: { id: offerId },
-            select: { id: true, storeId: true, orderId: true, isWithdrawn: true }
+            select: {
+                id: true,
+                storeId: true,
+                orderId: true,
+                isWithdrawn: true,
+                canEditUntil: true,
+                order: {
+                    select: {
+                        status: true,
+                        revealOffersAt: true,
+                        createdAt: true,
+                    },
+                },
+            },
         });
 
         if (!existing) throw new NotFoundException('Offer not found.');
         if (existing.storeId !== store.id) throw new ForbiddenException('Not your offer.');
         if (existing.isWithdrawn) throw new BadRequestException('Already withdrawn.');
+
+        const now = new Date();
+        const order = existing.order;
+        if (order) {
+            const voluntaryEnd = getVoluntaryWithdrawEnd({
+                revealOffersAt: order.revealOffersAt,
+                createdAt: order.createdAt,
+            });
+            const canEditUntil = existing.canEditUntil ? new Date(existing.canEditUntil) : null;
+            if (
+                canEditUntil &&
+                now > canEditUntil &&
+                now < voluntaryEnd &&
+                (order.status === OrderStatus.COLLECTING_OFFERS ||
+                    order.status === OrderStatus.AWAITING_OFFERS)
+            ) {
+                throw new BadRequestException(
+                    'Use voluntary withdrawal during the allowed period. Violation withdrawal is disabled for merchants.',
+                );
+            }
+            if (now >= voluntaryEnd) {
+                throw new BadRequestException('Withdrawal is no longer allowed for this offer.');
+            }
+        }
 
         const result = await this.prisma.$transaction(async (tx) => {
             await tx.store.update({
@@ -369,6 +523,7 @@ export class OffersService {
                 data: { 
                     status: 'withdrawn',
                     isWithdrawn: true,
+                    withdrawalType: 'violation',
                     updatedAt: new Date()
                 },
                 include: { store: { select: { id: true, name: true, ownerId: true } } }
@@ -424,7 +579,9 @@ export class OffersService {
         // --- 2026 Governance Rule: Free Cancel only within 15m ---
         const canEditUntil = existing.canEditUntil ? new Date(existing.canEditUntil) : null;
         if (!canEditUntil || new Date() > canEditUntil) {
-            throw new BadRequestException('Free edit window has expired. You must use the "Withdraw" process (counts as violation).');
+            throw new BadRequestException(
+                'Free edit window has expired. Use voluntary withdrawal if still within the allowed period.',
+            );
         }
         // ------------------------------------------------------
 

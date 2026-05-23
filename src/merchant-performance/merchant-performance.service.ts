@@ -47,7 +47,6 @@ export class MerchantPerformanceService {
       rate: 0.04,
       benefits: [
         { ar: 'أولوية الظهور وشارة موثوق', en: 'Search priority and trusted badge' },
-        { ar: 'خصم على عمولة المنصة', en: 'Platform fee discount' },
       ],
     },
     VIP: {

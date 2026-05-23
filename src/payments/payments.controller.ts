@@ -144,8 +144,8 @@ export class PaymentsController {
     }
 
     @Get('withdrawals')
-    getWithdrawals(@Request() req) {
-        return this.paymentsService.getWithdrawalRequests(req.user.id, req.user.role);
+    getWithdrawals(@Request() req, @Query() filters: any) {
+        return this.paymentsService.getWithdrawalRequests(req.user.id, req.user.role, filters);
     }
 
     @Post('admin/withdrawals/:id/process')
@@ -204,6 +204,13 @@ export class PaymentsController {
     @Permissions('billing', 'view')
     getOrderFinancialTimeline(@Param('orderId') orderId: string) {
         return this.paymentsService.getOrderFinancialTimeline(orderId);
+    }
+
+    @Get('admin/financial-feed/export')
+    @UseGuards(PermissionsGuard)
+    @Permissions('billing', 'view')
+    exportUnifiedFinancialFeed(@Query() filters: any) {
+        return this.paymentsService.exportUnifiedFinancialFeed(filters);
     }
 
     @Get('admin/financials/export')

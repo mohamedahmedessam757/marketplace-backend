@@ -10,6 +10,43 @@ import { EscrowService } from './escrow.service';
 import { UnifiedFinancialEventDto, FinancialEventSource, FinancialDirection } from './dto/unified-financial-feed.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { OfferFulfillmentService } from '../orders/offer-fulfillment.service';
+import {
+    computeCompletedOrdersCount,
+    computeLedgerNetProfit,
+    computeMerchantGrossSales,
+} from './merchant-wallet-metrics.util';
+import {
+    buildActiveReferralWindowFilter,
+    computeCustomerCompletedOrdersCount,
+    computeCustomerTotalPurchases,
+    computeLedgerNetRewards,
+    computePendingLoyaltyFromOrders,
+    computePendingReferralFromOrders,
+    computeRefundedAmount,
+    CUSTOMER_PENDING_ORDER_STATUSES,
+    CUSTOMER_TIER_CASHBACK,
+    reconcileUserTotalSpent,
+    REFERRAL_WINDOW_DAYS,
+    splitRewardAggregates,
+} from './customer-wallet-metrics.util';
+import {
+    computeAdminFinancialKpis,
+    buildAdminDateRange,
+    computeSalesTrend,
+    computeTopSpenders,
+    computeTopEarners,
+} from './admin-financial-metrics.util';
+import {
+    getWalletTypeLabel,
+    getWithdrawalLabel,
+    getPaymentStatusLabel,
+    getEscrowStatusLabel,
+} from './financial-labels.ar';
+import {
+    fetchUnifiedFeedIndex,
+    countUnifiedFeed,
+    encodeFeedCursor,
+} from './financial-feed.util';
 
 @Injectable()
 export class PaymentsService {
@@ -1204,17 +1241,21 @@ export class PaymentsService {
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
 
-        // Parallel execution of heavy aggregations for 2026 performance standards
+        const referralWindowCutoff = new Date(
+            Date.now() - REFERRAL_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+        );
+
         const [
-            user, 
-            purchaseStats, 
-            monthRewardStats, 
-            ordersCount, 
-            refundedStats, 
-            pendingOrders, 
+            user,
+            ordersCount,
+            pendingOwnOrders,
+            pendingReferralOrders,
             transactions,
+            rewardTxs,
             walletDebitStats,
-            lifetimeRewardStats,
+            purchasesFromPayments,
+            completedOrders,
+            refundedAmount,
         ] = await Promise.all([
             this.prisma.user.findUnique({
                 where: { id: userId },
@@ -1230,61 +1271,44 @@ export class PaymentsService {
                     withdrawalsFrozen: true,
                     withdrawalFreezeNote: true,
                     orderLimit: true,
-                    restrictionAlertMessage: true
-                }
-            }),
-            // 1. Total Purchases (Audit-Grade: Only COMPLETED Orders)
-            this.prisma.paymentTransaction.aggregate({
-                where: { 
-                    customerId: userId, 
-                    status: 'SUCCESS',
-                    order: { status: 'COMPLETED' }
+                    restrictionAlertMessage: true,
                 },
-                _sum: { totalAmount: true }
             }),
-            // 2. Monthly Rewards (Profits earned this month)
-            this.prisma.walletTransaction.aggregate({
-                where: { 
-                    userId,
-                    role: 'CUSTOMER',
-                    type: 'CREDIT',
-                    transactionType: { in: ['ORDER_PROFIT', 'REFERRAL_PROFIT'] },
-                    createdAt: { gte: startOfMonth } 
-                },
-                _sum: { amount: true }
-            }),
-            // 3. Acceptance Rate Basis (Total vs Completed)
             this.prisma.order.aggregate({
                 where: { customerId: userId },
-                _count: { id: true }
+                _count: { id: true },
             }),
-            // 4. Refunded Amount
-            this.prisma.paymentTransaction.aggregate({
-                where: { customerId: userId, status: 'REFUNDED' },
-                _sum: { refundedAmount: true }
-            }),
-            // 5. Pending Rewards Basis (Orders paid but not completed)
             this.prisma.order.findMany({
-                where: { 
-                    customerId: userId, 
-                    status: {
-                        in: [
-                            'PREPARATION',
-                            'PREPARED',
-                            'VERIFICATION',
-                            'VERIFICATION_SUCCESS',
-                            'READY_FOR_SHIPPING',
-                            'SHIPPED',
-                            'DELIVERED',
-                            'CORRECTION_PERIOD',
-                            'CORRECTION_SUBMITTED',
-                            'DELAYED_PREPARATION',
-                        ],
+                where: {
+                    customerId: userId,
+                    status: { in: [...CUSTOMER_PENDING_ORDER_STATUSES] },
+                },
+                include: { payments: { where: { status: 'SUCCESS' } } },
+            }),
+            this.prisma.order.findMany({
+                where: {
+                    status: { in: [...CUSTOMER_PENDING_ORDER_STATUSES] },
+                    customer: {
+                        referredById: userId,
+                        ...buildActiveReferralWindowFilter(referralWindowCutoff),
                     },
                 },
-                include: { payments: { where: { status: 'SUCCESS' } } }
+                include: { payments: { where: { status: 'SUCCESS' } } },
             }),
             this.getCustomerTransactions(userId),
+            this.prisma.walletTransaction.findMany({
+                where: {
+                    userId,
+                    role: 'CUSTOMER',
+                    transactionType: { in: ['ORDER_PROFIT', 'REFERRAL_PROFIT'] },
+                },
+                select: {
+                    amount: true,
+                    type: true,
+                    transactionType: true,
+                    createdAt: true,
+                },
+            }),
             this.prisma.walletTransaction.aggregate({
                 where: {
                     userId,
@@ -1294,61 +1318,67 @@ export class PaymentsService {
                 },
                 _sum: { amount: true },
             }),
-            this.prisma.walletTransaction.aggregate({
-                where: {
-                    userId,
-                    role: 'CUSTOMER',
-                    type: 'CREDIT',
-                    transactionType: { in: ['ORDER_PROFIT', 'REFERRAL_PROFIT'] },
-                },
-                _sum: { amount: true },
-            }),
+            computeCustomerTotalPurchases(this.prisma, userId),
+            computeCustomerCompletedOrdersCount(this.prisma, userId),
+            computeRefundedAmount(this.prisma, userId),
         ]);
 
         if (!user) throw new NotFoundException('User not found');
 
-        // Logic Engineering: Compute Pending Rewards based on REAL SYSTEM COMMISSIONS (25% or 100 AED)
-        const tierConfig: any = { BASIC: 0.02, SILVER: 0.03, GOLD: 0.04, VIP: 0.05, PARTNER: 0.06 };
-        const userRate = tierConfig[user.loyaltyTier] || 0.02;
-        
-        const pendingRewards = pendingOrders.reduce((sum, order) => {
-            // Aggregate absolute commission taken by the system for this order's successful payments
-            const realOrderCommission = order.payments.reduce((cSum, p) => cSum + Number((p as any).commission || 0), 0);
-            return sum + (realOrderCommission * userRate);
-        }, 0);
-
-        const completedOrders = await this.prisma.order.count({
-            where: { customerId: userId, status: 'COMPLETED' }
-        });
+        const tierCashbackRate =
+            CUSTOMER_TIER_CASHBACK[user.loyaltyTier] ?? CUSTOMER_TIER_CASHBACK.BASIC;
+        const rewardSplits = splitRewardAggregates(rewardTxs, startOfMonth);
+        const pendingLoyaltyRewards = computePendingLoyaltyFromOrders(
+            pendingOwnOrders,
+            tierCashbackRate,
+        );
+        const pendingReferralRewards = computePendingReferralFromOrders(
+            pendingReferralOrders,
+        );
+        const pendingRewards = pendingLoyaltyRewards + pendingReferralRewards;
 
         const totalOrdersCount = ordersCount._count.id;
-        const acceptanceRate = totalOrdersCount > 0 ? (completedOrders / totalOrdersCount) * 100 : 100;
+        const orderCompletionRate =
+            totalOrdersCount > 0 ? (completedOrders / totalOrdersCount) * 100 : 100;
 
-        const purchasesFromPayments = Number(purchaseStats._sum.totalAmount || 0);
-        const purchasesFromProfile = Number(user.totalSpent || 0);
-        // Align with loyalty tier engine (uses users.total_spent on order COMPLETED)
-        const totalPurchases =
-            purchasesFromProfile > 0 ? purchasesFromProfile : purchasesFromPayments;
+        const totalSpent = await reconcileUserTotalSpent(
+            this.prisma,
+            userId,
+            purchasesFromPayments,
+            Number(user.totalSpent || 0),
+        );
+        const totalPurchases = purchasesFromPayments;
+
+        const lifetimeCredits = rewardSplits.lifetimeLoyalty + rewardSplits.lifetimeReferral;
+        const netRewardsEarned = computeLedgerNetRewards(rewardTxs);
 
         return {
             stats: {
                 ...user,
                 customerBalance: Number(user.customerBalance || 0),
-                totalSpent: purchasesFromProfile,
+                totalSpent,
                 totalPurchases,
-                monthlyRewards: Number(monthRewardStats._sum.amount || 0),
-                pendingRewards: Number(pendingRewards.toFixed(2)),
-                refundedAmount: Number(refundedStats._sum.refundedAmount || 0),
+                monthlyLoyaltyRewards: rewardSplits.monthlyLoyalty,
+                monthlyReferralRewards: rewardSplits.monthlyReferral,
+                monthlyRewards:
+                    rewardSplits.monthlyLoyalty + rewardSplits.monthlyReferral,
+                pendingLoyaltyRewards,
+                pendingReferralRewards,
+                pendingRewards,
+                refundedAmount,
                 walletDeductions: Number(walletDebitStats._sum.amount || 0),
-                totalRewardsEarned: Number(lifetimeRewardStats._sum.amount || 0),
+                totalRewardsEarned: Number(lifetimeCredits.toFixed(2)),
+                netRewardsEarned,
                 completedOrders,
                 totalOrdersCount,
-                acceptanceRate: Math.round(acceptanceRate),
-                profitPercentage: userRate * 100, // Loyalty tier cashback percentage
-                referralRate: 0.01, // Fixed 1% referral commission
-                referralWindowDays: 180
+                orderCompletionRate: Math.round(orderCompletionRate),
+                acceptanceRate: Math.round(orderCompletionRate),
+                tierCashbackRate: tierCashbackRate * 100,
+                profitPercentage: tierCashbackRate * 100,
+                referralRate: 0.01,
+                referralWindowDays: REFERRAL_WINDOW_DAYS,
             },
-            transactions
+            transactions,
         };
     }
 
@@ -1433,8 +1463,8 @@ export class PaymentsService {
         const [
             walletActions,
             allTimeVendorTxs,
-            gmvAgg,
-            merchantShareAgg,
+            allTimeReferralTxs,
+            merchantGrossSales,
             completedOrderCount,
         ] = await Promise.all([
         this.prisma.walletTransaction.findMany({
@@ -1479,37 +1509,16 @@ export class PaymentsService {
                 escrowId: true,
             },
         }),
-        this.prisma.paymentTransaction.aggregate({
-            where: { status: 'SUCCESS', offer: { storeId: store.id } },
-            _sum: { totalAmount: true },
-        }),
-        this.prisma.paymentTransaction.aggregate({
-            where: { status: 'SUCCESS', offer: { storeId: store.id } },
-            _sum: { unitPrice: true },
-        }),
-        this.prisma.order.count({
+        this.prisma.walletTransaction.findMany({
             where: {
-                AND: [
-                    {
-                        OR: [
-                            { storeId: store.id },
-                            { acceptedOffer: { storeId: store.id } },
-                        ],
-                    },
-                    {
-                        OR: [
-                            { status: { in: ['COMPLETED', 'DELIVERED'] } },
-                            // مدفوع ومحجوز في الضمان (HELD/FROZEN) يُحسب طلباً ناجحاً
-                            {
-                                escrowTransactions: {
-                                    some: { status: { in: ['HELD', 'FROZEN'] } },
-                                },
-                            },
-                        ],
-                    },
-                ],
+                userId: store.ownerId,
+                transactionType: 'REFERRAL_PROFIT',
+                type: 'CREDIT',
             },
+            select: { amount: true },
         }),
+        computeMerchantGrossSales(this.prisma, store.id),
+        computeCompletedOrdersCount(this.prisma, store.id),
         ]);
 
         // ═══════════════════════════════════════════════════════
@@ -1548,7 +1557,6 @@ export class PaymentsService {
                 benefits: [
                     { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' },
                     { ar: 'أولوية في نتائج البحث', en: 'Search Result Priority' },
-                    { ar: 'خصم 5% على عمولة المنصة', en: '5% Platform Fee Discount' }
                 ]
             }, 
             VIP: { 
@@ -1556,7 +1564,6 @@ export class PaymentsService {
                 benefits: [
                     { ar: 'شارة بائع موثوق', en: 'Verified Seller Badge' },
                     { ar: 'أولوية في نتائج البحث', en: 'Search Result Priority' },
-                    { ar: 'خصم 5% على عمولة المنصة', en: '5% Platform Fee Discount' },
                     { ar: 'مدير حساب VIP (24/7)', en: '24/7 VIP Account Manager' }
                 ]
             },
@@ -1580,15 +1587,6 @@ export class PaymentsService {
 
         const ACTIVE_STATUSES = ['PREPARATION', 'PREPARED', 'VERIFICATION', 'VERIFICATION_SUCCESS', 'READY_FOR_SHIPPING', 'SHIPPED', 'CORRECTION_PERIOD', 'CORRECTION_SUBMITTED', 'DELAYED_PREPARATION', 'NON_MATCHING'];
 
-        const MERCHANT_NET_DEBIT_TYPES = new Set([
-            'SHIPPING_FEE',
-            'ADJUDICATION_FEE',
-            'REFUND',
-            'PENALTY',
-            'FRAUD_PENALTY',
-            'WITHDRAWAL',
-        ]);
-
         // ═══════════════════════════════════════════════════════
         // 3. KPI cards — always all-time (never date-filtered)
         // ═══════════════════════════════════════════════════════
@@ -1596,65 +1594,40 @@ export class PaymentsService {
         stats.pending = Number(store.pendingBalance);
         stats.frozen = Number(store.frozenBalance);
 
-        const gmvFromPayments = Number(gmvAgg._sum.totalAmount || 0);
-        const merchantShareFromPayments = Number(merchantShareAgg._sum.unitPrice || 0);
-        stats.totalSales =
-            Number(store.lifetimeEarnings) > 0
-                ? Number(store.lifetimeEarnings)
-                : gmvFromPayments;
+        stats.totalSales = merchantGrossSales;
 
-        stats.completedOrders = Math.max(
-            Number(store.completedOrdersCount || 0),
-            completedOrderCount,
+        stats.completedOrders = completedOrderCount;
+
+        // Referral profits (all-time) — credits personal customerBalance, role CUSTOMER
+        stats.earnedReferralProfits = allTimeReferralTxs.reduce(
+            (sum, tx) => sum + Number(tx.amount),
+            0,
         );
 
-        // Referral profits (all-time)
-        for (const action of allTimeVendorTxs) {
-            const amount = Number(action.amount);
-            const txType = String(action.transactionType || '').toUpperCase();
-            if (txType === 'REFERRAL_PROFIT' && action.type === 'CREDIT') {
-                stats.earnedReferralProfits += amount;
-            }
-        }
+        const totalWalletBalance = stats.available + stats.pending + stats.frozen;
+        const ledgerNetProfit = computeLedgerNetProfit(allTimeVendorTxs);
+        stats.netEarnings = ledgerNetProfit;
 
-        // صافي الأرباح = إجمالي أموال التاجر على المنصة (متاح + معلق + مجمد)
-        // يطابق الرصيد المستحق + المعلق + المجمد ولا يتأثر بفلتر التاريخ
-        const totalFundsOnPlatform = stats.available + stats.pending + stats.frozen;
-        stats.netEarnings = Number(totalFundsOnPlatform.toFixed(2));
+        (stats as any).totalWalletBalance = Number(totalWalletBalance.toFixed(2));
+        (stats as any).ledgerNetProfit = ledgerNetProfit;
+        (stats as any).merchantShareTotal = merchantGrossSales;
 
-        // للتقارير: صافي السجل المحاسبي (إيرادات محررة − خصومات)
-        let ledgerNet = 0;
-        const releasedPaymentIds = new Set<string>();
-        for (const action of allTimeVendorTxs) {
-            const amount = Number(action.amount);
-            const txType = String(action.transactionType || '').toUpperCase();
-            if (action.type === 'CREDIT') {
-                if (txType === 'REFERRAL_PROFIT') {
-                    ledgerNet += amount;
-                } else if (
-                    action.escrowId &&
-                    (['PAYMENT', 'SALE', 'COMMISSION'].includes(txType) || action.paymentId)
-                ) {
-                    ledgerNet += amount;
-                    if (action.paymentId) releasedPaymentIds.add(action.paymentId);
-                }
-            } else if (action.type === 'DEBIT' && MERCHANT_NET_DEBIT_TYPES.has(txType)) {
-                ledgerNet -= amount;
-            }
-        }
-        (stats as any).ledgerNetProfit = Math.max(0, Number(ledgerNet.toFixed(2)));
-        (stats as any).merchantShareTotal = merchantShareFromPayments;
-
-        // Backfill store counters when loyalty engine never ran (e.g. test/seed orders)
-        if (gmvFromPayments > 0 && Number(store.lifetimeEarnings) === 0) {
+        // Backfill store counters from payment aggregates (merchant unitPrice, not customer GMV)
+        if (
+            merchantGrossSales > 0 &&
+            (Number(store.lifetimeEarnings) === 0 ||
+                Math.abs(Number(store.lifetimeEarnings) - merchantGrossSales) > 0.01)
+        ) {
             void this.prisma.store
                 .update({
                     where: { id: store.id },
-                    data: { lifetimeEarnings: gmvFromPayments },
+                    data: {
+                        lifetimeEarnings: merchantGrossSales,
+                        completedOrdersCount: completedOrderCount,
+                    },
                 })
                 .catch(() => undefined);
-        }
-        if (completedOrderCount > Number(store.completedOrdersCount || 0)) {
+        } else if (completedOrderCount > Number(store.completedOrdersCount || 0)) {
             void this.prisma.store
                 .update({
                     where: { id: store.id },
@@ -1670,7 +1643,6 @@ export class PaymentsService {
         const monthlyAggr = await this.prisma.walletTransaction.aggregate({
             where: {
                 userId: store.ownerId,
-                role: 'VENDOR',
                 type: 'CREDIT',
                 transactionType: 'REFERRAL_PROFIT',
                 createdAt: { gte: startOfMonth }
@@ -1691,8 +1663,7 @@ export class PaymentsService {
                 status: { in: ACTIVE_STATUSES as any },
                 customer: {
                     referredById: store.ownerId,
-                    // Window still active: referralStartsAt within last 6 months
-                    referralStartsAt: { gte: windowCutoff }
+                    ...buildActiveReferralWindowFilter(windowCutoff),
                 } as any
             },
             include: { payments: { where: { status: 'SUCCESS' } } }
@@ -1727,6 +1698,9 @@ export class PaymentsService {
                 frozen: Number(stats.frozen.toFixed(2)),
                 totalSales: Number(stats.totalSales.toFixed(2)),
                 netEarnings: Number(stats.netEarnings.toFixed(2)),
+                totalWalletBalance: Number((stats as any).totalWalletBalance),
+                ledgerNetProfit: Number((stats as any).ledgerNetProfit),
+                merchantShareTotal: Number((stats as any).merchantShareTotal),
                 loyaltyTier: store.loyaltyTier,
                 performanceScore: Number(store.performanceScore),
                 rating: Number(store.rating),
@@ -1753,7 +1727,8 @@ export class PaymentsService {
                 withdrawalsFrozen: store.owner.withdrawalsFrozen,
                 withdrawalFreezeNote: store.owner.withdrawalFreezeNote,
                 orderLimit: store.owner.orderLimit,
-                restrictionAlertMessage: store.owner.restrictionAlertMessage
+                restrictionAlertMessage: store.owner.restrictionAlertMessage,
+                referralCustomerBalance: Number(store.owner.customerBalance || 0),
             },
             notifications,
             transactions: walletActions // Wallet actions has exactly all sales, cancellations, and referrals
@@ -2140,15 +2115,9 @@ export class PaymentsService {
         });
     }
 
-    async getWithdrawalRequests(userId: string, role: string) {
+    async getWithdrawalRequests(userId: string, role: string, filters?: any) {
         if (role === 'ADMIN' || role === 'SUPER_ADMIN' || role === 'SUPPORT') {
-            return this.prisma.withdrawalRequest.findMany({
-                include: { 
-                    store: { select: { name: true, id: true, balance: true, bankName: true, bankIban: true, bankAccountHolder: true, bankSwift: true, bankDetailsVerified: true } },
-                    user: { select: { name: true, email: true, id: true, customerBalance: true, bankName: true, bankIban: true, bankAccountHolder: true, bankSwift: true, bankDetailsVerified: true } }
-                },
-                orderBy: { createdAt: 'desc' }
-            });
+            return this.getAdminWithdrawals(filters);
         }
 
         const store = await this.prisma.store.findUnique({ where: { ownerId: userId } });
@@ -2161,6 +2130,116 @@ export class PaymentsService {
                 ]
             },
             orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    async getAdminWithdrawals(filters?: any) {
+        const range = buildAdminDateRange(filters);
+        const dateFilter =
+            range.startDate || range.endDate
+                ? {
+                      ...(range.startDate ? { gte: range.startDate } : {}),
+                      ...(range.endDate ? { lte: range.endDate } : {}),
+                  }
+                : undefined;
+
+        const where: Prisma.WithdrawalRequestWhereInput = {
+            ...(dateFilter ? { createdAt: dateFilter } : {}),
+        };
+
+        const status = filters?.status || 'PENDING';
+        if (status !== 'ALL') {
+            where.status = status;
+        }
+        if (filters?.role && filters.role !== 'ALL') {
+            where.role = filters.role;
+        }
+        if (filters?.search) {
+            const search = filters.search;
+            where.OR = [
+                { user: { name: { contains: search, mode: 'insensitive' } } },
+                { store: { name: { contains: search, mode: 'insensitive' } } },
+            ];
+        }
+
+        const requests = await this.prisma.withdrawalRequest.findMany({
+            where,
+            include: {
+                store: {
+                    select: {
+                        name: true,
+                        id: true,
+                        balance: true,
+                        bankName: true,
+                        bankIban: true,
+                        bankAccountHolder: true,
+                        bankSwift: true,
+                        bankDetailsVerified: true,
+                    },
+                },
+                user: {
+                    select: {
+                        name: true,
+                        email: true,
+                        id: true,
+                        customerBalance: true,
+                        bankName: true,
+                        bankIban: true,
+                        bankAccountHolder: true,
+                        bankSwift: true,
+                        bankDetailsVerified: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const requestIds = requests.map((r) => r.id);
+        const linkedWalletTxs =
+            requestIds.length > 0
+                ? await this.prisma.walletTransaction.findMany({
+                      where: {
+                          transactionType: { in: ['WITHDRAWAL', 'withdrawal', 'MANUAL_PAYOUT'] },
+                          OR: requestIds.map((requestId) => ({
+                              metadata: {
+                                  path: ['requestId'],
+                                  equals: requestId,
+                              },
+                          })),
+                      },
+                      select: {
+                          id: true,
+                          amount: true,
+                          balanceAfter: true,
+                          metadata: true,
+                          createdAt: true,
+                      },
+                  })
+                : [];
+
+        return requests.map((req) => {
+            const linked = linkedWalletTxs.find((tx) => {
+                const meta = tx.metadata as Record<string, unknown> | null;
+                return meta?.requestId === req.id;
+            });
+            const balanceCurrent =
+                req.role === 'VENDOR'
+                    ? Number(req.store?.balance || 0)
+                    : Number(req.user?.customerBalance || 0);
+            const balanceAtRequest = linked
+                ? Number(linked.balanceAfter) + Number(linked.amount)
+                : null;
+
+            return {
+                ...req,
+                amount: Number(req.amount),
+                balanceCurrent,
+                balanceAtRequest,
+                linkedWalletTxId: linked?.id || null,
+                adminNotes: req.adminNotes || null,
+                stripeTransferId: req.stripeTransferId || null,
+                processedAt: req.status !== 'PENDING' ? req.updatedAt : null,
+            };
         });
     }
 
@@ -2373,300 +2452,57 @@ export class PaymentsService {
     // --- Admin Financial Hub ---
 
     async getAdminFinancials(filters?: any) {
-        const dateFilter: any = {};
-        if (filters?.startDate) dateFilter.gte = new Date(filters.startDate);
-        if (filters?.endDate) {
-            const end = new Date(filters.endDate);
-            end.setHours(23, 59, 59, 999);
-            dateFilter.lte = end;
-        }
-        const hasDateFilter = Object.keys(dateFilter).length > 0;
+        const range = buildAdminDateRange(filters);
+        const hasDateFilter = !!(range.startDate || range.endDate);
+        const dateFilter = range.startDate || range.endDate
+            ? {
+                ...(range.startDate ? { gte: range.startDate } : {}),
+                ...(range.endDate ? { lte: range.endDate } : {}),
+            }
+            : undefined;
 
         const transactionsWhere: Prisma.WalletTransactionWhereInput = {
-            ...(hasDateFilter ? { createdAt: dateFilter } : {})
+            ...(dateFilter ? { createdAt: dateFilter } : {}),
         };
 
         if (filters?.type && filters.type !== 'ALL') {
             transactionsWhere.type = filters.type;
         }
-
         if (filters?.role && filters.role !== 'ALL') {
             transactionsWhere.role = filters.role;
         }
-
         if (filters?.search) {
             const search = filters.search;
             transactionsWhere.OR = [
                 { description: { contains: search, mode: 'insensitive' } },
                 { user: { name: { contains: search, mode: 'insensitive' } } },
-                { transactionType: { contains: search, mode: 'insensitive' } }
+                { transactionType: { contains: search, mode: 'insensitive' } },
             ];
         }
 
-        // Audit-grade aggregates: every filter scoped to SUCCESS payments where relevant
-        const successPaymentWhere: Prisma.PaymentTransactionWhereInput = {
-            status: 'SUCCESS',
-            ...(hasDateFilter ? { createdAt: dateFilter } : {}),
-        };
-
-        const [
-            totalSalesAgg,
-            commissionAgg,
-            shippingAgg,
-            referralAgg,
-            referralCountResult,
-            pendingWithdrawalsAgg,
-            transactions,
-            fullRefundsAgg,
-            partialRefundsAgg,
-            gatewayFeesAgg,
-            loyaltyPointsAgg,
-            platformWallet,
-            customerBalanceAgg,
-            merchantStoreAgg,
-            customerRewardsAgg,
-            loyaltyPaidAgg,
-        ] = await Promise.all([
-            // 1. Total Sales (GMV) — only SUCCESS payments
-            this.prisma.paymentTransaction.aggregate({
-                where: successPaymentWhere,
-                _sum: { totalAmount: true },
-            }),
-            // 2. Platform commission realized on SUCCESS payments
-            this.prisma.paymentTransaction.aggregate({
-                where: successPaymentWhere,
-                _sum: { commission: true },
-            }),
-            // 3. Shipping revenue collected (paid by customer, transferred to merchant on release)
-            this.prisma.paymentTransaction.aggregate({
-                where: successPaymentWhere,
-                _sum: { shippingCost: true },
-            }),
-            // 4. Referral profits PAID OUT to referrers (platform expense)
-            this.prisma.walletTransaction.aggregate({
-                where: {
-                    type: 'CREDIT',
-                    transactionType: 'REFERRAL_PROFIT',
-                    ...(hasDateFilter ? { createdAt: dateFilter } : {}),
-                },
-                _sum: { amount: true },
-            }),
-            // 5. Referral count (number of referral payouts in period)
-            this.prisma.walletTransaction.count({
-                where: {
-                    type: 'CREDIT',
-                    transactionType: 'REFERRAL_PROFIT',
-                    ...(hasDateFilter ? { createdAt: dateFilter } : {}),
-                },
-            }),
-            // 6. Pending Withdrawals (always all-time, not date-filtered — operational queue)
-            this.prisma.withdrawalRequest.aggregate({
-                where: { status: 'PENDING' },
-                _sum: { amount: true },
-                _count: { id: true },
-            }),
-            // 7. Transactions feed
+        const [kpis, salesTrend, topSpenders, topEarners, transactions] = await Promise.all([
+            computeAdminFinancialKpis(this.prisma, range),
+            computeSalesTrend(this.prisma, range),
+            computeTopSpenders(this.prisma, range),
+            computeTopEarners(this.prisma, range),
             this.prisma.walletTransaction.findMany({
                 where: transactionsWhere,
                 include: { user: { select: { name: true, role: true } } },
                 orderBy: { createdAt: 'desc' },
                 take: filters?.limit ? Number(filters.limit) : 100,
-                skip: filters?.page && filters?.limit ? (Number(filters.page) - 1) * Number(filters.limit) : 0,
-            }),
-            // 8. Full refunds (status REFUNDED)
-            this.prisma.paymentTransaction.aggregate({
-                where: {
-                    status: 'REFUNDED',
-                    ...(hasDateFilter ? { createdAt: dateFilter } : {}),
-                },
-                _sum: { refundedAmount: true },
-            }),
-            // 9. Partial refunds (status still SUCCESS but refundedAmount > 0)
-            this.prisma.paymentTransaction.aggregate({
-                where: {
-                    status: 'SUCCESS',
-                    refundedAmount: { gt: 0 },
-                    ...(hasDateFilter ? { createdAt: dateFilter } : {}),
-                },
-                _sum: { refundedAmount: true },
-            }),
-            // 10. Gateway fees on SUCCESS payments only (paid by platform to Stripe)
-            this.prisma.paymentTransaction.aggregate({
-                where: successPaymentWhere,
-                _sum: { gatewayFee: true },
-            }),
-            // 11. Loyalty points outstanding (count, not AED)
-            this.prisma.user.aggregate({ _sum: { loyaltyPoints: true } }),
-            // 12. Platform wallet (single source of truth for realized revenue)
-            this.prisma.platformWallet.findFirst(),
-            // 13. Customer balance liabilities (AED owed)
-            this.prisma.user.aggregate({ _sum: { customerBalance: true } }),
-            // 14. Store balance breakdown (available / escrow held / frozen)
-            this.prisma.store.aggregate({
-                _sum: { balance: true, pendingBalance: true, frozenBalance: true },
-            }),
-            // 15. Customer rewards still sitting in wallets (subset of liabilities)
-            this.prisma.walletTransaction.aggregate({
-                where: {
-                    role: 'CUSTOMER',
-                    type: 'CREDIT',
-                    transactionType: { in: ['ORDER_PROFIT', 'REFERRAL_PROFIT'] },
-                },
-                _sum: { amount: true },
-            }),
-            // 16. Loyalty cashback paid to customers (platform expense, ORDER_PROFIT)
-            this.prisma.walletTransaction.aggregate({
-                where: {
-                    role: 'CUSTOMER',
-                    type: 'CREDIT',
-                    transactionType: 'ORDER_PROFIT',
-                    ...(hasDateFilter ? { createdAt: dateFilter } : {}),
-                },
-                _sum: { amount: true },
+                skip:
+                    filters?.page && filters?.limit
+                        ? (Number(filters.page) - 1) * Number(filters.limit)
+                        : 0,
             }),
         ]);
 
-        // Build optional date filter for raw SQL (Prisma.sql composition)
-        const startDate = filters?.startDate ? new Date(filters.startDate) : null;
-        const endDate = filters?.endDate ? new Date(filters.endDate) : null;
-        if (endDate) endDate.setHours(23, 59, 59, 999);
-
-        const topSpendersRaw = startDate && endDate
-            ? await this.prisma.$queryRaw`
-                SELECT "customer_id" as "customerId", SUM("total_amount") as "totalAmount"
-                FROM "payment_transactions"
-                WHERE "status" = 'SUCCESS' AND "customer_id" IS NOT NULL
-                  AND "created_at" BETWEEN ${startDate} AND ${endDate}
-                GROUP BY "customer_id"
-                ORDER BY "totalAmount" DESC
-                LIMIT 5`
-            : await this.prisma.$queryRaw`
-                SELECT "customer_id" as "customerId", SUM("total_amount") as "totalAmount"
-                FROM "payment_transactions"
-                WHERE "status" = 'SUCCESS' AND "customer_id" IS NOT NULL
-                GROUP BY "customer_id"
-                ORDER BY "totalAmount" DESC
-                LIMIT 5`;
-
-        const topEarnersRaw = startDate && endDate
-            ? await this.prisma.$queryRaw`
-                SELECT off."store_id" as "storeId", SUM(pt."unit_price") as "totalAmount"
-                FROM "payment_transactions" pt
-                JOIN "offers" off ON pt."offer_id" = off."id"
-                WHERE pt."status" = 'SUCCESS' AND off."store_id" IS NOT NULL
-                  AND pt."created_at" BETWEEN ${startDate} AND ${endDate}
-                GROUP BY off."store_id"
-                ORDER BY "totalAmount" DESC
-                LIMIT 5`
-            : await this.prisma.$queryRaw`
-                SELECT off."store_id" as "storeId", SUM(pt."unit_price") as "totalAmount"
-                FROM "payment_transactions" pt
-                JOIN "offers" off ON pt."offer_id" = off."id"
-                WHERE pt."status" = 'SUCCESS' AND off."store_id" IS NOT NULL
-                GROUP BY off."store_id"
-                ORDER BY "totalAmount" DESC
-                LIMIT 5`;
-
-        const totalCommission = Number(commissionAgg._sum.commission || 0);
-        const totalReferralPaid = Number(referralAgg._sum.amount || 0);
-        const totalLoyaltyPaid = Number(loyaltyPaidAgg._sum.amount || 0);
-        const totalGatewayFees = Number(gatewayFeesAgg?._sum?.gatewayFee || 0);
-        const fullRefunds = Number(fullRefundsAgg._sum.refundedAmount || 0);
-        const partialRefunds = Number(partialRefundsAgg._sum.refundedAmount || 0);
-        const totalRefunds = fullRefunds + partialRefunds;
-        const platformCommissionBal = Number(platformWallet?.commissionBalance || 0);
-        const platformFeesBal = Number(platformWallet?.feesBalance || 0);
-        const platformTotalRevenue = Number(platformWallet?.totalRevenue || 0);
-        const merchantEscrowHeld =
-            Number(merchantStoreAgg._sum.pendingBalance || 0) +
-            Number(merchantStoreAgg._sum.frozenBalance || 0);
-        const userWalletLiabilitiesAed =
-            Number(customerBalanceAgg._sum.customerBalance || 0) +
-            Number(merchantStoreAgg._sum.balance || 0);
-
-        // Net commission = commission collected − costs paid out by platform
-        const netCommission =
-            totalCommission - totalReferralPaid - totalLoyaltyPaid - totalGatewayFees;
-        const netPlatformPosition = netCommission - totalRefunds;
-
-        // Resolve top spender names & stats
-        const spenderIds = (topSpendersRaw as any[]).map((s: any) => s.customerId).filter(Boolean);
-        const spenderUsers = await this.prisma.user.findMany({
-            where: { id: { in: spenderIds } },
-            select: { 
-                id: true, 
-                name: true, 
-                avatar: true,
-                _count: { select: { orders: true } }
-            }
-        });
-        const topSpenders = (topSpendersRaw as any[]).map((s: any) => {
-            const user = spenderUsers.find(u => u.id === s.customerId);
-            return { 
-                id: s.customerId, 
-                name: user?.name || 'Unknown', 
-                avatar: user?.avatar || null, 
-                totalSpent: Number(s.totalAmount || 0),
-                ordersCount: user?._count?.orders || 0
-            };
-        });
-
-        // Resolve top earner store names & stats
-        const storeIds = (topEarnersRaw as any[]).map((e: any) => e.storeId).filter(Boolean);
-        const earnerStores = await this.prisma.store.findMany({
-            where: { id: { in: storeIds } },
-            select: { 
-                id: true, 
-                name: true, 
-                logo: true, 
-                rating: true,
-                _count: { select: { orders: true } }
-            }
-        });
-        const topEarners = (topEarnersRaw as any[]).map((e: any) => {
-            const store = earnerStores.find(s => s.id === e.storeId);
-            return { 
-                id: e.storeId, 
-                name: store?.name || 'Unknown Store', 
-                logo: store?.logo || null,
-                rating: store?.rating || 0,
-                totalEarned: Number(e.totalAmount || 0),
-                ordersCount: store?._count?.orders || 0
-            };
-        });
-
-        const todayStr = new Date().toDateString();
-
         return {
-            kpis: {
-                totalSales: Number(totalSalesAgg._sum.totalAmount || 0),
-                grossCommission: totalCommission,
-                netCommission,
-                netPlatformPosition,
-                platformRevenue: platformTotalRevenue,
-                platformCommissionBalance: platformCommissionBal,
-                platformFeesBalance: platformFeesBal,
-                shippingRevenue: Number(shippingAgg._sum.shippingCost || 0),
-                shippingProfit: Number(shippingAgg._sum.shippingCost || 0),
-                referralEarnings: totalReferralPaid,
-                referralPaidOut: totalReferralPaid,
-                referralCount: referralCountResult,
-                loyaltyCashbackPaid: totalLoyaltyPaid,
-                pendingWithdrawals: Number(pendingWithdrawalsAgg._sum.amount || 0),
-                pendingWithdrawalsCount: pendingWithdrawalsAgg._count.id,
-                frozenFunds: merchantEscrowHeld,
-                totalRefunds,
-                fullRefunds,
-                partialRefunds,
-                gatewayFees: totalGatewayFees,
-                pendingLiabilities: userWalletLiabilitiesAed,
-                loyaltyPointsOutstanding: Number(loyaltyPointsAgg?._sum?.loyaltyPoints || 0),
-                customerRewardsInWallets: Number(customerRewardsAgg._sum.amount || 0),
-                todayTransactionsCount: transactions.filter(
-                    t => new Date(t.createdAt).toDateString() === todayStr,
-                ).length,
-            },
-            transactions: (transactions as any[]).map(t => ({
+            kpis,
+            salesTrend,
+            topSpenders,
+            topEarners,
+            transactions: transactions.map((t) => ({
                 id: t.id,
                 userId: t.userId,
                 userName: t.user?.name || 'Unknown',
@@ -2675,16 +2511,24 @@ export class PaymentsService {
                 type: t.type,
                 transactionType: t.transactionType,
                 status: 'COMPLETED',
-                date: t.createdAt
+                date: t.createdAt,
             })),
-            topSpenders,
-            topEarners
+            meta: { hasDateFilter },
         };
     }
 
     async exportFinancialTransactions(filters?: any) {
         const data = await this.getAdminFinancials(filters);
         return data.transactions;
+    }
+
+    async exportUnifiedFinancialFeed(filters?: any) {
+        const result = await this.getUnifiedFinancialFeed({
+            ...filters,
+            limit: filters?.limit ? Number(filters.limit) : 100000,
+            cursor: undefined,
+        });
+        return result.data;
     }
 
     async sendManualPayout(adminId: string, dto: AdminManualPayoutDto) {
@@ -2796,95 +2640,115 @@ export class PaymentsService {
      * Aggregates events from Payments, Wallet, Escrow, and Withdrawals.
      */
     async getUnifiedFinancialFeed(filters: any) {
-        const limit = filters?.limit ? Number(filters.limit) : 50;
-        const page = filters?.page ? Number(filters.page) : 1;
-        const skip = (page - 1) * limit;
+        const limit = Math.min(Math.max(Number(filters?.limit) || 50, 1), 100);
 
-        const dateFilter: any = {};
-        if (filters?.startDate) dateFilter.gte = new Date(filters.startDate);
-        if (filters?.endDate) {
-            const end = new Date(filters.endDate);
-            end.setHours(23, 59, 59, 999);
-            dateFilter.lte = end;
-        }
-
-        const commonWhere: any = Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {};
-
-        // 1. Fetch from 4 sources in parallel
-        const [payments, walletTx, escrows, withdrawals] = await Promise.all([
-            // Payments Feed
-            this.prisma.paymentTransaction.findMany({
-                where: { ...commonWhere, ...(filters?.search ? { transactionNumber: { contains: filters.search, mode: 'insensitive' } } : {}) },
-                include: { 
-                    customer: { select: { id: true, name: true, avatar: true } }, 
-                    order: { select: { orderNumber: true } },
-                    offer: { include: { store: { select: { id: true, name: true, logo: true, storeCode: true } } } }
-                },
-                orderBy: { createdAt: 'desc' },
-                take: limit + skip
-            }),
-            // Wallet Feed
-            this.prisma.walletTransaction.findMany({
-                where: { ...commonWhere, ...(filters?.search ? { description: { contains: filters.search, mode: 'insensitive' } } : {}) },
-                include: { 
-                    user: { 
-                        select: { 
-                            id: true, 
-                            name: true, 
-                            avatar: true,
-                            store: { select: { id: true, name: true, logo: true, storeCode: true } }
-                        } 
-                    }, 
-                    payment: { select: { order: { select: { orderNumber: true, id: true } } } } 
-                },
-                orderBy: { createdAt: 'desc' },
-                take: limit + skip
-            }),
-            // Escrow Feed
-            this.prisma.escrowTransaction.findMany({
-                where: { ...commonWhere },
-                include: { order: { select: { orderNumber: true, customer: { select: { id: true, name: true, avatar: true } }, store: { select: { id: true, name: true, logo: true, storeCode: true } } } } },
-                orderBy: { createdAt: 'desc' },
-                take: limit + skip
-            }),
-            // Withdrawals Feed
-            this.prisma.withdrawalRequest.findMany({
-                where: { ...commonWhere },
-                include: { user: { select: { id: true, name: true, avatar: true } }, store: { select: { id: true, name: true, logo: true, storeCode: true } } },
-                orderBy: { createdAt: 'desc' },
-                take: limit + skip
-            })
+        const [{ rows, hasMore }, total] = await Promise.all([
+            fetchUnifiedFeedIndex(this.prisma, filters),
+            countUnifiedFeed(this.prisma, filters),
         ]);
 
-        // 2. Normalize and Map
-        const allEvents: UnifiedFinancialEventDto[] = [
-            ...payments.map(p => this.mapPaymentToUnified(p)),
-            ...walletTx.map(w => this.mapWalletToUnified(w)),
-            ...escrows.map(e => this.mapEscrowToUnified(e)),
-            ...withdrawals.map(wd => this.mapWithdrawalToUnified(wd))
-        ];
-
-        // 3. Global Filter by Type if requested
-        let filteredEvents = allEvents;
-        if (filters?.type && filters.type !== 'ALL') {
-            filteredEvents = allEvents.filter(e => e.source === filters.type || e.eventType === filters.type);
+        if (rows.length === 0) {
+            return { data: [], total, hasMore: false, nextCursor: undefined };
         }
 
-        // 4. Sort and Paginate
-        // We use updatedAt if available, falling back to createdAt
-        const sorted = filteredEvents.sort((a, b) => {
-            const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-            const dateB = new Date(b.updatedAt || b.createdAt).getTime();
-            return dateB - dateA;
-        });
+        const paymentIds = rows.filter((r) => r.source === 'PAYMENT').map((r) => r.id);
+        const walletIds = rows.filter((r) => r.source === 'WALLET').map((r) => r.id);
+        const escrowIds = rows.filter((r) => r.source === 'ESCROW').map((r) => r.id);
+        const withdrawalIds = rows.filter((r) => r.source === 'WITHDRAWAL').map((r) => r.id);
 
-        const paginated = sorted.slice(skip, skip + limit);
+        const [payments, walletTx, escrows, withdrawals] = await Promise.all([
+            paymentIds.length
+                ? this.prisma.paymentTransaction.findMany({
+                      where: { id: { in: paymentIds } },
+                      include: {
+                          customer: { select: { id: true, name: true, avatar: true } },
+                          order: { select: { id: true, orderNumber: true } },
+                          offer: {
+                              include: {
+                                  store: {
+                                      select: { id: true, name: true, logo: true, storeCode: true },
+                                  },
+                              },
+                          },
+                      },
+                  })
+                : [],
+            walletIds.length
+                ? this.prisma.walletTransaction.findMany({
+                      where: { id: { in: walletIds } },
+                      include: {
+                          user: {
+                              select: {
+                                  id: true,
+                                  name: true,
+                                  avatar: true,
+                                  store: {
+                                      select: { id: true, name: true, logo: true, storeCode: true },
+                                  },
+                              },
+                          },
+                          payment: {
+                              select: { id: true, order: { select: { orderNumber: true, id: true } } },
+                          },
+                      },
+                  })
+                : [],
+            escrowIds.length
+                ? this.prisma.escrowTransaction.findMany({
+                      where: { id: { in: escrowIds } },
+                      include: {
+                          order: {
+                              select: {
+                                  id: true,
+                                  orderNumber: true,
+                                  customer: { select: { id: true, name: true, avatar: true } },
+                                  store: {
+                                      select: { id: true, name: true, logo: true, storeCode: true },
+                                  },
+                              },
+                          },
+                      },
+                  })
+                : [],
+            withdrawalIds.length
+                ? this.prisma.withdrawalRequest.findMany({
+                      where: { id: { in: withdrawalIds } },
+                      include: {
+                          user: { select: { id: true, name: true, avatar: true } },
+                          store: { select: { id: true, name: true, logo: true, storeCode: true } },
+                      },
+                  })
+                : [],
+        ]);
 
-        return {
-            data: paginated,
-            total: sorted.length,
-            hasMore: sorted.length > skip + limit
-        };
+        const paymentMap = new Map(payments.map((p) => [p.id, p] as const));
+        const walletMap = new Map(walletTx.map((w) => [w.id, w] as const));
+        const escrowMap = new Map(escrows.map((e) => [e.id, e] as const));
+        const withdrawalMap = new Map(withdrawals.map((w) => [w.id, w] as const));
+
+        const data: UnifiedFinancialEventDto[] = rows
+            .map((row) => {
+                if (row.source === 'PAYMENT') {
+                    const p = paymentMap.get(row.id);
+                    return p ? this.mapPaymentToUnified(p) : null;
+                }
+                if (row.source === 'WALLET') {
+                    const w = walletMap.get(row.id);
+                    return w ? this.mapWalletToUnified(w) : null;
+                }
+                if (row.source === 'ESCROW') {
+                    const e = escrowMap.get(row.id);
+                    return e ? this.mapEscrowToUnified(e) : null;
+                }
+                const wd = withdrawalMap.get(row.id);
+                return wd ? this.mapWithdrawalToUnified(wd) : null;
+            })
+            .filter(Boolean) as UnifiedFinancialEventDto[];
+
+        const lastRow = rows[rows.length - 1];
+        const nextCursor = hasMore && lastRow ? encodeFeedCursor(lastRow) : undefined;
+
+        return { data, total, hasMore, nextCursor };
     }
 
     /**
@@ -2919,9 +2783,15 @@ export class PaymentsService {
 
         const timeline: any[] = [];
 
+        const merchantById = new Map<string, (typeof order.offers)[number]['store']>();
+        for (const offer of order.offers) {
+            if (offer.store) merchantById.set(offer.store.id, offer.store);
+        }
+
         // 1. Add Payment Events
         order.payments.forEach(pt => {
             timeline.push({
+                id: `payment-${pt.id}`,
                 eventType: 'PAYMENT',
                 timestamp: pt.createdAt,
                 status: pt.status,
@@ -2939,6 +2809,7 @@ export class PaymentsService {
             // Add related wallet transactions (Admin commission etc)
             pt.walletTransactions.forEach(wt => {
                 timeline.push({
+                    id: `wallet-${wt.id}`,
                     eventType: 'WALLET',
                     timestamp: wt.createdAt,
                     direction: wt.type,
@@ -2954,6 +2825,7 @@ export class PaymentsService {
         const escrow = order.escrowTransactions?.[0];
         if (escrow) {
             timeline.push({
+                id: `escrow-${escrow.id}`,
                 eventType: 'ESCROW',
                 timestamp: escrow.createdAt,
                 status: escrow.status,
@@ -2964,6 +2836,7 @@ export class PaymentsService {
 
             if (escrow.status === 'RELEASED') {
                 timeline.push({
+                    id: `escrow-release-${escrow.id}`,
                     eventType: 'ESCROW_RELEASE',
                     timestamp: escrow.releasedAt,
                     status: 'COMPLETED',
@@ -2975,6 +2848,7 @@ export class PaymentsService {
 
             if (escrow.status === 'FROZEN') {
                 timeline.push({
+                    id: `escrow-freeze-${escrow.id}`,
                     eventType: 'ESCROW_FREEZE',
                     timestamp: escrow.updatedAt,
                     status: 'FROZEN',
@@ -2985,7 +2859,9 @@ export class PaymentsService {
             }
 
             escrow.walletTransactions.forEach(wt => {
+                if (timeline.some((e) => e.id === `wallet-${wt.id}`)) return;
                 timeline.push({
+                    id: `wallet-${wt.id}`,
                     eventType: 'WALLET',
                     timestamp: wt.createdAt,
                     direction: wt.type,
@@ -3000,6 +2876,7 @@ export class PaymentsService {
         // 3. Add Audit Logs
         order.auditLogs.forEach(log => {
             timeline.push({
+                id: `audit-${log.id}`,
                 eventType: 'AUDIT',
                 timestamp: log.timestamp,
                 action: log.action,
@@ -3012,6 +2889,7 @@ export class PaymentsService {
         // 4. Add Returns/Disputes
         order.returns.forEach(r => {
             timeline.push({
+                id: `return-${r.id}`,
                 eventType: 'RETURN',
                 timestamp: r.createdAt,
                 status: r.status,
@@ -3023,6 +2901,7 @@ export class PaymentsService {
 
         order.disputes.forEach(d => {
             timeline.push({
+                id: `dispute-${d.id}`,
                 eventType: 'DISPUTE',
                 timestamp: d.createdAt,
                 status: d.status,
@@ -3043,7 +2922,7 @@ export class PaymentsService {
                 createdAt: order.createdAt
             },
             customer: order.customer,
-            merchants: order.offers.map(o => o.store),
+            merchants: Array.from(merchantById.values()),
             timeline: sortedTimeline,
             summary: {
                 totalPaid: order.payments.reduce((sum, pt) => sum + Number(pt.totalAmount), 0),
@@ -3058,6 +2937,14 @@ export class PaymentsService {
                 hasReturn: order.returns.length > 0
             }
         };
+    }
+
+    private resolveWalletFinancialImpact(txType: string, type: string): UnifiedFinancialEventDto['financialImpact'] {
+        const upper = txType.toUpperCase();
+        if (upper === 'COMMISSION' || upper === 'commission') return 'PLATFORM_REVENUE';
+        if (upper === 'ORDER_PROFIT' || upper === 'REFERRAL_PROFIT') return 'PLATFORM_EXPENSE';
+        if (type === 'CREDIT') return 'USER_LIABILITY';
+        return 'NEUTRAL';
     }
 
     private mapPaymentToUnified(p: any): UnifiedFinancialEventDto {
@@ -3076,18 +2963,27 @@ export class PaymentsService {
             amount: Number(p.totalAmount),
             currency: p.currency,
             direction: FinancialDirection.DEBIT,
+            unitPrice: Number(p.unitPrice),
+            shippingCost: Number(p.shippingCost),
+            commission: Number(p.commission),
+            gatewayFee: Number(p.gatewayFee),
+            refundedAmount: Number(p.refundedAmount),
+            paymentId: p.id,
+            transactionNumber: p.transactionNumber,
+            financialImpact: 'NEUTRAL',
             eventType: `PAYMENT_${p.status}`,
-            eventTypeEn: p.status === 'SUCCESS' ? 'Order Payment Received' : `Payment ${p.status}`,
-            eventTypeAr: p.status === 'SUCCESS' ? 'استلام دفعة طلب' : `عملية دفع ${p.status}`,
+            eventTypeEn: getPaymentStatusLabel(p.status, 'en'),
+            eventTypeAr: getPaymentStatusLabel(p.status, 'ar'),
             status: p.status,
             createdAt: p.createdAt,
             updatedAt: p.paidAt || p.createdAt,
-            metadata: { transactionNumber: p.transactionNumber, method: p.cardBrand }
+            metadata: { transactionNumber: p.transactionNumber, method: p.cardBrand },
         };
     }
 
     private mapWalletToUnified(w: any): UnifiedFinancialEventDto {
         const isCredit = w.type === 'CREDIT';
+        const txType = String(w.transactionType || '').toUpperCase();
         return {
             id: w.id,
             source: FinancialEventSource.WALLET,
@@ -3103,13 +2999,19 @@ export class PaymentsService {
             amount: Number(w.amount),
             currency: w.currency,
             direction: isCredit ? FinancialDirection.CREDIT : FinancialDirection.DEBIT,
-            eventType: w.transactionType.toUpperCase(),
-            eventTypeEn: this.getWalletTypeLabel(w.transactionType, 'en'),
-            eventTypeAr: this.getWalletTypeLabel(w.transactionType, 'ar'),
+            balanceAfter: Number(w.balanceAfter),
+            userRole: w.role,
+            walletTxId: w.id,
+            paymentId: w.paymentId || undefined,
+            financialImpact: this.resolveWalletFinancialImpact(txType, w.type),
+            eventType: txType,
+            eventTypeEn: getWalletTypeLabel(w.transactionType, 'en'),
+            eventTypeAr: getWalletTypeLabel(w.transactionType, 'ar'),
             status: 'COMPLETED',
             description: w.description,
             createdAt: w.createdAt,
-            updatedAt: w.createdAt
+            updatedAt: w.createdAt,
+            metadata: (w.metadata as Record<string, unknown>) || {},
         };
     }
 
@@ -3125,14 +3027,22 @@ export class PaymentsService {
             storeName: e.order?.store?.name,
             storeCode: e.order?.store?.storeCode,
             amount: Number(e.merchantAmount),
+            merchantAmount: Number(e.merchantAmount),
+            escrowStatus: e.status,
             currency: 'AED',
-            direction: e.status === 'RELEASED' ? FinancialDirection.RELEASE : e.status === 'FROZEN' ? FinancialDirection.FREEZE : FinancialDirection.HOLD,
+            direction:
+                e.status === 'RELEASED'
+                    ? FinancialDirection.RELEASE
+                    : e.status === 'FROZEN'
+                      ? FinancialDirection.FREEZE
+                      : FinancialDirection.HOLD,
+            financialImpact: 'NEUTRAL',
             eventType: `ESCROW_${e.status}`,
-            eventTypeEn: e.status === 'HELD' ? 'Funds Secured in Escrow' : e.status === 'RELEASED' ? 'Escrow Funds Released' : 'Escrow Funds Frozen',
-            eventTypeAr: e.status === 'HELD' ? 'تأمين الأموال في الضمان' : e.status === 'RELEASED' ? 'تحرير أموال الضمان' : 'تجميد أموال الضمان',
+            eventTypeEn: getEscrowStatusLabel(e.status, 'en'),
+            eventTypeAr: getEscrowStatusLabel(e.status, 'ar'),
             status: e.status,
             createdAt: e.createdAt,
-            updatedAt: e.releasedAt || e.createdAt
+            updatedAt: e.releasedAt || e.createdAt,
         };
     }
 
@@ -3150,41 +3060,19 @@ export class PaymentsService {
             amount: Number(wd.amount),
             currency: wd.currency,
             direction: FinancialDirection.DEBIT,
+            payoutMethod: wd.payoutMethod,
+            adminNotes: wd.adminNotes || undefined,
+            stripeTransferId: wd.stripeTransferId || undefined,
+            processedAt: wd.status !== 'PENDING' ? wd.updatedAt : undefined,
+            userRole: wd.role,
+            financialImpact: 'USER_LIABILITY',
             eventType: `WITHDRAWAL_${wd.status}`,
-            eventTypeEn: this.getWithdrawalLabel(wd.status, 'en'),
-            eventTypeAr: this.getWithdrawalLabel(wd.status, 'ar'),
+            eventTypeEn: getWithdrawalLabel(wd.status, 'en'),
+            eventTypeAr: getWithdrawalLabel(wd.status, 'ar'),
             status: wd.status,
             createdAt: wd.createdAt,
             updatedAt: wd.updatedAt,
-            metadata: { method: wd.payoutMethod, role: wd.role }
+            metadata: { method: wd.payoutMethod, role: wd.role },
         };
-    }
-
-    private getWalletTypeLabel(type: string, lang: 'ar' | 'en'): string {
-        const labels: Record<string, Record<string, string>> = {
-            payment: { en: 'Order Payment Received', ar: 'استلام دفعة طلب' },
-            commission: { en: 'Platform Commission Earned', ar: 'تحصيل عمولة المنصة' },
-            withdrawal: { en: 'Balance Withdrawal', ar: 'سحب رصيد من المحفظة' },
-            referral: { en: 'Referral Bonus Reward', ar: 'مكافأة إحالة مستخدم' },
-            referral_profit: { en: 'Referral Commission', ar: 'أرباح نظام الإحالة' },
-            order_profit: { en: 'Order Profit Released', ar: 'إيداع أرباح الطلب للمتجر' },
-            shipping_fee: { en: 'Shipping Logistics Fee', ar: 'رسوم خدمات الشحن' },
-            manual_payout: { en: 'Manual Bank Transfer', ar: 'تحويل بنكي يدوي للمتجر' },
-            payout: { en: 'Merchant Payout Executed', ar: 'تحويل مستحقات التاجر' },
-            refund: { en: 'Customer Refund Processed', ar: 'استرداد مبلغ للعميل' },
-            penalty: { en: 'Violation Penalty Deducted', ar: 'خصم غرامة مخالفة' }
-        };
-        return labels[type.toLowerCase()]?.[lang] || type;
-    }
-
-    private getWithdrawalLabel(status: string, lang: 'ar' | 'en'): string {
-        const labels: Record<string, Record<string, string>> = {
-            pending: { en: 'Withdrawal Request Pending', ar: 'طلب سحب قيد المراجعة' },
-            completed: { en: 'Withdrawal Successfully Executed', ar: 'تم تحويل المبلغ بنجاح' },
-            approved: { en: 'Withdrawal Approved for Processing', ar: 'تمت الموافقة على السحب' },
-            rejected: { en: 'Withdrawal Request Rejected', ar: 'تم رفض طلب السحب' },
-            failed: { en: 'Withdrawal Transfer Failed', ar: 'فشل في تحويل المبلغ' }
-        };
-        return labels[status.toLowerCase()]?.[lang] || `Withdrawal ${status}`;
     }
 }

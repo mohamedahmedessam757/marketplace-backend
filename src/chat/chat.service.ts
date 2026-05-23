@@ -4,7 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChatGateway } from './chat.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { OrderStatus, ActorType } from '@prisma/client';
+import { OrderStatus, ActorType, ViolationTargetType } from '@prisma/client';
+import { ViolationsService } from '../violations/violations.service';
 
 @Injectable()
 export class ChatService {
@@ -13,7 +14,8 @@ export class ChatService {
         @Inject(forwardRef(() => ChatGateway))
         private chatGateway: ChatGateway,
         private notificationsService: NotificationsService,
-        private auditLogsService: AuditLogsService
+        private auditLogsService: AuditLogsService,
+        private violationsService: ViolationsService,
     ) { }
 
     async createOrGetChat(orderId: string, vendorId: string, customerId: string) {
@@ -330,6 +332,24 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                 });
 
                 // Notify User about the block (Education & Transparency)
+                const isMerchantSender = senderRole === 'VENDOR' || senderRole === 'MERCHANT';
+                const targetType = isMerchantSender
+                    ? ViolationTargetType.MERCHANT
+                    : ViolationTargetType.CUSTOMER;
+                const targetStoreId = isMerchantSender ? chat.vendorId : null;
+
+                try {
+                    await this.violationsService.autoIssueOffPlatformContact({
+                        targetUserId: senderId!,
+                        targetType,
+                        targetStoreId: targetStoreId ?? undefined,
+                        chatId,
+                        orderId: chat.orderId,
+                    });
+                } catch (violationErr: any) {
+                    console.error('Failed to auto-issue chat contact violation:', violationErr?.message);
+                }
+
                 await this.notificationsService.create({
                     recipientId: senderId!,
                     recipientRole: actorType as any,
@@ -338,7 +358,8 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                     titleEn: 'Security Alert: Message Blocked 🛡️',
                     messageAr: 'نعتذر، تم حظر رسالتك لأنها تحتوي على بيانات اتصال مخالفة لسياسة المنصة. يرجى التواصل عبر النظام فقط.',
                     messageEn: 'Sorry, your message was blocked because it contains contact info violating our policy. Please communicate through the system only.',
-                    metadata: { chatId }
+                    link: 'violations',
+                    metadata: { chatId, tab: 'history' },
                 });
 
                 // Notify all Admins immediately about the violation
@@ -349,7 +370,8 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
                         titleEn: 'Chat filter violation 🛡️',
                         messageAr: `تم رصد محاولة مشاركة بيانات اتصال من طرف (${actorName}) في المحادثة.`,
                         messageEn: `Detected contact sharing attempt from (${actorName}) in chat.`,
-                        metadata: { chatId, text },
+                        link: 'violations',
+                        metadata: { chatId, text, tab: 'violations' },
                     });
 
                     // Notify the OTHER party (Transparency)
