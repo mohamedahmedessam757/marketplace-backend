@@ -31,7 +31,7 @@ export class UploadsService {
     }
 
     async uploadFile(file: Express.Multer.File, pathPrefix: string, bucket: string = 'returns-disputes'): Promise<string> {
-        if (!file) {
+        if (!file?.buffer?.length) {
             throw new BadRequestException('No file provided');
         }
 

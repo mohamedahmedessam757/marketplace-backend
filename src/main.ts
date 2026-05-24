@@ -1,3 +1,14 @@
+import * as path from 'path';
+import { addAlias } from 'module-alias';
+
+// Register @prisma/client last — longer @prisma/client/runtime alias must win
+addAlias('@prisma/client', path.join(__dirname, 'prisma', 'client'));
+addAlias(
+  '@prisma/client/runtime',
+  path.join(__dirname, '..', '..', 'node_modules', '@prisma', 'client', 'runtime'),
+);
+
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';

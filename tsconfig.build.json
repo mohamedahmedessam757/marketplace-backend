@@ -8,7 +8,12 @@
         "fix-db.ts",
         "test-db.ts",
         "test-find-stores.ts",
+        "test-dashboard.ts",
         "scripts",
-        "prisma"
+        "scratch",
+        "prisma",
+        "src/scripts",
+        "src/prisma-test.ts",
+        "src/verify-fix.ts"
     ]
 }

@@ -143,7 +143,7 @@ export class PlatformSettingsService {
   }
 
   async logAdminActivity(
-    userId: string,
+    userId: string | null,
     email: string,
     action: string,
     metadata: any = {},
@@ -151,22 +151,8 @@ export class PlatformSettingsService {
   ) {
     // 2026 Resiliency: Ensure logging never crashes the main flow
     try {
-      // 1. UUID Validation (standard v4/v5 regex)
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      const isValidUuid = userId && uuidRegex.test(userId);
-      const isMock = userId && userId.startsWith('ADM-');
-
-      // 2. Prepare Data (Protect against Foreign Key Violated errors)
-      // If NOT a valid UUID or is a Mock, we MUST set adminId to null
-      let resolvedAdminId: string | null = null;
-      if (isValidUuid && !isMock) {
-        // 2026 FIX: Pre-check if user exists before setting FK relation to avoid WARN
-        const userExists = await this.prisma.user.findUnique({
-          where: { id: userId },
-          select: { id: true },
-        }).catch(() => null);
-        resolvedAdminId = userExists ? userId : null;
-      }
+      const isMock = userId != null && userId.startsWith('ADM-');
+      const resolvedAdminId = await this.resolveAdminIdForActivityLog(userId);
 
       const logData = {
         adminId: resolvedAdminId,
@@ -194,14 +180,12 @@ export class PlatformSettingsService {
         if (existingLogs.length > 0) {
           const [latest, ...duplicates] = existingLogs;
 
-          // Remove any existing duplicates to maintain a single interaction row
           if (duplicates.length > 0) {
             await this.prisma.adminActivityLog.deleteMany({
               where: { id: { in: duplicates.map(d => d.id) } }
             });
           }
 
-          // Update the primary log entry with the latest session data
           return await this.prisma.adminActivityLog.update({
             where: { id: latest.id },
             data: {
@@ -213,15 +197,35 @@ export class PlatformSettingsService {
 
         return await this.prisma.adminActivityLog.create({ data: logData });
       } catch (prismaError) {
-        // Final fallback: record without adminId
-        this.logger.debug(`Activity log FK fallback for User ${userId}`);
-        return await this.prisma.adminActivityLog.create({ 
-          data: { ...logData, adminId: null } 
+        // FK targets auth.users — retry without adminId (user id kept in metadata)
+        this.logger.debug(`Activity log FK fallback for user ${userId ?? 'unknown'}`);
+        return await this.prisma.adminActivityLog.create({
+          data: { ...logData, adminId: null },
         });
       }
     } catch (criticalError) {
-      // Ultimate fallback: don't let activity logging break the platform
       this.logger.error('CRITICAL: Admin activity logging failed completely', criticalError);
+      return null;
+    }
+  }
+
+  /**
+   * admin_activity_logs.admin_id FK references auth.users(id), not public.users.
+   * Only set adminId when the UUID exists in auth.users.
+   */
+  private async resolveAdminIdForActivityLog(userId: string | null): Promise<string | null> {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!userId || !uuidRegex.test(userId) || userId.startsWith('ADM-')) {
+      return null;
+    }
+
+    try {
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM auth.users WHERE id = ${userId}::uuid LIMIT 1
+      `;
+      return rows.length > 0 ? userId : null;
+    } catch {
+      // auth schema unavailable — never guess; metadata.originalUserId preserves the actor
       return null;
     }
   }

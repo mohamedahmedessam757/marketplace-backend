@@ -1,18 +1,9 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { jwtModuleAsyncOptions } from './jwt-module.config';
 
 @Module({
-  imports: [
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '1d') as any },
-      }),
-      inject: [ConfigService],
-    }),
-  ],
+  imports: [jwtModuleAsyncOptions],
   exports: [JwtModule],
 })
 export class JwtAuthSharedModule {}

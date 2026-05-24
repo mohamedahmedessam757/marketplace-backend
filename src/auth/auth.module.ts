@@ -5,12 +5,11 @@ import { RecoveryController } from './recovery.controller';
 import { UsersModule } from '../users/users.module';
 import { RecoveryService } from './recovery.service';
 import { PassportModule } from '@nestjs/passport';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
+import { jwtModuleAsyncOptions } from './jwt-module.config';
 
 @Module({
   imports: [
@@ -19,14 +18,7 @@ import { PlatformSettingsModule } from '../platform-settings/platform-settings.m
     AuditLogsModule,
     PlatformSettingsModule,
     PassportModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: (configService.get<string>('JWT_EXPIRES_IN') || '1d') as any },
-      }),
-      inject: [ConfigService],
-    }),
+    jwtModuleAsyncOptions,
   ],
   controllers: [AuthController, RecoveryController],
   providers: [AuthService, RecoveryService, JwtStrategy],

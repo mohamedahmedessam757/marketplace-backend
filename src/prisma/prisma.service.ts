@@ -1,5 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
+import { PrismaClient } from './client';
+import { createDatabasePool } from './pg-pool';
 
 const CONNECT_MAX_RETRIES = 5;
 const CONNECT_BASE_DELAY_MS = 2000;
@@ -7,11 +10,16 @@ const CONNECT_BASE_DELAY_MS = 2000;
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(PrismaService.name);
+    private readonly pool: Pool;
 
     constructor() {
+        const pool = createDatabasePool();
+        const adapter = new PrismaPg(pool);
         super({
+            adapter,
             log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
         });
+        this.pool = pool;
     }
 
     async onModuleInit() {
@@ -20,6 +28,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     async onModuleDestroy() {
         await this.$disconnect();
+        await this.pool.end().catch(() => undefined);
     }
 
     /** Lightweight ping — used by health checks and reconnect logic. */
@@ -49,7 +58,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
     private async connectWithRetry(attempt = 1): Promise<void> {
         try {
-            await this.$connect();
+            await this.$queryRaw`SELECT 1`;
             this.logger.log('Database connected');
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);

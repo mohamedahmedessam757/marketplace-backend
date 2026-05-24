@@ -5,6 +5,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { UserRole } from '@prisma/client';
 import { ReturnsService } from './returns.service';
+import { multerMemoryOptions, multerMemoryOptions10Mb } from '../uploads/multer.config';
 
 @Controller('returns')
 export class ReturnsController {
@@ -12,7 +13,7 @@ export class ReturnsController {
 
     @Post('request')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 50 * 1024 * 1024 } }))
+    @UseInterceptors(FilesInterceptor('files', 10, multerMemoryOptions))
     async requestReturn(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
@@ -35,7 +36,7 @@ export class ReturnsController {
 
     @Post('dispute')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 50 * 1024 * 1024 } }))
+    @UseInterceptors(FilesInterceptor('files', 10, multerMemoryOptions))
     async escalateDispute(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
@@ -128,7 +129,7 @@ export class ReturnsController {
 
     @Post(':id/respond-return')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }))
+    @UseInterceptors(FilesInterceptor('files', 10, multerMemoryOptions10Mb))
     async respondToReturn(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,
@@ -150,7 +151,7 @@ export class ReturnsController {
 
     @Post(':id/respond-dispute')
     @UseGuards(JwtAuthGuard)
-    @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }))
+    @UseInterceptors(FilesInterceptor('files', 10, multerMemoryOptions10Mb))
     async respondToDispute(
         @Request() req,
         @UploadedFiles() files: Array<Express.Multer.File>,

@@ -99,24 +99,27 @@ export class NotificationsService {
     async notifyAdmins(data: Omit<CreateNotificationDto, 'recipientId' | 'recipientRole'>) {
         const admins = await this.prisma.user.findMany({
             where: {
-                role: { in: ['ADMIN', 'SUPER_ADMIN'] }
+                role: { in: ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'] }
             },
-            select: { id: true }
+            select: { id: true, role: true }
         });
+
+        if (admins.length === 0) {
+            this.logger.warn('notifyAdmins: no staff users found (ADMIN/SUPER_ADMIN/SUPPORT)');
+            return { count: 0 };
+        }
 
         const notificationsData = admins.map(admin => ({
             ...data,
             recipientId: admin.id,
-            recipientRole: 'ADMIN',
+            recipientRole: admin.role === 'SUPPORT' ? 'SUPPORT' : 'ADMIN',
             type: data.type || 'alert'
         }));
 
-        // Use transaction for consistency
         const result = await this.prisma.notification.createMany({
             data: notificationsData
         });
 
-        // Emit to admins room
         this.gateway.sendToAdmins({
             ...data,
             type: data.type || 'alert',

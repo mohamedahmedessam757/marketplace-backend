@@ -483,110 +483,153 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
     }
 
     private async dispatchChatNotification(chat: any, senderId: string, text: string) {
-        let recipientId: string | null = null;
-        let recipientRole: string | null = null;
-        let titleAr = '';
-        let titleEn = '';
-
-        // Spam Protection: Check if there's already an unread notification for this chat recently
-        // Simple heuristic: If we notified them in the last 15 minutes, we might skip, 
-        // OR we just notify if they have no unread messages from this chat prior to this one.
-        // For absolute safety, let's just dispatch the notification if the last message in the DB (excluding this one) was READ, or we just push it if they are offline.
-        // To be simpler and safer, we just dispatch the notification via WebSocket/DB. 
-        // Real spam protection: we will check if the last message from the same sender was less than 1 minute ago.
         const recentMessages = await this.prisma.orderChatMessage.count({
             where: {
                 chatId: chat.id,
                 senderId: senderId,
                 createdAt: {
-                    gte: new Date(Date.now() - 3000) // 3 seconds spam block instead of 60 seconds
+                    gte: new Date(Date.now() - 3000)
                 }
             }
         });
 
         if (recentMessages > 1) {
-            // Spam block: Only 1 notification per minute per sender for the same chat.
             return;
         }
 
-        if (chat.type === 'support') {
-            // Support Chat: Admin <-> Customer
-            if (senderId === chat.customerId) {
-                // Customer -> Admin 
-                // Fix: Fetch an actual admin user ID from the DB to satisfy the foreign key constraint.
-                const adminUser = await this.prisma.user.findFirst({
-                    where: { role: 'ADMIN' },
-                    select: { id: true }
-                });
-
-                if (!adminUser) return; // Prevent creating notification if NO admin exists
-
-                recipientId = adminUser.id;
-                recipientRole = 'ADMIN';
-                titleAr = 'رسالة دعم جديدة';
-                titleEn = 'New Support Message';
-            } else {
-                // Admin -> User (Target can be Customer OR Vendor)
-                if (chat.customerId) {
-                    recipientId = chat.customerId;
-                    const user = await this.prisma.user.findUnique({ where: { id: chat.customerId }, select: { role: true } });
-                    recipientRole = user?.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER';
-                } else if (chat.vendorId) {
-                    // It's a support chat with a vendor. Get the owner of the store.
-                    const store = await this.prisma.store.findUnique({ where: { id: chat.vendorId }, select: { ownerId: true } });
-                    if (store) {
-                        recipientId = store.ownerId;
-                        recipientRole = 'MERCHANT';
-                    }
-                }
-                
-                if (!recipientId) return; // safety check
-                
-                titleAr = 'رد جديد من الدعم الفني';
-                titleEn = 'New Reply from Support';
-            }
-        } else {
-            // Normal Order Chat: Customer <-> Vendor
-            if (senderId === chat.customerId) {
-                // Customer -> Vendor
-                // IMPORTANT FIX: chat.vendorId is a STORE ID, but Notification recipientId must be a USER ID.
-                if (chat.vendorId) {
-                    const store = await this.prisma.store.findUnique({
-                        where: { id: chat.vendorId },
-                        select: { ownerId: true }
-                    });
-                    if (store) recipientId = store.ownerId;
-                }
-                recipientRole = 'MERCHANT';
-                titleAr = `رسالة من العميل بخصوص طلب ${chat.orderId?.substring(0, 6) || ''}`;
-                titleEn = `Message from Customer for Order ${chat.orderId?.substring(0, 6) || ''}`;
-            } else if (senderId === chat.vendorId) {
-                // Vendor -> Customer (senderId from frontend is sometimes storeId, but we send to customer)
-                recipientId = chat.customerId;
-                recipientRole = 'CUSTOMER';
-                titleAr = `رسالة من التاجر بخصوص طلب ${chat.orderId?.substring(0, 6) || ''}`;
-                titleEn = `Message from Merchant for Order ${chat.orderId?.substring(0, 6) || ''}`;
-            } else {
-                // Fallback if senderId is the actual User ID of the Vendor (Owner) 
-                recipientId = chat.customerId;
-                recipientRole = 'CUSTOMER';
-                titleAr = `رسالة من التاجر بخصوص طلب ${chat.orderId?.substring(0, 6) || ''}`;
-                titleEn = `Message from Merchant for Order ${chat.orderId?.substring(0, 6) || ''}`;
-            }
+        const recipient = await this.resolveChatNotificationRecipient(chat, senderId);
+        if (!recipient) {
+            return;
         }
 
-        if (recipientId && recipientRole) {
-            await this.notificationsService.create({
-                recipientId,
-                recipientRole,
-                titleAr,
-                titleEn,
-                messageAr: text ? text.substring(0, 50) + '...' : 'مرفق جديد',
-                messageEn: text ? text.substring(0, 50) + '...' : 'New Attachment',
+        const messageAr = text ? text.substring(0, 50) + '...' : 'مرفق جديد';
+        const messageEn = text ? text.substring(0, 50) + '...' : 'New Attachment';
+
+        if (recipient.kind === 'admins') {
+            await this.notificationsService.notifyAdmins({
+                titleAr: recipient.titleAr,
+                titleEn: recipient.titleEn,
+                messageAr,
+                messageEn,
                 type: 'SYSTEM',
-                link: `/dashboard/chats/${chat.id}`
+                link: 'chats',
+                metadata: { chatId: chat.id, source: 'support_message' },
             });
+            return;
         }
+
+        if (recipient.recipientId === senderId) {
+            return;
+        }
+
+        await this.notificationsService.create({
+            recipientId: recipient.recipientId,
+            recipientRole: recipient.recipientRole,
+            titleAr: recipient.titleAr,
+            titleEn: recipient.titleEn,
+            messageAr,
+            messageEn,
+            type: 'SYSTEM',
+            link: `/dashboard/chats/${chat.id}`,
+        });
+    }
+
+    private async resolveChatNotificationRecipient(
+        chat: any,
+        senderId: string,
+    ): Promise<
+        | { kind: 'admins'; titleAr: string; titleEn: string }
+        | { kind: 'user'; recipientId: string; recipientRole: string; titleAr: string; titleEn: string }
+        | null
+    > {
+        const sender = await this.prisma.user.findUnique({
+            where: { id: senderId },
+            select: { role: true },
+        });
+        const isStaff = sender ? ['ADMIN', 'SUPER_ADMIN', 'SUPPORT'].includes(sender.role) : false;
+
+        const vendorOwnerId = await this.resolveVendorOwnerId(chat.vendorId);
+        const isCustomerParticipant = !!chat.customerId && senderId === chat.customerId;
+        const isVendorParticipant = !!vendorOwnerId && senderId === vendorOwnerId;
+        const orderRef = chat.orderId?.substring(0, 6) || '';
+
+        if (chat.type === 'support') {
+            if (isStaff) {
+                const target = await this.resolveSupportChatParticipant(chat, vendorOwnerId);
+                if (!target || target.recipientId === senderId) return null;
+                return {
+                    kind: 'user',
+                    ...target,
+                    titleAr: 'رد جديد من الدعم الفني',
+                    titleEn: 'New Reply from Support',
+                };
+            }
+
+            if (isCustomerParticipant || isVendorParticipant) {
+                return {
+                    kind: 'admins',
+                    titleAr: isVendorParticipant ? 'رسالة دعم جديدة من تاجر' : 'رسالة دعم جديدة',
+                    titleEn: isVendorParticipant ? 'New Support Message from Merchant' : 'New Support Message',
+                };
+            }
+
+            return null;
+        }
+
+        if (isCustomerParticipant) {
+            if (!vendorOwnerId) return null;
+            return {
+                kind: 'user',
+                recipientId: vendorOwnerId,
+                recipientRole: 'MERCHANT',
+                titleAr: `رسالة من العميل بخصوص طلب ${orderRef}`,
+                titleEn: `Message from Customer for Order ${orderRef}`,
+            };
+        }
+
+        if (isVendorParticipant || senderId === chat.vendorId) {
+            if (!chat.customerId) return null;
+            return {
+                kind: 'user',
+                recipientId: chat.customerId,
+                recipientRole: 'CUSTOMER',
+                titleAr: `رسالة من التاجر بخصوص طلب ${orderRef}`,
+                titleEn: `Message from Merchant for Order ${orderRef}`,
+            };
+        }
+
+        return null;
+    }
+
+    private async resolveSupportChatParticipant(
+        chat: any,
+        vendorOwnerId: string | null,
+    ): Promise<{ recipientId: string; recipientRole: string } | null> {
+        if (chat.customerId) {
+            const user = await this.prisma.user.findUnique({
+                where: { id: chat.customerId },
+                select: { role: true },
+            });
+            return {
+                recipientId: chat.customerId,
+                recipientRole: user?.role === 'VENDOR' ? 'MERCHANT' : 'CUSTOMER',
+            };
+        }
+
+        if (vendorOwnerId) {
+            return { recipientId: vendorOwnerId, recipientRole: 'MERCHANT' };
+        }
+
+        return null;
+    }
+
+    private async resolveVendorOwnerId(vendorId?: string | null): Promise<string | null> {
+        if (!vendorId) return null;
+        const store = await this.prisma.store.findUnique({
+            where: { id: vendorId },
+            select: { ownerId: true },
+        });
+        return store?.ownerId ?? null;
     }
 
     async toggleTranslation(chatId: string, role: string, enabled: boolean) {

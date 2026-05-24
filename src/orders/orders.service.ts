@@ -1741,33 +1741,40 @@ export class OrdersService {
             orderBy: { updatedAt: 'asc' },
         });
 
-        const task = await this.prisma.verificationTask.create({
-            data: {
-                orderId,
-                officerId: availableOfficer?.id ?? null,
-                status: availableOfficer ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
-                assignedAt: availableOfficer ? new Date() : null,
-            },
-        });
+        if (!order.verificationTaskId) {
+            const task = await this.prisma.verificationTask.create({
+                data: {
+                    orderId,
+                    officerId: availableOfficer?.id ?? null,
+                    status: availableOfficer ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
+                    assignedAt: availableOfficer ? new Date() : null,
+                },
+            });
 
-        await this.prisma.order.update({
-            where: { id: orderId },
-            data: {
-                verificationSubmittedAt: new Date(),
-                verificationTaskId: task.id,
-            },
-        });
+            await this.prisma.order.update({
+                where: { id: orderId },
+                data: {
+                    verificationSubmittedAt: new Date(),
+                    verificationTaskId: task.id,
+                },
+            });
 
-        if (availableOfficer) {
-            await this.notifications.create({
-                recipientId: availableOfficer.id,
-                recipientRole: 'VERIFICATION_OFFICER',
-                type: 'system_alert',
-                titleAr: 'مهمة مطابقة جديدة',
-                titleEn: 'New verification task',
-                messageAr: `تم إسناد مهمة مطابقة للطلب #${order.orderNumber} إليك.`,
-                messageEn: `Verification task for order #${order.orderNumber} assigned to you.`,
-                link: `/dashboard/verification-task-details/${task.id}`,
+            if (availableOfficer) {
+                await this.notifications.create({
+                    recipientId: availableOfficer.id,
+                    recipientRole: 'VERIFICATION_OFFICER',
+                    type: 'system_alert',
+                    titleAr: 'مهمة مطابقة جديدة',
+                    titleEn: 'New verification task',
+                    messageAr: `تم إسناد مهمة مطابقة للطلب #${order.orderNumber} إليك.`,
+                    messageEn: `Verification task for order #${order.orderNumber} assigned to you.`,
+                    link: `/dashboard/verification-task-details/${task.id}`,
+                });
+            }
+        } else {
+            await this.prisma.order.update({
+                where: { id: orderId },
+                data: { verificationSubmittedAt: new Date() },
             });
         }
 

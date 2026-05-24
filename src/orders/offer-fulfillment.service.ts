@@ -329,8 +329,15 @@ export class OfferFulfillmentService {
         data: any,
     ) {
         const offer = await this.assertMerchantOffer(orderId, offerId, storeId);
-        if (offer.fulfillmentStatus !== OfferFulfillmentStatus.PREPARED) {
-            throw new BadRequestException('Offer must be PREPARED before verification.');
+
+        const canSubmitFresh = offer.fulfillmentStatus === OfferFulfillmentStatus.PREPARED;
+        const canResubmit =
+            offer.fulfillmentStatus === OfferFulfillmentStatus.VERIFICATION;
+
+        if (!canSubmitFresh && !canResubmit) {
+            throw new BadRequestException(
+                `Cannot submit verification while offer is ${offer.fulfillmentStatus}. Mark the part as prepared first.`,
+            );
         }
 
         const order = await this.prisma.order.findUnique({ where: { id: orderId } });
@@ -347,7 +354,46 @@ export class OfferFulfillmentService {
             parsedImages = data.images;
         }
 
+        if (!parsedImages.length) {
+            throw new BadRequestException('At least one verification image is required.');
+        }
+        if (!data.videoUrl || typeof data.videoUrl !== 'string') {
+            throw new BadRequestException('Verification video URL is required.');
+        }
+        if (!String(data.videoUrl).startsWith('http')) {
+            throw new BadRequestException('Verification video must be uploaded before submitting.');
+        }
+
+        const docPayload = {
+            images: parsedImages as Prisma.InputJsonValue,
+            videoUrl: data.videoUrl,
+            description: data.description,
+            recipientName: data.recipientName,
+            recipientSignature: data.recipientSignature,
+            signatureType: data.signatureType || 'DRAWN',
+            signatureText: data.signatureText || null,
+            handoverDate: data.handoverDate ? new Date(data.handoverDate) : null,
+            handoverTime: data.handoverTime,
+        };
+
         const partName = this.partLabel(offer, order);
+
+        if (canResubmit) {
+            const pending = await this.prisma.verificationDocument.findFirst({
+                where: { orderId, offerId, adminStatus: 'PENDING' },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (pending) {
+                await this.prisma.verificationDocument.update({
+                    where: { id: pending.id },
+                    data: docPayload,
+                });
+                return { success: true, orderStatus: order.status, updated: true };
+            }
+            throw new BadRequestException(
+                'Verification is already under admin review and cannot be changed.',
+            );
+        }
 
         await this.prisma.$transaction([
             this.prisma.verificationDocument.create({
@@ -355,15 +401,7 @@ export class OfferFulfillmentService {
                     orderId,
                     offerId,
                     storeId,
-                    images: parsedImages as Prisma.InputJsonValue,
-                    videoUrl: data.videoUrl,
-                    description: data.description,
-                    recipientName: data.recipientName,
-                    recipientSignature: data.recipientSignature,
-                    signatureType: data.signatureType || 'DRAWN',
-                    signatureText: data.signatureText || null,
-                    handoverDate: data.handoverDate ? new Date(data.handoverDate) : null,
-                    handoverTime: data.handoverTime,
+                    ...docPayload,
                 },
             }),
             this.prisma.offer.update({

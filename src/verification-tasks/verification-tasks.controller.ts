@@ -7,6 +7,7 @@ import { StartVerificationDto } from './dto/start-verification.dto';
 import { CompleteVerificationDto } from './dto/complete-verification.dto';
 import { AdminFieldReviewDto } from './dto/admin-field-review.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { multerMemoryOptions10Mb } from '../uploads/multer.config';
 
 @Controller('verification-tasks')
 @UseGuards(JwtAuthGuard)
@@ -140,11 +141,7 @@ export class VerificationTasksController {
   }
 
   @Post(':id/field-photos')
-  @UseInterceptors(
-    FilesInterceptor('files', 12, {
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(FilesInterceptor('files', 12, multerMemoryOptions10Mb))
   async uploadFieldPhotosMultipart(
     @Param('id') taskId: string,
     @UploadedFiles() files: Express.Multer.File[],
