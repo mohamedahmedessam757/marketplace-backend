@@ -589,6 +589,31 @@ export class UsersService {
         metadata: { userId: id, status }
       });
 
+      // 4. Notify the customer directly
+      if (status === 'SUSPENDED') {
+        this.notificationsService.create({
+          recipientId: id,
+          recipientRole: 'CUSTOMER',
+          titleAr: '⛔ تم إيقاف حسابك',
+          titleEn: '⛔ Your Account Has Been Suspended',
+          messageAr: `تم إيقاف حسابك. السبب: ${reason || 'قرار إداري'}. يرجى التواصل مع الدعم الفني للاستفسار.`,
+          messageEn: `Your account has been suspended. Reason: ${reason || 'Administrative decision'}. Please contact support for assistance.`,
+          type: 'SECURITY',
+          link: '/auth/login'
+        }).catch(() => {});
+      } else {
+        this.notificationsService.create({
+          recipientId: id,
+          recipientRole: 'CUSTOMER',
+          titleAr: '✅ تم تنشيط حسابك',
+          titleEn: '✅ Your Account Has Been Reactivated',
+          messageAr: 'تم تنشيط حسابك بنجاح. يمكنك الآن الوصول إلى المنصة واستخدام خدماتها.',
+          messageEn: 'Your account has been reactivated. You can now access the platform and use its services.',
+          type: 'SYSTEM',
+          link: '/dashboard/customer'
+        }).catch(() => {});
+      }
+
       return user;
     });
   }
@@ -838,6 +863,26 @@ export class UsersService {
     }).catch(err => console.error('[Risk Alert] Failed to notify customer:', err));
 
     return alert;
+  }
+
+  async getUserSettings(userId: string) {
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { userId },
+    });
+    return settings ?? { userId, autoTranslateChat: false };
+  }
+
+  async updateUserSettings(userId: string, data: { autoTranslateChat?: boolean }) {
+    return this.prisma.userSettings.upsert({
+      where: { userId },
+      create: { userId, autoTranslateChat: data.autoTranslateChat ?? false },
+      update: {
+        ...(data.autoTranslateChat !== undefined
+          ? { autoTranslateChat: data.autoTranslateChat }
+          : {}),
+        updatedAt: new Date(),
+      },
+    });
   }
 }
 

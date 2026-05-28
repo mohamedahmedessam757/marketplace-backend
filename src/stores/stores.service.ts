@@ -83,14 +83,24 @@ export class StoresService {
         return store;
     }
 
-    async updateMyStore(userId: string, dto: any) {
+    async updateMyStore(userId: string, dto: Partial<{
+        name: string; description: string; logo: string; address: string;
+        lat: number; lng: number; category: string;
+        selectedMakes: string[]; selectedModels: string[];
+        customMake: string; customModel: string;
+    }>) {
         const store = await this.findMyStore(userId);
+        const allowed = [
+            'name', 'description', 'logo', 'address', 'lat', 'lng',
+            'category', 'selectedMakes', 'selectedModels', 'customMake', 'customModel',
+        ] as const;
+        const data: Record<string, unknown> = { updatedAt: new Date() };
+        for (const key of allowed) {
+            if (dto[key] !== undefined) data[key] = dto[key];
+        }
         const result = await this.prisma.store.update({
             where: { id: store.id },
-            data: {
-                ...dto,
-                updatedAt: new Date()
-            },
+            data: data as any,
             include: {
                 owner: { 
                     select: { 
@@ -370,6 +380,47 @@ export class StoresService {
         // (store.balance, store.pendingBalance, store.frozenBalance, store.lifetimeEarnings
         //  are kept in sync by escrow.service / payments.service / returns.service)
         const s = store as any;
+        const OFFER_MODIFICATION_ACTIONS = [
+            'UPDATE_OFFER',
+            'CANCEL_OFFER_VENDOR',
+            'VOLUNTARY_WITHDRAW_OFFER',
+            'WITHDRAW_OFFER',
+        ] as const;
+
+        const modificationLogs = store.ownerId
+            ? await this.prisma.auditLog.findMany({
+                  where: {
+                      action: { in: [...OFFER_MODIFICATION_ACTIONS] },
+                      actorId: store.ownerId,
+                  },
+                  orderBy: { timestamp: 'desc' },
+                  take: 200,
+                  include: {
+                      order: { select: { id: true, orderNumber: true } },
+                  },
+              })
+            : [];
+
+        const mapModificationKind = (action: string): string => {
+            switch (action) {
+                case 'UPDATE_OFFER':
+                    return 'EDIT';
+                case 'CANCEL_OFFER_VENDOR':
+                    return 'CANCEL';
+                case 'VOLUNTARY_WITHDRAW_OFFER':
+                    return 'VOLUNTARY_WITHDRAW';
+                case 'WITHDRAW_OFFER':
+                    return 'VIOLATION_WITHDRAW';
+                default:
+                    return action;
+            }
+        };
+
+        const modTotal = store.totalOffersSent || 0;
+        const modActions = (store.editCount || 0) + (store.withdrawalCount || 0);
+        const modificationRatePercent =
+            modTotal > 0 ? Math.round((modActions / modTotal) * 1000) / 10 : 0;
+
         const enrichedStore = {
             ...store,
             owner: s.owner ? {
@@ -384,6 +435,30 @@ export class StoresService {
             frozenBalance: Number(store.frozenBalance),
             lifetimeEarnings: Number(store.lifetimeEarnings),
             performanceScore: calculatedScore,
+            offerGovernance: {
+                totalOffersSent: modTotal,
+                editCount: store.editCount || 0,
+                withdrawalCount: store.withdrawalCount || 0,
+                modificationRatePercent,
+                exceedsThreshold: modificationRatePercent > 5,
+                events: modificationLogs.map((log) => {
+                    const meta = (log.metadata || {}) as Record<string, unknown>;
+                    return {
+                        id: log.id,
+                        action: log.action,
+                        kind: mapModificationKind(log.action),
+                        orderId: log.orderId,
+                        orderNumber:
+                            log.order?.orderNumber ??
+                            (meta.orderNumber as string) ??
+                            null,
+                        offerNumber: (meta.offerNumber as string) ?? null,
+                        offerId: (meta.offerId as string) ?? null,
+                        timestamp: log.timestamp,
+                        actorName: log.actorName,
+                    };
+                }),
+            },
             _count: {
                 ...(s._count || {}),
                 orders: totalCount
@@ -393,11 +468,16 @@ export class StoresService {
         return enrichedStore;
     }
     async updateStatus(adminId: string, id: string, status: StoreStatus, reason?: string, suspendedUntil?: Date) {
+        const shouldPersistReason =
+            status === StoreStatus.REJECTED ||
+            status === StoreStatus.BLOCKED ||
+            status === StoreStatus.SUSPENDED;
+
         const result = await this.prisma.store.update({
             where: { id },
             data: { 
                 status, 
-                rejectionReason: status === StoreStatus.REJECTED ? reason : null,
+                rejectionReason: shouldPersistReason ? (reason ?? null) : null,
                 suspendedUntil: status === StoreStatus.SUSPENDED ? suspendedUntil : null,
                 updatedAt: new Date() 
             },
@@ -442,6 +522,36 @@ export class StoresService {
                     link: '/auth/register'
                 }).catch(e => console.error('Failed to send store rejection notification', e));
             }
+        }
+
+        // Notify Merchant on suspension or permanent block
+        if (status === StoreStatus.SUSPENDED && result.ownerId) {
+            const untilLabel = suspendedUntil
+                ? new Date(suspendedUntil).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '';
+            this.notificationsService.create({
+                recipientId: result.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: '⏸️ تم إيقاف متجرك مؤقتاً',
+                titleEn: '⏸️ Your Store Has Been Temporarily Suspended',
+                messageAr: `تم إيقاف متجر (${result.name}) مؤقتاً.${untilLabel ? ` ينتهي الإيقاف في: ${untilLabel}.` : ''} السبب: ${reason || 'قرار إداري'}.`,
+                messageEn: `Store (${result.name}) has been temporarily suspended.${untilLabel ? ` Suspension ends: ${untilLabel}.` : ''} Reason: ${reason || 'Administrative decision'}.`,
+                type: 'SECURITY',
+                link: '/dashboard/merchant/store'
+            }).catch(e => console.error('Failed to send store suspension notification', e));
+        }
+
+        if (status === StoreStatus.BLOCKED && result.ownerId) {
+            this.notificationsService.create({
+                recipientId: result.ownerId,
+                recipientRole: 'MERCHANT',
+                titleAr: '⛔ تم حظر متجرك بشكل دائم',
+                titleEn: '⛔ Your Store Has Been Permanently Blocked',
+                messageAr: `تم حظر متجر (${result.name}) بشكل دائم. السبب: ${reason || 'قرار إداري'}. يرجى التواصل مع الدعم الفني.`,
+                messageEn: `Store (${result.name}) has been permanently blocked. Reason: ${reason || 'Administrative decision'}. Please contact support.`,
+                type: 'SECURITY',
+                link: '/dashboard/merchant/store'
+            }).catch(e => console.error('Failed to send store block notification', e));
         }
 
         // --- Task 12.1: Log Status Change with Store Metadata ---

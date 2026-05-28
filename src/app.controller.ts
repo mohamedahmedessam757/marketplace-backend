@@ -1,13 +1,10 @@
-import { Controller, Get, Put, Body, Req } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
 import { PlatformSettingsService } from './platform-settings/platform-settings.service';
 
 @Controller()
 export class AppController {
-    constructor(
-        private prisma: PrismaService,
-        private settingsService: PlatformSettingsService
-    ) {}
+    constructor(private prisma: PrismaService) {}
 
     @Get()
     getRoot() {
@@ -86,42 +83,4 @@ export class AppController {
         };
     }
 
-    @Put('system/mock-admin-log')
-    async mockAdminLog(@Body() body: { email: string, action: string, metadata?: any }, @Req() req: any) {
-        // Extract real device info if not provided in metadata
-        const userAgent = req.headers['user-agent'] || 'Unknown';
-        let ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
-
-        // Clean IP
-        if (ip.includes(',')) ip = ip.split(',')[0].trim();
-        if (ip.startsWith('::ffff:')) ip = ip.substring(7);
-        
-        return this.settingsService.logAdminActivity(
-            null,
-            body.email,
-            body.action,
-            body.metadata || {},
-            { 
-                ip: body.metadata?.ipAddress || ip, 
-                ua: userAgent, 
-                device: body.metadata?.deviceType || this.parseDevice(userAgent), 
-                browser: body.metadata?.browser || this.parseBrowser(userAgent), 
-                location: body.metadata?.location || 'Unknown' 
-            }
-        );
-    }
-
-    private parseBrowser(ua: string) {
-        if (ua.includes('Chrome')) return 'Chrome';
-        if (ua.includes('Firefox')) return 'Firefox';
-        if (ua.includes('Safari')) return 'Safari';
-        if (ua.includes('Edge')) return 'Edge';
-        return 'Browser';
-    }
-
-    private parseDevice(ua: string) {
-        if (ua.includes('Mobile')) return 'Mobile';
-        if (ua.includes('Tablet')) return 'Tablet';
-        return 'Desktop';
-    }
 }

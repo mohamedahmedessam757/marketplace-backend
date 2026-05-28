@@ -2,15 +2,19 @@
 import { Controller, Post, Body, Get, Param, UseGuards, Request, Query, ForbiddenException } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ResourceAccessService } from '../common/authorization/resource-access.service';
 
 @Controller('chats')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
-    constructor(private readonly chatService: ChatService) { }
+    constructor(
+        private readonly chatService: ChatService,
+        private readonly resourceAccess: ResourceAccessService,
+    ) { }
 
-    // -------------------------------------------------------
-    // LIST ROUTE
-    // -------------------------------------------------------
+    private actor(req: { user: { id: string; role: string; storeId?: string | null } }) {
+        return { id: req.user.id, role: req.user.role, storeId: req.user.storeId };
+    }
 
     @Get()
     async getUserChats(
@@ -19,11 +23,6 @@ export class ChatController {
     ) {
         return this.chatService.getUserChats(req.user.id, req.user.role, type);
     }
-
-    // -------------------------------------------------------
-    // FIXED-PATH ROUTES — Must come BEFORE any dynamic :id routes
-    // to prevent NestJS from matching them as route parameters.
-    // -------------------------------------------------------
 
     @Post('init')
     async initiateChat(
@@ -86,12 +85,9 @@ export class ChatController {
         return this.chatService.getUserRiskProfile(userId);
     }
 
-    // -------------------------------------------------------
-    // DYNAMIC :id ROUTES — Must come AFTER all fixed-path routes
-    // -------------------------------------------------------
-
     @Get(':id')
-    async getChatById(@Param('id') id: string) {
+    async getChatById(@Param('id') id: string, @Request() req) {
+        await this.resourceAccess.assertUserCanAccessChat(this.actor(req), id);
         return this.chatService.getChatById(id);
     }
 
@@ -101,6 +97,7 @@ export class ChatController {
         @Body() body: { text?: string; mediaUrl?: string; mediaType?: string; mediaName?: string; priority?: string; subject?: string },
         @Request() req
     ) {
+        await this.resourceAccess.assertUserCanAccessChat(this.actor(req), chatId);
         return this.chatService.sendMessage(
             chatId,
             req.user.id,
@@ -120,6 +117,7 @@ export class ChatController {
         @Body() body: { enabled: boolean },
         @Request() req
     ) {
+        await this.resourceAccess.assertUserCanAccessChat(this.actor(req), chatId);
         return this.chatService.toggleTranslation(chatId, req.user.role, body.enabled);
     }
 
@@ -128,6 +126,7 @@ export class ChatController {
         @Param('id') chatId: string,
         @Request() req
     ) {
+        await this.resourceAccess.assertUserCanAccessChat(this.actor(req), chatId);
         return this.chatService.markMessagesAsRead(chatId, req.user.id);
     }
 

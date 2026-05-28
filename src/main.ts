@@ -13,11 +13,18 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { GlobalHttpExceptionFilter } from './common/filters/http-exception.filter';
 import helmet from 'helmet';
+import { validateProductionEnv } from './config/env.validation';
 
 function resolveCorsOrigins(): string[] | boolean {
     const raw = process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '';
-    if (!raw.trim()) return true;
+    if (!raw.trim()) {
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error('CORS_ORIGINS must be set in production');
+        }
+        return true;
+    }
     const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
     return list.length ? list : true;
 }
@@ -53,6 +60,7 @@ function parseBodyLimitMb(): string {
 }
 
 async function bootstrap() {
+    validateProductionEnv();
     const app = await NestFactory.create<NestExpressApplication>(AppModule, {
         rawBody: true,
         bodyParser: false,
@@ -63,6 +71,7 @@ async function bootstrap() {
     app.useBodyParser('urlencoded', { extended: true, limit: bodyLimit });
 
     app.use(helmet());
+    app.useGlobalFilters(new GlobalHttpExceptionFilter());
 
     // Enable Global Validation
     app.useGlobalPipes(new ValidationPipe({

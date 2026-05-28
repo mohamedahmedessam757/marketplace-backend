@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Body, UseGuards, Request, Param } from '@nestjs/common';
 import { StoresService } from './stores.service';
 import { UploadStoreDocumentDto } from './dto/upload-store-document.dto';
+import { UpdateStoreDto } from './dto/update-store.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -19,7 +20,7 @@ export class StoresController {
     }
 
     @Patch('me')
-    updateMyStore(@Request() req, @Body() dto: any) {
+    updateMyStore(@Request() req, @Body() dto: UpdateStoreDto) {
         return this.storesService.updateMyStore(req.user.id, dto);
     }
 

@@ -309,7 +309,7 @@ export class OrdersService {
                     customer: { select: { id: true, name: true, email: true, avatar: true } },
                     review: { select: { id: true, rating: true } },
                     offers: {
-                        where: { status: { not: 'rejected' } },
+                        where: { status: { not: 'rejected' }, isWithdrawn: false },
                         orderBy: { createdAt: 'asc' },
                         include: {
                             store: {

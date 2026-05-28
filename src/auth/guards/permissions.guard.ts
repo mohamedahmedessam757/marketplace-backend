@@ -1,6 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY, PermissionRequirement } from '../decorators/permissions.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 
@@ -17,10 +18,14 @@ export class PermissionsGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    // If no permission metadata is set, allow (or you can choose to deny by default)
-    if (!requirement) {
-      return true;
-    }
+  if (!requirement) {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+    return false;
+  }
 
     const { user } = context.switchToHttp().getRequest();
     

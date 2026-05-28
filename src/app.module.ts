@@ -33,9 +33,11 @@ import { AdminPermissionsModule } from './admin-permissions/admin-permissions.mo
 import { VerificationTasksModule } from './verification-tasks/verification-tasks.module';
 import { APP_GUARD } from '@nestjs/core';
 import { MaintenanceGuard } from './platform-settings/maintenance.guard';
+import { AuthorizationModule } from './common/authorization/authorization.module';
 
 @Module({
     imports: [
+        AuthorizationModule,
         ThrottlerModule.forRoot([
             { name: 'short', ttl: 60_000, limit: 150 },
         ]),

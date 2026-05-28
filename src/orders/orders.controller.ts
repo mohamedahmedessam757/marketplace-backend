@@ -13,7 +13,7 @@ import { ExcelService } from './excel.service';
 import { Response } from 'express';
 
 @Controller('orders')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)
 export class OrdersController {
     constructor(
         private readonly ordersService: OrdersService,
@@ -44,6 +44,7 @@ export class OrdersController {
     }
 
     @Get('admin/shipping-carts')
+    @UseGuards(PermissionsGuard)
     @Permissions('shipping-carts', 'view')
     getAdminShippingCarts(@Request() req) {
         return this.ordersService.getAdminShippingCarts();

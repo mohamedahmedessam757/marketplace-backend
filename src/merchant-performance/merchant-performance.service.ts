@@ -368,6 +368,20 @@ export class MerchantPerformanceService {
     return order[idx + 1];
   }
 
+  /** 0–1 progress toward a numeric target (0 when value is 0). */
+  private ratioToward(value: number, target: number): number {
+    if (target <= 0) return value >= target ? 1 : 0;
+    if (value <= 0) return 0;
+    return Math.min(1, Math.max(0, value / target));
+  }
+
+  private weightedPercent(weights: { ratio: number; weight: number }[]): number {
+    const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+    if (totalWeight <= 0) return 0;
+    const raw = weights.reduce((sum, w) => sum + w.ratio * w.weight, 0) / totalWeight;
+    return Math.round(raw * 100);
+  }
+
   private buildProgressSnapshot(p: {
     currentTier: StoreLoyaltyTier;
     nextTier: StoreLoyaltyTier | null;
@@ -388,45 +402,7 @@ export class MerchantPerformanceService {
       };
     }
 
-    const remaining: Record<string, number | boolean | string> = {};
-    let steps = 0;
-    let done = 0;
-
-    const need = (cond: boolean) => {
-      steps++;
-      if (cond) done++;
-    };
-
-    if (p.nextTier === StoreLoyaltyTier.SILVER) {
-      need(p.rating >= 3.5);
-      need(p.violationPoints < 40);
-      need(p.subscriptionEffective);
-      remaining.ratingGap = Math.max(0, 3.5 - p.rating);
-      remaining.violationHeadroom = Math.max(0, 40 - p.violationPoints);
-    } else if (p.nextTier === StoreLoyaltyTier.GOLD) {
-      need(p.rating >= 4.0);
-      need(p.violationPoints < 25);
-      need(
-        p.subscriptionTier === StoreSubscriptionTier.STANDARD ||
-          p.subscriptionTier === StoreSubscriptionTier.PREMIUM,
-      );
-      need(p.subscriptionEffective);
-      need(p.completedOrders >= GOLD_MIN_COMPLETED_ORDERS);
-      const ageDays =
-        (Date.now() - p.storeCreatedAt.getTime()) / (24 * 60 * 60 * 1000);
-      need(ageDays >= GOLD_MIN_ACCOUNT_AGE_DAYS);
-      remaining.ordersToGold = Math.max(0, GOLD_MIN_COMPLETED_ORDERS - p.completedOrders);
-      remaining.daysToGoldAge = Math.max(0, GOLD_MIN_ACCOUNT_AGE_DAYS - ageDays);
-      remaining.ratingGap = Math.max(0, 4.0 - p.rating);
-    } else if (p.nextTier === StoreLoyaltyTier.VIP) {
-      need(p.rating >= 4.5);
-      need(p.violationPoints < 10);
-      need(p.subscriptionTier === StoreSubscriptionTier.PREMIUM);
-      need(p.subscriptionEffective);
-      need(p.completedOrders >= VIP_MIN_COMPLETED_ORDERS);
-      remaining.ordersToVip = Math.max(0, VIP_MIN_COMPLETED_ORDERS - p.completedOrders);
-      remaining.ratingGap = Math.max(0, 4.5 - p.rating);
-    } else if (p.nextTier === StoreLoyaltyTier.ELITE) {
+    if (p.nextTier === StoreLoyaltyTier.ELITE) {
       return {
         nextTier: StoreLoyaltyTier.ELITE,
         percent: 0,
@@ -436,7 +412,93 @@ export class MerchantPerformanceService {
       };
     }
 
-    const percent = steps > 0 ? Math.round((done / steps) * 100) : 0;
+    const remaining: Record<string, number | boolean | string> = {};
+    const noActivity = p.rating <= 0 && p.completedOrders <= 0;
+
+    if (noActivity) {
+      remaining.ratingGap =
+        p.nextTier === StoreLoyaltyTier.SILVER
+          ? Math.max(0, 3.5 - p.rating)
+          : p.nextTier === StoreLoyaltyTier.GOLD
+            ? Math.max(0, 4.0 - p.rating)
+            : Math.max(0, 4.5 - p.rating);
+      if (p.nextTier === StoreLoyaltyTier.GOLD) {
+        remaining.ordersToGold = GOLD_MIN_COMPLETED_ORDERS;
+      } else if (p.nextTier === StoreLoyaltyTier.VIP) {
+        remaining.ordersToVip = VIP_MIN_COMPLETED_ORDERS;
+      }
+      return {
+        nextTier: p.nextTier,
+        percent: 0,
+        summaryAr: `المستوى التالي: ${p.nextTier} — ابدأ بإكمال الطلبات وتحسين التقييم`,
+        summaryEn: `Next tier: ${p.nextTier} — complete orders and improve rating to begin`,
+        remaining,
+      };
+    }
+
+    let percent = 0;
+
+    if (p.nextTier === StoreLoyaltyTier.SILVER) {
+      if (p.violationPoints >= 40) {
+        return {
+          nextTier: p.nextTier,
+          percent: 0,
+          summaryAr: 'تجاوزت حد المخالفات — قلّل النقاط للترقية إلى فضي',
+          summaryEn: 'Violation limit exceeded — reduce points to reach Silver',
+          remaining: { violationHeadroom: 0 },
+        };
+      }
+      remaining.ratingGap = Math.max(0, 3.5 - p.rating);
+      remaining.violationHeadroom = Math.max(0, 40 - p.violationPoints);
+      percent = this.weightedPercent([
+        { ratio: this.ratioToward(p.rating, 3.5), weight: 65 },
+        { ratio: p.subscriptionEffective ? 1 : 0, weight: 35 },
+      ]);
+    } else if (p.nextTier === StoreLoyaltyTier.GOLD) {
+      if (p.violationPoints >= 25) {
+        return {
+          nextTier: p.nextTier,
+          percent: 0,
+          summaryAr: 'تجاوزت حد المخالفات — قلّل النقاط للترقية إلى ذهبي',
+          summaryEn: 'Violation limit exceeded — reduce points to reach Gold',
+          remaining: { violationHeadroom: 0 },
+        };
+      }
+      const ageDays =
+        (Date.now() - p.storeCreatedAt.getTime()) / (24 * 60 * 60 * 1000);
+      const hasPaidSub =
+        p.subscriptionTier === StoreSubscriptionTier.STANDARD ||
+        p.subscriptionTier === StoreSubscriptionTier.PREMIUM;
+      remaining.ordersToGold = Math.max(0, GOLD_MIN_COMPLETED_ORDERS - p.completedOrders);
+      remaining.daysToGoldAge = Math.max(0, GOLD_MIN_ACCOUNT_AGE_DAYS - ageDays);
+      remaining.ratingGap = Math.max(0, 4.0 - p.rating);
+      percent = this.weightedPercent([
+        { ratio: this.ratioToward(p.rating, 4.0), weight: 25 },
+        { ratio: this.ratioToward(p.completedOrders, GOLD_MIN_COMPLETED_ORDERS), weight: 25 },
+        { ratio: this.ratioToward(ageDays, GOLD_MIN_ACCOUNT_AGE_DAYS), weight: 15 },
+        { ratio: hasPaidSub ? 1 : 0, weight: 17.5 },
+        { ratio: p.subscriptionEffective ? 1 : 0, weight: 17.5 },
+      ]);
+    } else if (p.nextTier === StoreLoyaltyTier.VIP) {
+      if (p.violationPoints >= 10) {
+        return {
+          nextTier: p.nextTier,
+          percent: 0,
+          summaryAr: 'تجاوزت حد المخالفات — قلّل النقاط للترقية إلى VIP',
+          summaryEn: 'Violation limit exceeded — reduce points to reach VIP',
+          remaining: { violationHeadroom: 0 },
+        };
+      }
+      remaining.ordersToVip = Math.max(0, VIP_MIN_COMPLETED_ORDERS - p.completedOrders);
+      remaining.ratingGap = Math.max(0, 4.5 - p.rating);
+      percent = this.weightedPercent([
+        { ratio: this.ratioToward(p.rating, 4.5), weight: 35 },
+        { ratio: this.ratioToward(p.completedOrders, VIP_MIN_COMPLETED_ORDERS), weight: 35 },
+        { ratio: p.subscriptionTier === StoreSubscriptionTier.PREMIUM ? 1 : 0, weight: 15 },
+        { ratio: p.subscriptionEffective ? 1 : 0, weight: 15 },
+      ]);
+    }
+
     return {
       nextTier: p.nextTier,
       percent,

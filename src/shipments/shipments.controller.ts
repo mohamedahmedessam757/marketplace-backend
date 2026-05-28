@@ -7,10 +7,11 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('shipments')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard)
 export class ShipmentsController {
     constructor(private readonly shipmentsService: ShipmentsService) {}
 
+    @UseGuards(PermissionsGuard)
     @Permissions('shipping', 'view')
     @Get()
     findAll() {
@@ -32,12 +33,14 @@ export class ShipmentsController {
         return this.shipmentsService.getLogs(id);
     }
 
+    @UseGuards(PermissionsGuard)
     @Permissions('shipping', 'edit')
     @Post()
     create(@Body() createShipmentDto: CreateShipmentDto, @Request() req) {
         return this.shipmentsService.create(createShipmentDto, req.user.id);
     }
 
+    @UseGuards(PermissionsGuard)
     @Permissions('shipping', 'edit')
     @Patch(':id/status')
     updateStatus(

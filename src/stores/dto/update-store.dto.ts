@@ -1,45 +1,49 @@
-import { IsString, IsOptional, IsArray, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsArray, MaxLength } from 'class-validator';
 
 export class UpdateStoreDto {
-    @IsOptional()
-    @IsString()
-    name?: string;
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string;
 
-    @IsOptional()
-    @IsString()
-    address?: string;
+  @IsOptional()
+  @IsString()
+  logo?: string;
 
-    @IsOptional()
-    @IsNumber()
-    lat?: number;
+  @IsOptional()
+  @IsString()
+  address?: string;
 
-    @IsOptional()
-    @IsNumber()
-    lng?: number;
+  @IsOptional()
+  @IsNumber()
+  lat?: number;
 
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    selectedMakes?: string[];
+  @IsOptional()
+  @IsNumber()
+  lng?: number;
 
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    selectedModels?: string[];
+  @IsOptional()
+  @IsString()
+  category?: string;
 
-    @IsOptional()
-    @IsString()
-    customMake?: string;
+  @IsOptional()
+  @IsArray()
+  selectedMakes?: string[];
 
-    @IsOptional()
-    @IsString()
-    customModel?: string;
+  @IsOptional()
+  @IsArray()
+  selectedModels?: string[];
 
-    @IsOptional()
-    @IsString()
-    logo?: string;
+  @IsOptional()
+  @IsString()
+  customMake?: string;
+
+  @IsOptional()
+  @IsString()
+  customModel?: string;
 }

@@ -1,18 +1,22 @@
-import { Controller, Get, Param, UseGuards, Request, Post, Body, Patch, ForbiddenException, Query } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards, Request, Post, Body, Patch, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { UserRole } from '@prisma/client';
+import { sanitizeUser, isAdminRole } from '../common/user-sanitizer';
+import { ResourceAccessService } from '../common/authorization/resource-access.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly resourceAccess: ResourceAccessService,
+  ) { }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   getProfile(@Request() req) {
-    return req.user;
+    return sanitizeUser(req.user);
   }
 
   // --- Administrative Endpoints (ADMIN/SUPER_ADMIN Only) ---
@@ -84,12 +88,21 @@ export class UsersController {
     return this.usersService.adminClearRestrictions(id, req.user.id, body);
   }
 
-  // --- Profile Endpoints ---
+  // --- Profile Endpoints (fixed paths before :id) ---
 
   @UseGuards(JwtAuthGuard)
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.usersService.findById(id);
+  @Get('settings/me')
+  async getMySettings(@Request() req) {
+    return this.usersService.getUserSettings(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('settings/me')
+  async updateMySettings(
+    @Request() req,
+    @Body() body: { autoTranslateChat?: boolean },
+  ) {
+    return this.usersService.updateUserSettings(req.user.id, body);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -103,5 +116,19 @@ export class UsersController {
       console.error('Update Profile Error:', error);
       throw error;
     }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  async findOne(@Request() req, @Param('id') id: string) {
+    await this.resourceAccess.assertUserCanViewUserProfile(
+      { id: req.user.id, role: req.user.role, storeId: req.user.storeId },
+      id,
+    );
+    const user = await this.usersService.findById(id);
+    if (!user) return null;
+    return sanitizeUser(user, {
+      includeFinancial: req.user.id === id || isAdminRole(req.user.role),
+    });
   }
 }

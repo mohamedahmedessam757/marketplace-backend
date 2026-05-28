@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoyaltyTier } from '@prisma/client';
 import { LoyaltyGateway } from './loyalty.gateway';
@@ -464,6 +464,49 @@ export class LoyaltyService {
     });
 
     return { rewardAmount, referredById };
+  }
+
+  async redeemPoints(userId: string, amount: number, description: string) {
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new BadRequestException('Invalid redeem amount');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { loyaltyPoints: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.loyaltyPoints < amount) {
+      throw new BadRequestException('Insufficient points');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { loyaltyPoints: { decrement: amount } },
+      select: {
+        loyaltyPoints: true,
+        loyaltyTier: true,
+        customerBalance: true,
+        pointsLastResetAt: true,
+      },
+    });
+
+    this.loyaltyGateway.emitLoyaltyUpdate(userId, 'CUSTOMER', {
+      tier: updated.loyaltyTier,
+      loyaltyPoints: updated.loyaltyPoints,
+    });
+
+    return {
+      success: true,
+      points: updated.loyaltyPoints,
+      transaction: {
+        id: `redeem-${Date.now()}`,
+        points: -amount,
+        type: 'REDEEM',
+        description,
+        created_at: new Date().toISOString(),
+      },
+    };
   }
 
   async getLoyaltyData(userId: string) {

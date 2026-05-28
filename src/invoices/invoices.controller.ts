@@ -1,11 +1,15 @@
 import { Controller, Get, Param, UseGuards, Request } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ResourceAccessService } from '../common/authorization/resource-access.service';
 
 @Controller('invoices')
 @UseGuards(JwtAuthGuard)
 export class InvoicesController {
-    constructor(private readonly invoicesService: InvoicesService) { }
+    constructor(
+        private readonly invoicesService: InvoicesService,
+        private readonly resourceAccess: ResourceAccessService,
+    ) { }
 
     @Get()
     getUserInvoices(@Request() req) {
@@ -18,8 +22,11 @@ export class InvoicesController {
     }
 
     @Get('order/:orderId')
-    getOrderInvoices(@Param('orderId') orderId: string) {
-        // Participants/Admins are authorized through the overall page structure
+    async getOrderInvoices(@Request() req, @Param('orderId') orderId: string) {
+        await this.resourceAccess.assertUserCanAccessInvoice(
+            { id: req.user.id, role: req.user.role, storeId: req.user.storeId },
+            orderId,
+        );
         return this.invoicesService.getInvoicesByOrder(orderId);
     }
 

@@ -273,10 +273,20 @@ export class AuthService {
     }
 
     async getActiveSessions(userId: string) {
-        return this.prisma.session.findMany({
+        const sessions = await this.prisma.session.findMany({
             where: { userId },
             orderBy: { lastActive: 'desc' },
+            select: {
+                id: true,
+                userId: true,
+                device: true,
+                os: true,
+                ip: true,
+                lastActive: true,
+                createdAt: true,
+            },
         });
+        return sessions;
     }
 
     async terminateSession(userId: string, sessionId: string) {

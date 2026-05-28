@@ -63,29 +63,6 @@ export class ReturnsController {
         return this.returnsService.getUserReturns(req.user.id);
     }
 
-    @Get('debug-all-disputes')
-    async getDebugAllDisputes() {
-        const disputes = await this.returnsService['prisma'].dispute.findMany({
-            include: {
-                order: {
-                    include: { 
-                        parts: true,
-                        store: true, 
-                        acceptedOffer: {
-                            include: { store: true }
-                        },
-                        orderChats: {
-                            select: { id: true, vendorId: true }
-                        }
-                    }
-                }
-            },
-            take: 5,
-            orderBy: { createdAt: 'desc' }
-        });
-        return disputes;
-    }
-
     @Patch(':id/escalate')
     @UseGuards(JwtAuthGuard)
     async escalateCase(@Request() req, @Param('id') id: string) {

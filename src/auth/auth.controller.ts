@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards, Request, Get, UnauthorizedException, Delete, Param } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from '../users/dto/create-user.dto';
@@ -10,9 +11,11 @@ export class AuthController {
     constructor(private authService: AuthService) { }
 
     @Post('login')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
     async login(@Body() loginDto: LoginDto, @Request() req) {
         const user = await this.authService.validateUser(loginDto.email, loginDto.password);
         if (!user) {
+            console.warn(`[Security] Failed login attempt for email: ${loginDto.email}`);
             throw new UnauthorizedException('Invalid credentials');
         }
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -21,6 +24,7 @@ export class AuthController {
     }
 
     @Post('mobile-login-init')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
     async initiateMobileLogin(@Body() body: { phone: string }) {
         const result = await this.authService.initiateMobileLogin(body.phone);
         if (!result) {
@@ -32,6 +36,7 @@ export class AuthController {
     }
 
     @Post('email-login-init')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
     async initiateEmailLogin(@Body() body: { email: string }) {
         const result = await this.authService.initiateEmailLogin(body.email);
         if (!result) {
@@ -41,6 +46,7 @@ export class AuthController {
     }
 
     @Post('mobile-login-verify')
+    @Throttle({ default: { limit: 10, ttl: 60_000 } })
     async verifyMobileLogin(@Body() body: { phone: string; code: string; fingerprint?: string }, @Request() req) {
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         const userAgent = req.headers['user-agent'];
@@ -48,6 +54,7 @@ export class AuthController {
     }
 
     @Post('email-login-verify')
+    @Throttle({ default: { limit: 10, ttl: 60_000 } })
     async verifyEmailLogin(@Body() body: { email: string; code: string; fingerprint?: string }, @Request() req) {
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         const userAgent = req.headers['user-agent'];
@@ -56,6 +63,7 @@ export class AuthController {
 
 
     @Post('register-init')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
     async initRegistration(@Body() body: { email: string, phone: string }) {
         return this.authService.initRegistration(body.email, body.phone);
     }

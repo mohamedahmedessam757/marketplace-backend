@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { LoyaltyService } from './loyalty.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -20,5 +20,17 @@ export class LoyaltyController {
   @Get('public-stats')
   async getPublicStats() {
     return this.loyaltyService.getPublicStats();
+  }
+
+  @Post('redeem')
+  async redeemPoints(
+    @Request() req,
+    @Body() body: { amount: number; description: string },
+  ) {
+    return this.loyaltyService.redeemPoints(
+      req.user.id,
+      body.amount,
+      body.description || 'Points redeemed',
+    );
   }
 }

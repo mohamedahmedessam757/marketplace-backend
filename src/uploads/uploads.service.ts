@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { validateUploadedFile, UploadProfile } from './upload-validation.util';
 
 export const VERIFICATION_FIELD_PHOTOS_BUCKET = 'verification-field-photos';
 
@@ -13,13 +14,7 @@ export class UploadsService {
         const supabaseServiceRoleKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
 
         if (!supabaseUrl || !supabaseServiceRoleKey) {
-            console.error('Environment Check Failed:');
-            console.error(`SUPABASE_URL: ${supabaseUrl ? 'Set' : 'MISSING'}`);
-            console.error(`SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceRoleKey ? 'Set' : 'MISSING'}`);
-            // List all keys to verify if env is loaded at all (be careful not to log values)
-            console.error('Available Env Keys:', Object.keys(process.env));
-
-            throw new Error('Supabase URL or Service Role Key is missing. Check your Railway Project Variables.');
+            throw new Error('Supabase URL or Service Role Key is missing. Check environment variables.');
         }
 
         this.supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -30,10 +25,13 @@ export class UploadsService {
         });
     }
 
-    async uploadFile(file: Express.Multer.File, pathPrefix: string, bucket: string = 'returns-disputes'): Promise<string> {
-        if (!file?.buffer?.length) {
-            throw new BadRequestException('No file provided');
-        }
+    async uploadFile(
+        file: Express.Multer.File,
+        pathPrefix: string,
+        bucket: string = 'returns-disputes',
+        profile: UploadProfile = 'default',
+    ): Promise<string> {
+        validateUploadedFile(file, profile);
 
         const fileExt = file.originalname.split('.').pop();
         const fileName = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -47,8 +45,8 @@ export class UploadsService {
             });
 
         if (error) {
-            console.error('Supabase Upload Error:', error);
-            throw new BadRequestException(`Upload failed: ${error.message}`);
+            console.error('Supabase Upload Error:', error.message);
+            throw new BadRequestException('Upload failed');
         }
 
         // Get Public URL
@@ -64,9 +62,7 @@ export class UploadsService {
         file: Express.Multer.File,
         taskId: string,
     ): Promise<{ url: string; storagePath: string }> {
-        if (!file?.buffer?.length) {
-            throw new BadRequestException('No file provided');
-        }
+        validateUploadedFile(file, 'verification');
 
         let ext = (file.originalname?.split('.').pop() || 'jpg').toLowerCase();
         if (!/^(jpe?g|png|webp)$/.test(ext)) {

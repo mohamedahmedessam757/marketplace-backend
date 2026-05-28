@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
+import { sanitizeUser } from '../../common/user-sanitizer';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -25,12 +26,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         }
 
         // For VENDOR users, attach storeId directly to user object for easy access
-        const userWithStoreId = {
+        return sanitizeUser({
             ...user,
-            storeId: user.store?.id || null
-        };
-
-        // Return user object, which will be injected into Request object
-        return userWithStoreId;
+            storeId: user.store?.id || null,
+        });
     }
 }

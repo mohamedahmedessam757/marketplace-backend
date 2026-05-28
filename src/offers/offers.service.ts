@@ -274,7 +274,15 @@ export class OffersService {
         // Find the offer and verify ownership
         const existing = await this.prisma.offer.findUnique({
             where: { id: offerId },
-            select: { id: true, storeId: true, orderId: true, canEditUntil: true, isWithdrawn: true }
+            select: {
+                id: true,
+                storeId: true,
+                orderId: true,
+                offerNumber: true,
+                canEditUntil: true,
+                isWithdrawn: true,
+                order: { select: { orderNumber: true } },
+            },
         });
 
         if (!existing) {
@@ -345,7 +353,6 @@ export class OffersService {
         this.checkGovernanceThresholds(store.id, updated.store?.name || 'Vendor', updated.store?.ownerId).catch(() => {});
         // ----------------------------------------
 
-        // Audit Log (2026 Change Tracking)
         await this.auditLogs.logAction({
             orderId: existing.orderId,
             action: 'UPDATE_OFFER',
@@ -355,7 +362,23 @@ export class OffersService {
             actorName: updated.store?.name || 'Vendor',
             previousState: JSON.stringify(existing),
             newState: JSON.stringify(updated),
-            metadata: { offerId, changes: data }
+            metadata: {
+                offerId,
+                offerNumber: existing.offerNumber,
+                orderNumber: existing.order?.orderNumber,
+                storeId: store.id,
+                modificationKind: 'EDIT',
+                changes: data,
+            },
+        });
+
+        await this.notifyAdminsOfferModification({
+            storeId: store.id,
+            storeName: updated.store?.name || store.name,
+            orderId: existing.orderId,
+            orderNumber: existing.order?.orderNumber || existing.orderId,
+            offerNumber: existing.offerNumber,
+            kind: 'EDIT',
         });
 
         return updated;
@@ -419,7 +442,16 @@ export class OffersService {
             );
         }
 
+        const offerMeta = await this.prisma.offer.findUnique({
+            where: { id: offerId },
+            select: { offerNumber: true },
+        });
+
         const result = await this.prisma.$transaction(async (tx) => {
+            await tx.store.update({
+                where: { id: store.id },
+                data: { withdrawalCount: { increment: 1 } },
+            });
             return await tx.offer.update({
                 where: { id: offerId },
                 data: {
@@ -440,7 +472,25 @@ export class OffersService {
             actorId: userId,
             actorName: result.store?.name || 'Vendor',
             newState: 'withdrawn',
-            metadata: { offerId, withdrawalType: 'voluntary' },
+            metadata: {
+                offerId,
+                offerNumber: offerMeta?.offerNumber,
+                orderNumber: order.orderNumber,
+                storeId: store.id,
+                modificationKind: 'VOLUNTARY_WITHDRAW',
+                withdrawalType: 'voluntary',
+            },
+        });
+
+        this.checkGovernanceThresholds(store.id, result.store?.name || store.name, userId).catch(() => {});
+
+        await this.notifyAdminsOfferModification({
+            storeId: store.id,
+            storeName: result.store?.name || store.name,
+            orderId: existing.orderId,
+            orderNumber: order.orderNumber,
+            offerNumber: offerMeta?.offerNumber,
+            kind: 'VOLUNTARY_WITHDRAW',
         });
 
         this.notificationsService
@@ -534,6 +584,17 @@ export class OffersService {
         this.checkGovernanceThresholds(store.id, result.store?.name || 'Vendor', result.store?.ownerId).catch(() => {});
         // ----------------------------------------
 
+        const orderRow = existing.order
+            ? await this.prisma.order.findUnique({
+                  where: { id: existing.orderId },
+                  select: { orderNumber: true },
+              })
+            : null;
+        const offerNum = await this.prisma.offer.findUnique({
+            where: { id: offerId },
+            select: { offerNumber: true },
+        });
+
         await this.auditLogs.logAction({
             orderId: existing.orderId,
             action: 'WITHDRAW_OFFER',
@@ -542,7 +603,22 @@ export class OffersService {
             actorId: userId,
             actorName: result.store?.name || 'Vendor',
             newState: 'withdrawn',
-            metadata: { offerId }
+            metadata: {
+                offerId,
+                offerNumber: offerNum?.offerNumber,
+                orderNumber: orderRow?.orderNumber,
+                storeId: store.id,
+                modificationKind: 'VIOLATION_WITHDRAW',
+            },
+        });
+
+        await this.notifyAdminsOfferModification({
+            storeId: store.id,
+            storeName: result.store?.name || store.name,
+            orderId: existing.orderId,
+            orderNumber: orderRow?.orderNumber || existing.orderId,
+            offerNumber: offerNum?.offerNumber,
+            kind: 'VIOLATION_WITHDRAW',
         });
 
         return result;
@@ -559,9 +635,14 @@ export class OffersService {
 
         const existing = await this.prisma.offer.findUnique({
             where: { id: offerId },
-            include: {
-                order: { select: { id: true, status: true, customerId: true, orderNumber: true } }
-            }
+            select: {
+                id: true,
+                storeId: true,
+                orderId: true,
+                offerNumber: true,
+                canEditUntil: true,
+                order: { select: { id: true, status: true, customerId: true, orderNumber: true } },
+            },
         });
 
         if (!existing) {
@@ -585,7 +666,14 @@ export class OffersService {
         }
         // ------------------------------------------------------
 
-        // Audit Log (2026 Cancellation Tracking)
+        await this.prisma.$transaction(async (tx) => {
+            await tx.store.update({
+                where: { id: store.id },
+                data: { editCount: { increment: 1 } },
+            });
+            await tx.offer.delete({ where: { id: offerId } });
+        });
+
         await this.auditLogs.logAction({
             orderId: existing.orderId,
             action: 'CANCEL_OFFER_VENDOR',
@@ -595,10 +683,26 @@ export class OffersService {
             actorName: store.name,
             previousState: JSON.stringify(existing),
             newState: 'DELETED',
-            reason: 'Vendor retracted their offer during bidding window'
+            reason: 'Vendor retracted their offer during bidding window',
+            metadata: {
+                offerId,
+                offerNumber: existing.offerNumber,
+                orderNumber: existing.order?.orderNumber,
+                storeId: store.id,
+                modificationKind: 'CANCEL',
+            },
         });
 
-        await this.prisma.offer.delete({ where: { id: offerId } });
+        this.checkGovernanceThresholds(store.id, store.name, userId).catch(() => {});
+
+        await this.notifyAdminsOfferModification({
+            storeId: store.id,
+            storeName: store.name,
+            orderId: existing.orderId,
+            orderNumber: existing.order?.orderNumber || existing.orderId,
+            offerNumber: existing.offerNumber,
+            kind: 'CANCEL',
+        });
 
         // Notify Customer (Suppressed for 2026 Blind Auction)
         const isBlindAuction = ['COLLECTING_OFFERS', 'AWAITING_OFFERS'].includes(existing.order?.status || '');
@@ -742,6 +846,64 @@ export class OffersService {
             }).catch(e => console.error('Failed to notify customer of admin delete', e));
         }
         return { message: 'Offer deleted successfully by admin' };
+    }
+
+    /** Notify admins on every offer edit/cancel/withdraw with order # and current mod rate. */
+    private async notifyAdminsOfferModification(params: {
+        storeId: string;
+        storeName: string;
+        orderId: string;
+        orderNumber: string;
+        offerNumber?: string | null;
+        kind: 'EDIT' | 'CANCEL' | 'VOLUNTARY_WITHDRAW' | 'VIOLATION_WITHDRAW';
+    }) {
+        try {
+            const stats = await this.prisma.store.findUnique({
+                where: { id: params.storeId },
+                select: { totalOffersSent: true, editCount: true, withdrawalCount: true },
+            });
+            const ratePct =
+                stats && stats.totalOffersSent > 0
+                    ? (
+                          ((stats.editCount + stats.withdrawalCount) / stats.totalOffersSent) *
+                          100
+                      ).toFixed(1)
+                    : '0';
+
+            const kindAr: Record<typeof params.kind, string> = {
+                EDIT: 'تعديل عرض',
+                CANCEL: 'إلغاء عرض (نافذة التعديل المجاني)',
+                VOLUNTARY_WITHDRAW: 'انسحاب طوعي من الطلب',
+                VIOLATION_WITHDRAW: 'سحب عرض (حوكمة)',
+            };
+            const kindEn: Record<typeof params.kind, string> = {
+                EDIT: 'Offer edited',
+                CANCEL: 'Offer cancelled (free edit window)',
+                VOLUNTARY_WITHDRAW: 'Voluntary withdrawal from request',
+                VIOLATION_WITHDRAW: 'Offer withdrawn (governance)',
+            };
+
+            const offerRef = params.offerNumber ? ` · عرض ${params.offerNumber}` : '';
+
+            await this.notificationsService.notifyAdmins({
+                titleAr: `حوكمة عروض — ${params.storeName}`,
+                titleEn: `Offer governance — ${params.storeName}`,
+                messageAr: `${kindAr[params.kind]} على الطلب #${params.orderNumber}${offerRef}. معدل التعديل الحالي: ${ratePct}% (${stats?.editCount ?? 0} تعديل + ${stats?.withdrawalCount ?? 0} سحب / ${stats?.totalOffersSent ?? 0} عرض).`,
+                messageEn: `${kindEn[params.kind]} on order #${params.orderNumber}${params.offerNumber ? ` (offer ${params.offerNumber})` : ''}. Current modification rate: ${ratePct}% (${stats?.editCount ?? 0} edits + ${stats?.withdrawalCount ?? 0} withdrawals / ${stats?.totalOffersSent ?? 0} offers).`,
+                type: 'GOVERNANCE_ALERT',
+                link: `/admin/stores/${params.storeId}`,
+                metadata: {
+                    ...params,
+                    modificationRatePercent: Number(ratePct),
+                    editCount: stats?.editCount,
+                    withdrawalCount: stats?.withdrawalCount,
+                    totalOffersSent: stats?.totalOffersSent,
+                    occurredAt: new Date().toISOString(),
+                },
+            });
+        } catch (e) {
+            console.error('notifyAdminsOfferModification failed', e);
+        }
     }
 
     /**

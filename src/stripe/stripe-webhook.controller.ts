@@ -34,8 +34,25 @@ export class StripeWebhookController {
             return res.status(400).send(`Webhook Error: Signature verification failed`);
         }
 
-        // Successfully constructed event
         this.logger.log(`✅ Success: Webhook constructed for event: ${event.type}`);
+
+        const existing = await this.prisma.$queryRaw<{ id: string; status: string | null }[]>`
+            SELECT id, status FROM stripe_webhook_events WHERE id = ${event.id} LIMIT 1
+        `;
+        if (existing.length > 0 && existing[0].status === 'SUCCESS') {
+            this.logger.log(`Duplicate successful webhook event ${event.id}, skipping`);
+            return res.json({ received: true, duplicate: true });
+        }
+
+        await this.prisma.$executeRaw`
+            INSERT INTO stripe_webhook_events (id, event_type, status, processed_at)
+            VALUES (${event.id}, ${event.type}, 'PROCESSING', NOW())
+            ON CONFLICT (id)
+            DO UPDATE SET
+                event_type = EXCLUDED.event_type,
+                status = 'PROCESSING',
+                processed_at = NOW()
+        `;
 
         try {
             switch (event.type) {
@@ -85,8 +102,18 @@ export class StripeWebhookController {
                 default:
                     this.logger.log(`Unhandled event type ${event.type}`);
             }
+            await this.prisma.$executeRaw`
+                UPDATE stripe_webhook_events
+                SET status = 'SUCCESS', processed_at = NOW()
+                WHERE id = ${event.id}
+            `;
         } catch (error) {
             this.logger.error(`Error processing webhook event ${event.type}:`, error);
+            await this.prisma.$executeRaw`
+                UPDATE stripe_webhook_events
+                SET status = 'FAILED', processed_at = NOW()
+                WHERE id = ${event.id}
+            `;
             return res.status(500).json({ error: 'webhook_processing_failed' });
         }
 
