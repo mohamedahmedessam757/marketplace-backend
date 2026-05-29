@@ -272,6 +272,7 @@ export type ShipmentWhereInput = {
   updatedAt?: Prisma.DateTimeFilter<"Shipment"> | Date | string
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
   waybill?: Prisma.XOR<Prisma.ShippingWaybillNullableScalarRelationFilter, Prisma.ShippingWaybillWhereInput> | null
+  primaryForWaybill?: Prisma.XOR<Prisma.ShippingWaybillNullableScalarRelationFilter, Prisma.ShippingWaybillWhereInput> | null
   updater?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   statusLogs?: Prisma.ShipmentStatusLogListRelationFilter
   cartOffers?: Prisma.OfferListRelationFilter
@@ -296,6 +297,7 @@ export type ShipmentOrderByWithRelationInput = {
   updatedAt?: Prisma.SortOrder
   order?: Prisma.OrderOrderByWithRelationInput
   waybill?: Prisma.ShippingWaybillOrderByWithRelationInput
+  primaryForWaybill?: Prisma.ShippingWaybillOrderByWithRelationInput
   updater?: Prisma.UserOrderByWithRelationInput
   statusLogs?: Prisma.ShipmentStatusLogOrderByRelationAggregateInput
   cartOffers?: Prisma.OfferOrderByRelationAggregateInput
@@ -323,6 +325,7 @@ export type ShipmentWhereUniqueInput = Prisma.AtLeast<{
   updatedAt?: Prisma.DateTimeFilter<"Shipment"> | Date | string
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
   waybill?: Prisma.XOR<Prisma.ShippingWaybillNullableScalarRelationFilter, Prisma.ShippingWaybillWhereInput> | null
+  primaryForWaybill?: Prisma.XOR<Prisma.ShippingWaybillNullableScalarRelationFilter, Prisma.ShippingWaybillWhereInput> | null
   updater?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   statusLogs?: Prisma.ShipmentStatusLogListRelationFilter
   cartOffers?: Prisma.OfferListRelationFilter
@@ -388,6 +391,7 @@ export type ShipmentCreateInput = {
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShipmentsInput
   waybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentsInput
+  primaryForWaybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentInput
   updater?: Prisma.UserCreateNestedOneWithoutUpdatedShipmentsInput
   statusLogs?: Prisma.ShipmentStatusLogCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferCreateNestedManyWithoutCartShipmentInput
@@ -410,6 +414,7 @@ export type ShipmentUncheckedCreateInput = {
   updatedBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedCreateNestedOneWithoutShipmentInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferUncheckedCreateNestedManyWithoutCartShipmentInput
 }
@@ -430,6 +435,7 @@ export type ShipmentUpdateInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShipmentsNestedInput
   waybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentsNestedInput
+  primaryForWaybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentNestedInput
   updater?: Prisma.UserUpdateOneWithoutUpdatedShipmentsNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUpdateManyWithoutCartShipmentNestedInput
@@ -452,6 +458,7 @@ export type ShipmentUncheckedUpdateInput = {
   updatedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedUpdateOneWithoutShipmentNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUncheckedUpdateManyWithoutCartShipmentNestedInput
 }
@@ -687,6 +694,12 @@ export type ShipmentUpdateOneWithoutCartOffersNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ShipmentUpdateToOneWithWhereWithoutCartOffersInput, Prisma.ShipmentUpdateWithoutCartOffersInput>, Prisma.ShipmentUncheckedUpdateWithoutCartOffersInput>
 }
 
+export type ShipmentCreateNestedOneWithoutPrimaryForWaybillInput = {
+  create?: Prisma.XOR<Prisma.ShipmentCreateWithoutPrimaryForWaybillInput, Prisma.ShipmentUncheckedCreateWithoutPrimaryForWaybillInput>
+  connectOrCreate?: Prisma.ShipmentCreateOrConnectWithoutPrimaryForWaybillInput
+  connect?: Prisma.ShipmentWhereUniqueInput
+}
+
 export type ShipmentCreateNestedManyWithoutWaybillInput = {
   create?: Prisma.XOR<Prisma.ShipmentCreateWithoutWaybillInput, Prisma.ShipmentUncheckedCreateWithoutWaybillInput> | Prisma.ShipmentCreateWithoutWaybillInput[] | Prisma.ShipmentUncheckedCreateWithoutWaybillInput[]
   connectOrCreate?: Prisma.ShipmentCreateOrConnectWithoutWaybillInput | Prisma.ShipmentCreateOrConnectWithoutWaybillInput[]
@@ -699,6 +712,16 @@ export type ShipmentUncheckedCreateNestedManyWithoutWaybillInput = {
   connectOrCreate?: Prisma.ShipmentCreateOrConnectWithoutWaybillInput | Prisma.ShipmentCreateOrConnectWithoutWaybillInput[]
   createMany?: Prisma.ShipmentCreateManyWaybillInputEnvelope
   connect?: Prisma.ShipmentWhereUniqueInput | Prisma.ShipmentWhereUniqueInput[]
+}
+
+export type ShipmentUpdateOneWithoutPrimaryForWaybillNestedInput = {
+  create?: Prisma.XOR<Prisma.ShipmentCreateWithoutPrimaryForWaybillInput, Prisma.ShipmentUncheckedCreateWithoutPrimaryForWaybillInput>
+  connectOrCreate?: Prisma.ShipmentCreateOrConnectWithoutPrimaryForWaybillInput
+  upsert?: Prisma.ShipmentUpsertWithoutPrimaryForWaybillInput
+  disconnect?: Prisma.ShipmentWhereInput | boolean
+  delete?: Prisma.ShipmentWhereInput | boolean
+  connect?: Prisma.ShipmentWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ShipmentUpdateToOneWithWhereWithoutPrimaryForWaybillInput, Prisma.ShipmentUpdateWithoutPrimaryForWaybillInput>, Prisma.ShipmentUncheckedUpdateWithoutPrimaryForWaybillInput>
 }
 
 export type ShipmentUpdateManyWithoutWaybillNestedInput = {
@@ -767,6 +790,7 @@ export type ShipmentCreateWithoutUpdaterInput = {
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShipmentsInput
   waybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentsInput
+  primaryForWaybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentInput
   statusLogs?: Prisma.ShipmentStatusLogCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferCreateNestedManyWithoutCartShipmentInput
 }
@@ -787,6 +811,7 @@ export type ShipmentUncheckedCreateWithoutUpdaterInput = {
   actualDelivery?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedCreateNestedOneWithoutShipmentInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferUncheckedCreateNestedManyWithoutCartShipmentInput
 }
@@ -854,6 +879,7 @@ export type ShipmentCreateWithoutOrderInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   waybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentsInput
+  primaryForWaybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentInput
   updater?: Prisma.UserCreateNestedOneWithoutUpdatedShipmentsInput
   statusLogs?: Prisma.ShipmentStatusLogCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferCreateNestedManyWithoutCartShipmentInput
@@ -875,6 +901,7 @@ export type ShipmentUncheckedCreateWithoutOrderInput = {
   updatedBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedCreateNestedOneWithoutShipmentInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferUncheckedCreateNestedManyWithoutCartShipmentInput
 }
@@ -921,6 +948,7 @@ export type ShipmentCreateWithoutCartOffersInput = {
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShipmentsInput
   waybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentsInput
+  primaryForWaybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentInput
   updater?: Prisma.UserCreateNestedOneWithoutUpdatedShipmentsInput
   statusLogs?: Prisma.ShipmentStatusLogCreateNestedManyWithoutShipmentInput
 }
@@ -942,6 +970,7 @@ export type ShipmentUncheckedCreateWithoutCartOffersInput = {
   updatedBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedCreateNestedOneWithoutShipmentInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedCreateNestedManyWithoutShipmentInput
 }
 
@@ -977,6 +1006,7 @@ export type ShipmentUpdateWithoutCartOffersInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShipmentsNestedInput
   waybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentsNestedInput
+  primaryForWaybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentNestedInput
   updater?: Prisma.UserUpdateOneWithoutUpdatedShipmentsNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUpdateManyWithoutShipmentNestedInput
 }
@@ -998,7 +1028,55 @@ export type ShipmentUncheckedUpdateWithoutCartOffersInput = {
   updatedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedUpdateOneWithoutShipmentNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedUpdateManyWithoutShipmentNestedInput
+}
+
+export type ShipmentCreateWithoutPrimaryForWaybillInput = {
+  id?: string
+  carrierType?: $Enums.CarrierType
+  carrierName?: string | null
+  trackingNumber?: string | null
+  trackingLink?: string | null
+  carrierApiUrl?: string | null
+  status?: $Enums.ShipmentStatus
+  statusNotes?: string | null
+  customsDelayNote?: string | null
+  estimatedDelivery?: Date | string | null
+  actualDelivery?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  order: Prisma.OrderCreateNestedOneWithoutShipmentsInput
+  waybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentsInput
+  updater?: Prisma.UserCreateNestedOneWithoutUpdatedShipmentsInput
+  statusLogs?: Prisma.ShipmentStatusLogCreateNestedManyWithoutShipmentInput
+  cartOffers?: Prisma.OfferCreateNestedManyWithoutCartShipmentInput
+}
+
+export type ShipmentUncheckedCreateWithoutPrimaryForWaybillInput = {
+  id?: string
+  orderId: string
+  waybillId?: string | null
+  carrierType?: $Enums.CarrierType
+  carrierName?: string | null
+  trackingNumber?: string | null
+  trackingLink?: string | null
+  carrierApiUrl?: string | null
+  status?: $Enums.ShipmentStatus
+  statusNotes?: string | null
+  customsDelayNote?: string | null
+  estimatedDelivery?: Date | string | null
+  actualDelivery?: Date | string | null
+  updatedBy?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  statusLogs?: Prisma.ShipmentStatusLogUncheckedCreateNestedManyWithoutShipmentInput
+  cartOffers?: Prisma.OfferUncheckedCreateNestedManyWithoutCartShipmentInput
+}
+
+export type ShipmentCreateOrConnectWithoutPrimaryForWaybillInput = {
+  where: Prisma.ShipmentWhereUniqueInput
+  create: Prisma.XOR<Prisma.ShipmentCreateWithoutPrimaryForWaybillInput, Prisma.ShipmentUncheckedCreateWithoutPrimaryForWaybillInput>
 }
 
 export type ShipmentCreateWithoutWaybillInput = {
@@ -1016,6 +1094,7 @@ export type ShipmentCreateWithoutWaybillInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShipmentsInput
+  primaryForWaybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentInput
   updater?: Prisma.UserCreateNestedOneWithoutUpdatedShipmentsInput
   statusLogs?: Prisma.ShipmentStatusLogCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferCreateNestedManyWithoutCartShipmentInput
@@ -1037,6 +1116,7 @@ export type ShipmentUncheckedCreateWithoutWaybillInput = {
   updatedBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedCreateNestedOneWithoutShipmentInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedCreateNestedManyWithoutShipmentInput
   cartOffers?: Prisma.OfferUncheckedCreateNestedManyWithoutCartShipmentInput
 }
@@ -1049,6 +1129,59 @@ export type ShipmentCreateOrConnectWithoutWaybillInput = {
 export type ShipmentCreateManyWaybillInputEnvelope = {
   data: Prisma.ShipmentCreateManyWaybillInput | Prisma.ShipmentCreateManyWaybillInput[]
   skipDuplicates?: boolean
+}
+
+export type ShipmentUpsertWithoutPrimaryForWaybillInput = {
+  update: Prisma.XOR<Prisma.ShipmentUpdateWithoutPrimaryForWaybillInput, Prisma.ShipmentUncheckedUpdateWithoutPrimaryForWaybillInput>
+  create: Prisma.XOR<Prisma.ShipmentCreateWithoutPrimaryForWaybillInput, Prisma.ShipmentUncheckedCreateWithoutPrimaryForWaybillInput>
+  where?: Prisma.ShipmentWhereInput
+}
+
+export type ShipmentUpdateToOneWithWhereWithoutPrimaryForWaybillInput = {
+  where?: Prisma.ShipmentWhereInput
+  data: Prisma.XOR<Prisma.ShipmentUpdateWithoutPrimaryForWaybillInput, Prisma.ShipmentUncheckedUpdateWithoutPrimaryForWaybillInput>
+}
+
+export type ShipmentUpdateWithoutPrimaryForWaybillInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  carrierType?: Prisma.EnumCarrierTypeFieldUpdateOperationsInput | $Enums.CarrierType
+  carrierName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  trackingNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  trackingLink?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  carrierApiUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumShipmentStatusFieldUpdateOperationsInput | $Enums.ShipmentStatus
+  statusNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customsDelayNote?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estimatedDelivery?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  actualDelivery?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  order?: Prisma.OrderUpdateOneRequiredWithoutShipmentsNestedInput
+  waybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentsNestedInput
+  updater?: Prisma.UserUpdateOneWithoutUpdatedShipmentsNestedInput
+  statusLogs?: Prisma.ShipmentStatusLogUpdateManyWithoutShipmentNestedInput
+  cartOffers?: Prisma.OfferUpdateManyWithoutCartShipmentNestedInput
+}
+
+export type ShipmentUncheckedUpdateWithoutPrimaryForWaybillInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  waybillId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  carrierType?: Prisma.EnumCarrierTypeFieldUpdateOperationsInput | $Enums.CarrierType
+  carrierName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  trackingNumber?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  trackingLink?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  carrierApiUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.EnumShipmentStatusFieldUpdateOperationsInput | $Enums.ShipmentStatus
+  statusNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customsDelayNote?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  estimatedDelivery?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  actualDelivery?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  updatedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  statusLogs?: Prisma.ShipmentStatusLogUncheckedUpdateManyWithoutShipmentNestedInput
+  cartOffers?: Prisma.OfferUncheckedUpdateManyWithoutCartShipmentNestedInput
 }
 
 export type ShipmentUpsertWithWhereUniqueWithoutWaybillInput = {
@@ -1083,6 +1216,7 @@ export type ShipmentCreateWithoutStatusLogsInput = {
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShipmentsInput
   waybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentsInput
+  primaryForWaybill?: Prisma.ShippingWaybillCreateNestedOneWithoutShipmentInput
   updater?: Prisma.UserCreateNestedOneWithoutUpdatedShipmentsInput
   cartOffers?: Prisma.OfferCreateNestedManyWithoutCartShipmentInput
 }
@@ -1104,6 +1238,7 @@ export type ShipmentUncheckedCreateWithoutStatusLogsInput = {
   updatedBy?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedCreateNestedOneWithoutShipmentInput
   cartOffers?: Prisma.OfferUncheckedCreateNestedManyWithoutCartShipmentInput
 }
 
@@ -1139,6 +1274,7 @@ export type ShipmentUpdateWithoutStatusLogsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShipmentsNestedInput
   waybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentsNestedInput
+  primaryForWaybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentNestedInput
   updater?: Prisma.UserUpdateOneWithoutUpdatedShipmentsNestedInput
   cartOffers?: Prisma.OfferUpdateManyWithoutCartShipmentNestedInput
 }
@@ -1160,6 +1296,7 @@ export type ShipmentUncheckedUpdateWithoutStatusLogsInput = {
   updatedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedUpdateOneWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUncheckedUpdateManyWithoutCartShipmentNestedInput
 }
 
@@ -1197,6 +1334,7 @@ export type ShipmentUpdateWithoutUpdaterInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShipmentsNestedInput
   waybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentsNestedInput
+  primaryForWaybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUpdateManyWithoutCartShipmentNestedInput
 }
@@ -1217,6 +1355,7 @@ export type ShipmentUncheckedUpdateWithoutUpdaterInput = {
   actualDelivery?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedUpdateOneWithoutShipmentNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUncheckedUpdateManyWithoutCartShipmentNestedInput
 }
@@ -1272,6 +1411,7 @@ export type ShipmentUpdateWithoutOrderInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   waybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentsNestedInput
+  primaryForWaybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentNestedInput
   updater?: Prisma.UserUpdateOneWithoutUpdatedShipmentsNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUpdateManyWithoutCartShipmentNestedInput
@@ -1293,6 +1433,7 @@ export type ShipmentUncheckedUpdateWithoutOrderInput = {
   updatedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedUpdateOneWithoutShipmentNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUncheckedUpdateManyWithoutCartShipmentNestedInput
 }
@@ -1348,6 +1489,7 @@ export type ShipmentUpdateWithoutWaybillInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShipmentsNestedInput
+  primaryForWaybill?: Prisma.ShippingWaybillUpdateOneWithoutShipmentNestedInput
   updater?: Prisma.UserUpdateOneWithoutUpdatedShipmentsNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUpdateManyWithoutCartShipmentNestedInput
@@ -1369,6 +1511,7 @@ export type ShipmentUncheckedUpdateWithoutWaybillInput = {
   updatedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  primaryForWaybill?: Prisma.ShippingWaybillUncheckedUpdateOneWithoutShipmentNestedInput
   statusLogs?: Prisma.ShipmentStatusLogUncheckedUpdateManyWithoutShipmentNestedInput
   cartOffers?: Prisma.OfferUncheckedUpdateManyWithoutCartShipmentNestedInput
 }
@@ -1450,6 +1593,7 @@ export type ShipmentSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   updatedAt?: boolean
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
   waybill?: boolean | Prisma.Shipment$waybillArgs<ExtArgs>
+  primaryForWaybill?: boolean | Prisma.Shipment$primaryForWaybillArgs<ExtArgs>
   updater?: boolean | Prisma.Shipment$updaterArgs<ExtArgs>
   statusLogs?: boolean | Prisma.Shipment$statusLogsArgs<ExtArgs>
   cartOffers?: boolean | Prisma.Shipment$cartOffersArgs<ExtArgs>
@@ -1523,6 +1667,7 @@ export type ShipmentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs =
 export type ShipmentInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
   waybill?: boolean | Prisma.Shipment$waybillArgs<ExtArgs>
+  primaryForWaybill?: boolean | Prisma.Shipment$primaryForWaybillArgs<ExtArgs>
   updater?: boolean | Prisma.Shipment$updaterArgs<ExtArgs>
   statusLogs?: boolean | Prisma.Shipment$statusLogsArgs<ExtArgs>
   cartOffers?: boolean | Prisma.Shipment$cartOffersArgs<ExtArgs>
@@ -1544,6 +1689,7 @@ export type $ShipmentPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   objects: {
     order: Prisma.$OrderPayload<ExtArgs>
     waybill: Prisma.$ShippingWaybillPayload<ExtArgs> | null
+    primaryForWaybill: Prisma.$ShippingWaybillPayload<ExtArgs> | null
     updater: Prisma.$UserPayload<ExtArgs> | null
     statusLogs: Prisma.$ShipmentStatusLogPayload<ExtArgs>[]
     cartOffers: Prisma.$OfferPayload<ExtArgs>[]
@@ -1961,6 +2107,7 @@ export interface Prisma__ShipmentClient<T, Null = never, ExtArgs extends runtime
   readonly [Symbol.toStringTag]: "PrismaPromise"
   order<T extends Prisma.OrderDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrderDefaultArgs<ExtArgs>>): Prisma.Prisma__OrderClient<runtime.Types.Result.GetResult<Prisma.$OrderPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   waybill<T extends Prisma.Shipment$waybillArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Shipment$waybillArgs<ExtArgs>>): Prisma.Prisma__ShippingWaybillClient<runtime.Types.Result.GetResult<Prisma.$ShippingWaybillPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  primaryForWaybill<T extends Prisma.Shipment$primaryForWaybillArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Shipment$primaryForWaybillArgs<ExtArgs>>): Prisma.Prisma__ShippingWaybillClient<runtime.Types.Result.GetResult<Prisma.$ShippingWaybillPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   updater<T extends Prisma.Shipment$updaterArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Shipment$updaterArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   statusLogs<T extends Prisma.Shipment$statusLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Shipment$statusLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ShipmentStatusLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   cartOffers<T extends Prisma.Shipment$cartOffersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Shipment$cartOffersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OfferPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -2413,6 +2560,25 @@ export type ShipmentDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Inte
  * Shipment.waybill
  */
 export type Shipment$waybillArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ShippingWaybill
+   */
+  select?: Prisma.ShippingWaybillSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ShippingWaybill
+   */
+  omit?: Prisma.ShippingWaybillOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ShippingWaybillInclude<ExtArgs> | null
+  where?: Prisma.ShippingWaybillWhereInput
+}
+
+/**
+ * Shipment.primaryForWaybill
+ */
+export type Shipment$primaryForWaybillArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
    * Select specific fields to fetch from the ShippingWaybill
    */

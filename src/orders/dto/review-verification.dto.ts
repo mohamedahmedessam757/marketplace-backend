@@ -1,4 +1,4 @@
-import { IsEnum, IsString, IsOptional, IsArray, IsUrl, IsNotEmpty } from 'class-validator';
+import { IsEnum, IsString, IsOptional, IsArray, IsUrl, IsNotEmpty, IsUUID } from 'class-validator';
 
 export enum ReviewAction {
   APPROVE = 'APPROVE',
@@ -14,6 +14,16 @@ export class ReviewVerificationDto {
   @IsEnum(ReviewAction)
   action: ReviewAction;
 
+  /** Target verification document (per-part review). */
+  @IsOptional()
+  @IsUUID()
+  documentId?: string;
+
+  /** Target offer when reviewing a specific part. */
+  @IsOptional()
+  @IsUUID()
+  offerId?: string;
+
   @IsString()
   @IsOptional()
   rejectionReason?: string;
@@ -28,7 +38,6 @@ export class ReviewVerificationDto {
   @IsOptional()
   rejectionVideo?: string;
 
-  // New Audit & Signature Fields
   @IsString()
   @IsNotEmpty({ message: 'Admin name is required for signature' })
   adminSignatureName: string;
@@ -38,12 +47,9 @@ export class ReviewVerificationDto {
 
   @IsString()
   @IsOptional()
-  @IsNotEmpty({ message: 'Signature text is required for typed signature' })
   adminSignatureText?: string;
 
   @IsString()
   @IsOptional()
-  @IsUrl({}, { message: 'Signature image must be a valid URL' })
-  @IsNotEmpty({ message: 'Signature image is required for drawn signature' })
   adminSignatureImage?: string;
 }

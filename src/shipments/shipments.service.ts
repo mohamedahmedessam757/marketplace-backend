@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateShipmentDto } from './dto/create-shipment.dto';
@@ -141,8 +142,107 @@ export class ShipmentsService {
         private prisma: PrismaService,
         private notifications: NotificationsService,
         private auditLogs: AuditLogsService,
-        private users: UsersService
+        private users: UsersService,
+        @Inject(forwardRef(() => OrdersService))
+        private ordersService: OrdersService,
     ) {}
+
+    private adminShipmentInclude() {
+        return {
+            order: {
+                select: {
+                    orderNumber: true,
+                    status: true,
+                    vehicleMake: true,
+                    vehicleModel: true,
+                    partName: true,
+                    partDescription: true,
+                    requestType: true,
+                    customer: { select: { id: true, name: true } },
+                },
+            },
+            waybill: {
+                select: {
+                    waybillNumber: true,
+                    finalPrice: true,
+                    partName: true,
+                    partDescription: true,
+                    issueMode: true,
+                },
+            },
+            cartOffers: {
+                select: {
+                    id: true,
+                    offerImage: true,
+                    orderPart: { select: { name: true } },
+                    store: { select: { name: true, storeCode: true } },
+                },
+            },
+            updater: { select: { id: true, name: true } },
+        };
+    }
+
+    /** Enriched shipment row for admin list/detail (batch parts, waybill, vehicle). */
+    private mapShipmentForAdminList(shipment: any) {
+        if (!shipment) return shipment;
+
+        const cartOffers = shipment.cartOffers || [];
+        const cartPartNames = cartOffers
+            .map((o: any) => o.orderPart?.name)
+            .filter(Boolean) as string[];
+
+        const batchItems =
+            cartPartNames.length > 0
+                ? cartPartNames.map((name: string) => ({ name, quantity: 1 }))
+                : [
+                      {
+                          name:
+                              shipment.waybill?.partName ||
+                              shipment.order?.partName ||
+                              'Part',
+                          quantity: 1,
+                      },
+                  ];
+
+        const batchPartDescription =
+            cartPartNames.length > 1
+                ? `Assembly batch (${cartPartNames.length} parts): ${cartPartNames.join(' · ')}`
+                : cartPartNames[0] ||
+                  shipment.waybill?.partDescription ||
+                  shipment.order?.partDescription ||
+                  null;
+
+        return {
+            ...shipment,
+            items: batchItems,
+            batchPartNames: cartPartNames,
+            cartBatchSize: cartPartNames.length || batchItems.length,
+            cartBatchType:
+                cartPartNames.length > 1
+                    ? 'group'
+                    : cartPartNames.length === 1
+                      ? 'solo'
+                      : null,
+            partDescription:
+                shipment.waybill?.partDescription || batchPartDescription,
+            waybillNumber: shipment.waybill?.waybillNumber ?? null,
+            issueMode: shipment.waybill?.issueMode ?? null,
+            waybillValue: shipment.waybill?.finalPrice
+                ? Number(shipment.waybill.finalPrice)
+                : null,
+            vehicleMake: shipment.order?.vehicleMake ?? null,
+            vehicleModel: shipment.order?.vehicleModel ?? null,
+        };
+    }
+
+    private async reloadShipmentForAdmin(id: string) {
+        const row = await this.prisma.shipment.findUnique({
+            where: { id },
+            include: this.adminShipmentInclude(),
+        });
+        if (!row) throw new NotFoundException('Shipment not found');
+        return this.mapShipmentForAdminList(row);
+    }
 
     async create(data: CreateShipmentDto, userId?: string | null) {
         // Updated for 2026 Partial Shipping: Multiple shipments per order are allowed
@@ -260,25 +360,24 @@ export class ShipmentsService {
             }
         });
 
-        // When carrier picks up → update order to SHIPPED
         if (isPickedUp && shipment.order) {
-            await this.prisma.order.update({
+            const orderRow = await this.prisma.order.findUnique({
                 where: { id: shipment.orderId },
-                data: { status: 'SHIPPED' }
+                select: { status: true },
             });
+            const terminal = ['DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
+            if (orderRow && !terminal.includes(orderRow.status)) {
+                await this.prisma.order.update({
+                    where: { id: shipment.orderId },
+                    data: { status: 'SHIPPED' },
+                });
+            }
         }
 
-        // When delivered → update order to DELIVERED (delivered_at set once)
-        if (isDelivered && shipment.order) {
-            const prev = shipment.order;
-            await this.prisma.order.update({
-                where: { id: shipment.orderId },
-                data: {
-                    status: 'DELIVERED',
-                    updatedAt: new Date(),
-                    deliveredAt: prev.deliveredAt ?? new Date(),
-                },
-            });
+        if (isDelivered) {
+            await this.ordersService.syncOrderStatusAfterShipmentDelivery(
+                shipment.orderId,
+            );
         }
 
         // 2026 Logic: When return to customer is completed -> mark order as COMPLETED
@@ -295,7 +394,7 @@ export class ShipmentsService {
         // Send rich bilingual notifications
         await this.notifyRelevantUsers(shipment.orderId, newStatus, data.notes, data.customsDelayNote ?? shipment.customsDelayNote);
 
-        return updated;
+        return this.reloadShipmentForAdmin(id);
     }
 
     async getByOrderId(orderId: string) {
@@ -315,19 +414,11 @@ export class ShipmentsService {
     }
 
     async findAll() {
-        return this.prisma.shipment.findMany({
-            include: {
-                order: {
-                    select: {
-                        orderNumber: true,
-                        status: true,
-                        customer: { select: { id: true, name: true } }
-                    }
-                },
-                updater: { select: { id: true, name: true } }
-            },
-            orderBy: { updatedAt: 'desc' }
+        const rows = await this.prisma.shipment.findMany({
+            include: this.adminShipmentInclude(),
+            orderBy: { updatedAt: 'desc' },
         });
+        return rows.map((s) => this.mapShipmentForAdminList(s));
     }
 
     /**
@@ -424,57 +515,112 @@ export class ShipmentsService {
                         status: true,
                         estimatedDelivery: true,
                         updatedAt: true,
+                        cartOffers: {
+                            select: {
+                                id: true,
+                                orderPart: { select: { name: true } },
+                                offerImage: true,
+                                weightKg: true,
+                            },
+                        },
                     },
-                    take: 1,
                     orderBy: { updatedAt: 'desc' }
                 }
             },
             orderBy: { updatedAt: 'desc' }
         });
 
-        return (orders as any[]).map(order => {
-            const s = order.shipments && order.shipments.length > 0 ? order.shipments[0] : null;
-            const addr = order.shippingAddresses && order.shippingAddresses.length > 0 ? order.shippingAddresses[0] : null;
-            
-            // Fallback to the offers array if the acceptedOffer relation is null
-            let offer = order.acceptedOffer;
-            if (!offer && order.offers && order.offers.length > 0) {
-                offer = order.offers[0];
+        const rows: any[] = [];
+        for (const order of orders as any[]) {
+            const addr = order.shippingAddresses?.[0] ?? null;
+            let defaultOffer = order.acceptedOffer;
+            if (!defaultOffer && order.offers?.length > 0) {
+                defaultOffer = order.offers[0];
             }
-            
-            return {
-                id: s?.id || order.id,
-                orderId: order.id,
-                trackingNumber: s?.trackingNumber || order.orderNumber,
-                trackingLink: s?.trackingLink || null,
-                carrier: s?.carrierName || null,
-                status: s?.status || (order.status === 'READY_FOR_SHIPPING' ? 'RECEIVED_AT_HUB' : order.status === 'DELIVERED' ? 'DELIVERED_TO_CUSTOMER' : 'IN_TRANSIT_TO_DESTINATION'),
-                estimatedDelivery: null, 
-                updatedAt: s?.updatedAt || order.updatedAt,
-                orderNumber: order.orderNumber,
-                vehicleMake: order.vehicleMake,
-                vehicleModel: order.vehicleModel,
-                partName: order.partName,
-                partDescription: order.partDescription,
-                partImages: order.partImages || [],
-                offerImage: offer?.offerImage || null,
-                weightKg: offer?.weightKg ? Number(offer.weightKg) : null,
-                // Constructed items array for ShipmentCard
-                items: [{ 
-                    name: `${order.vehicleMake} ${order.vehicleModel} - ${order.partName}`,
-                    quantity: 1 
-                }],
-                // New Fields for Premium View
-                storeCode: order.store?.storeCode || offer?.store?.storeCode || 'STR-TASHLEH',
-                customerCode: `CUST-${order.customerId.substring(0, 8).toUpperCase()}`,
-                shippingAddress: addr ? `${addr.details}, ${addr.city}, ${addr.country}` : 'Pending Address',
-                customerCountry: addr?.country || 'N/A',
-                customerCity: addr?.city || 'N/A',
-                customerDetails: addr?.details || 'N/A',
-                origin: 'Tashleh Hub',
-                destination: addr ? `${addr.city}, ${addr.country}` : 'Customer Address',
-            };
-        });
+
+            const shipmentList =
+                order.shipments?.length > 0 ? order.shipments : [null];
+
+            for (const s of shipmentList) {
+                const cartOffers = s?.cartOffers || [];
+                const cartPartNames = cartOffers
+                    .map((o: any) => o.orderPart?.name)
+                    .filter(Boolean) as string[];
+                const batchOffer = cartOffers[0] ?? defaultOffer;
+                const batchItems =
+                    cartPartNames.length > 0
+                        ? cartPartNames.map((name: string) => ({ name, quantity: 1 }))
+                        : [
+                              {
+                                  name: `${order.vehicleMake} ${order.vehicleModel} - ${order.partName}`,
+                                  quantity: 1,
+                              },
+                          ];
+                const batchPartDescription =
+                    cartPartNames.length > 1
+                        ? `Assembly batch (${cartPartNames.length} parts): ${cartPartNames.join(' · ')}`
+                        : order.partDescription;
+
+                rows.push({
+                    id: s?.id || order.id,
+                    orderId: order.id,
+                    trackingNumber: s?.trackingNumber || order.orderNumber,
+                    trackingLink: s?.trackingLink || null,
+                    carrier: s?.carrierName || null,
+                    status:
+                        s?.status ||
+                        (order.status === 'READY_FOR_SHIPPING'
+                            ? 'RECEIVED_AT_HUB'
+                            : order.status === 'DELIVERED'
+                              ? 'DELIVERED_TO_CUSTOMER'
+                              : 'IN_TRANSIT_TO_DESTINATION'),
+                    estimatedDelivery: s?.estimatedDelivery ?? null,
+                    updatedAt: s?.updatedAt || order.updatedAt,
+                    orderNumber: order.orderNumber,
+                    requestType: order.requestType,
+                    shippingType: order.shippingType,
+                    vehicleMake: order.vehicleMake,
+                    vehicleModel: order.vehicleModel,
+                    partName: order.partName,
+                    partDescription: batchPartDescription,
+                    partImages: order.partImages || [],
+                    offerImage: batchOffer?.offerImage || defaultOffer?.offerImage || null,
+                    weightKg: batchOffer?.weightKg
+                        ? Number(batchOffer.weightKg)
+                        : defaultOffer?.weightKg
+                          ? Number(defaultOffer.weightKg)
+                          : null,
+                    cartBatchSize: cartPartNames.length || null,
+                    cartBatchType:
+                        cartPartNames.length > 1
+                            ? 'group'
+                            : cartPartNames.length === 1
+                              ? 'solo'
+                              : null,
+                    items: batchItems,
+                    storeCode:
+                        order.store?.storeCode ||
+                        defaultOffer?.store?.storeCode ||
+                        'STR-TASHLEH',
+                    customerCode: `CUST-${order.customerId.substring(0, 8).toUpperCase()}`,
+                    shippingAddress: addr
+                        ? `${addr.details}, ${addr.city}, ${addr.country}`
+                        : 'Pending Address',
+                    customerCountry: addr?.country || 'N/A',
+                    customerCity: addr?.city || 'N/A',
+                    customerDetails: addr?.details || 'N/A',
+                    origin: 'Tashleh Hub',
+                    destination: addr
+                        ? `${addr.city}, ${addr.country}`
+                        : 'Customer Address',
+                });
+            }
+        }
+
+        return rows.sort(
+            (a, b) =>
+                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        );
     }
 
     async getLogs(id: string) {

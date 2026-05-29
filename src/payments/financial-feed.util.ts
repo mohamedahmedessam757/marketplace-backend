@@ -220,16 +220,29 @@ export async function countUnifiedFeed(
     const paymentSearch = search
       ? { transactionNumber: { contains: search, mode: 'insensitive' as const } }
       : {};
-    const dateFilter = range.startDate || range.endDate
-      ? {
-          ...(range.startDate ? { gte: range.startDate } : {}),
-          ...(range.endDate ? { lte: range.endDate } : {}),
-        }
-      : undefined;
+    const dateFilter =
+      range.startDate || range.endDate
+        ? {
+            ...(range.startDate || range.endDate
+              ? {
+                  OR: [
+                    { paidAt: { ...(range.startDate ? { gte: range.startDate } : {}), ...(range.endDate ? { lte: range.endDate } : {}) } },
+                    {
+                      paidAt: null,
+                      createdAt: {
+                        ...(range.startDate ? { gte: range.startDate } : {}),
+                        ...(range.endDate ? { lte: range.endDate } : {}),
+                      },
+                    },
+                  ],
+                }
+              : {}),
+          }
+        : undefined;
     counts.push(
       await prisma.paymentTransaction.count({
         where: {
-          ...(dateFilter ? { createdAt: dateFilter } : {}),
+          ...(dateFilter ? dateFilter : {}),
           ...paymentSearch,
         },
       }),

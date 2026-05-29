@@ -585,6 +585,7 @@ model Offer {
   returns                 ReturnRequest[]
   disputes                Dispute[]
   verificationDocuments   VerificationDocument[]
+  verificationTasks       VerificationTask[]
 
   @@index([orderId])
   @@index([fulfillmentStatus])
@@ -1248,6 +1249,10 @@ model ShippingWaybill {
   senderCountry  String?  @map("sender_country")
   shippingRefund Decimal? @map("shipping_refund") @db.Decimal(14, 2) // Round-trip Cost
 
+  bundledOfferIds Json     @default("[]") @map("bundled_offer_ids")
+  shipmentId      String?  @unique @map("shipment_id") @db.Uuid
+  issueMode       String?  @map("issue_mode") // AUTO_SINGLE | CART_BATCH | AUTO_7DAY | ADMIN_MANUAL
+
   issuedBy  String?  @map("issued_by") @db.Uuid
   issuedAt  DateTime @default(now()) @map("issued_at") @db.Timestamptz
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -1257,10 +1262,12 @@ model ShippingWaybill {
   orderPart OrderPart? @relation(fields: [partId], references: [id], onDelete: SetNull)
   store     Store      @relation(fields: [storeId], references: [id])
   issuer    User?      @relation(fields: [issuedBy], references: [id])
+  shipment  Shipment?  @relation("WaybillPrimaryShipment", fields: [shipmentId], references: [id], onDelete: SetNull)
   shipments Shipment[]
 
   @@index([orderId])
   @@index([storeId])
+  @@index([shipmentId])
   @@map("shipping_waybills")
 }
 
@@ -1348,6 +1355,7 @@ model Shipment {
   // Relations
   order      Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   waybill    ShippingWaybill?    @relation(fields: [waybillId], references: [id])
+  primaryForWaybill ShippingWaybill? @relation("WaybillPrimaryShipment")
   updater    User?               @relation(fields: [updatedBy], references: [id])
   statusLogs ShipmentStatusLog[]
   cartOffers Offer[]             @relation("CartShipmentOffers")
@@ -1796,6 +1804,7 @@ model AdminPermission {
 model VerificationTask {
   id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orderId      String  @map("order_id") @db.Uuid
+  offerId      String? @map("offer_id") @db.Uuid
   officerId    String? @map("officer_id") @db.Uuid
   assignedById String? @map("assigned_by") @db.Uuid
   status       String  @default("PENDING_ASSIGNMENT")
@@ -1826,6 +1835,7 @@ model VerificationTask {
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   order        Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  offer        Offer?                    @relation(fields: [offerId], references: [id], onDelete: SetNull)
   officer      User?                     @relation("VerificationTasksAssigned", fields: [officerId], references: [id])
   assignedBy   User?                     @relation("VerificationTasksCreated", fields: [assignedById], references: [id])
   previousTask VerificationTask?         @relation("TaskCycles", fields: [previousTaskId], references: [id])
@@ -1835,6 +1845,8 @@ model VerificationTask {
   fieldPhotos   VerificationTaskPhoto[]
 
   @@index([orderId])
+  @@index([offerId])
+  @@index([orderId, offerId])
   @@index([officerId])
   @@index([status])
   @@map("verification_tasks")

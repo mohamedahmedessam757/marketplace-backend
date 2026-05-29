@@ -139,7 +139,7 @@ export class InvoicesService {
      * Admin and Participants can use this to populate the OrderInvoicesPanel.
      */
     async getInvoicesByOrder(orderId: string) {
-        return this.prisma.invoice.findMany({
+        const invoices = await this.prisma.invoice.findMany({
             where: { orderId },
             include: {
                 order: {
@@ -169,5 +169,18 @@ export class InvoicesService {
             },
             orderBy: { issuedAt: 'asc' }
         });
+
+        // One invoice per payment; legacy rows may have duplicates from parallel fulfillment paths.
+        const byPayment = new Map<string, (typeof invoices)[number]>();
+        for (const inv of invoices) {
+            const key = inv.paymentId;
+            const existing = byPayment.get(key);
+            if (!existing || inv.issuedAt > existing.issuedAt) {
+                byPayment.set(key, inv);
+            }
+        }
+        return Array.from(byPayment.values()).sort(
+            (a, b) => a.issuedAt.getTime() - b.issuedAt.getTime(),
+        );
     }
 }

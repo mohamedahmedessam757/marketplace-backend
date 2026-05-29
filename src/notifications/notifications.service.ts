@@ -16,6 +16,21 @@ export class NotificationsService {
     ) { }
 
     async create(data: CreateNotificationDto) {
+        const offerId = data.metadata?.offerId != null ? String(data.metadata.offerId) : null;
+        if (data.type === 'payment' && offerId) {
+            const duplicate = await this.prisma.notification.findFirst({
+                where: {
+                    recipientId: data.recipientId,
+                    type: 'payment',
+                    createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+                    metadata: { path: ['offerId'], equals: offerId },
+                },
+            });
+            if (duplicate) {
+                return duplicate;
+            }
+        }
+
         // 1. Rate Limiting: Max 20 per hour per user
         if (await this.isRateLimited(data.recipientId)) {
             this.logger.warn(`Rate limit reached for user ${data.recipientId}. Notification suppressed.`);

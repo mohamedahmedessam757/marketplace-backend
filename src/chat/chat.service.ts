@@ -400,59 +400,18 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
 
         const messageCreatedAt = new Date();
 
-        // Check if destination user has translation enabled historically before this message
-        // For simplicity: If ANY role in this chat has translation enabled PRIOR to this message, we auto-translate it 
-        // down to a global En/Ar, handling frontend logic to display it.
         const shouldTranslate = (
             (chat.customerTranslationEnabledAt && chat.customerTranslationEnabledAt <= messageCreatedAt) ||
             (chat.vendorTranslationEnabledAt && chat.vendorTranslationEnabledAt <= messageCreatedAt) ||
             (chat.adminTranslationEnabledAt && chat.adminTranslationEnabledAt <= messageCreatedAt)
         );
 
-        let translatedText = null;
-        if (shouldTranslate && text) {
-            try {
-                const { GoogleGenerativeAI } = require("@google/generative-ai");
-                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-                // Try multiple valid models starting from newest 2026 models
-                const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro", "gemini-flash-latest"];
-                const prompt = `You are a universal translator for an auto parts marketplace. 
-                If the following text is in Arabic, translate it to English. 
-                If it is in English, translate it to Arabic. 
-                Respond ONLY with the translated text, nothing else. 
-                Text: "${text}"`;
-
-                for (const modelName of fallbackModels) {
-                    try {
-                        const model = genAI.getGenerativeModel({ model: modelName });
-                        const result = await model.generateContent(prompt);
-                        translatedText = result.response.text().trim();
-                        break; // Stop loop on first success
-                    } catch (modelError: any) {
-                        // If it's a 404, we just continue to the next model. Otherwise, log it.
-                        if (modelError?.status === 404 || modelError?.message?.includes('404')) {
-                            continue;
-                        }
-                        console.error(`Gemini Error on ${modelName}:`, modelError.message);
-                    }
-                }
-
-                if (!translatedText) {
-                    console.error("Gemini Translation Error: All fallback models failed or returned 404.");
-                }
-            } catch (error) {
-                console.error("Gemini Translation Setup Error:", error);
-                translatedText = null;
-            }
-        }
-
         const message = await this.prisma.orderChatMessage.create({
             data: {
                 chatId,
                 senderId: senderId || undefined,
                 text: text || '',
-                translatedText,
+                translatedText: null,
                 mediaUrl,
                 mediaType,
                 mediaName,
@@ -463,13 +422,19 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
             } as any
         });
 
-        // Broadcast to WebSocket clients immediately (0ms latency visual sync)
+        // Broadcast immediately — do not wait for translation
         try {
             this.chatGateway.broadcastNewMessage(chatId, message);
-            // Notify admins to refresh their oversight lists (Phase 4)
             this.chatGateway.broadcastChatUpdate(chatId, chat.type as any);
         } catch (e) {
             console.error('WebSocket dispatch failed', e);
+        }
+
+        // Translate in background so message delivery stays instant
+        if (shouldTranslate && text) {
+            this.translateMessageInBackground(message.id, chatId, text).catch((e) => {
+                console.error('Background translation failed:', e?.message || e);
+            });
         }
 
         // Fire & Forget Notifications (Non-blocking) — skip for system messages
@@ -480,6 +445,53 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
         }
 
         return message;
+    }
+
+    private async translateMessageInBackground(messageId: string, chatId: string, text: string) {
+        if (!process.env.GEMINI_API_KEY) return;
+
+        const fallbackModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-flash-latest'];
+        const prompt = `You are a universal translator for an auto parts marketplace. 
+                If the following text is in Arabic, translate it to English. 
+                If it is in English, translate it to Arabic. 
+                Respond ONLY with the translated text, nothing else. 
+                Text: "${text}"`;
+
+        let translatedText: string | null = null;
+        try {
+            const { GoogleGenerativeAI } = require('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+            for (const modelName of fallbackModels) {
+                try {
+                    const model = genAI.getGenerativeModel({ model: modelName });
+                    const result = await model.generateContent(prompt);
+                    translatedText = result.response.text().trim();
+                    break;
+                } catch (modelError: any) {
+                    if (modelError?.status === 404 || modelError?.message?.includes('404')) {
+                        continue;
+                    }
+                    console.error(`Gemini Error on ${modelName}:`, modelError.message);
+                }
+            }
+        } catch (error) {
+            console.error('Gemini Translation Setup Error:', error);
+            return;
+        }
+
+        if (!translatedText) return;
+
+        const updated = await this.prisma.orderChatMessage.update({
+            where: { id: messageId },
+            data: { translatedText },
+        });
+
+        try {
+            this.chatGateway.broadcastMessageUpdated(chatId, updated);
+        } catch (e) {
+            console.error('WebSocket messageUpdated dispatch failed', e);
+        }
     }
 
     private async dispatchChatNotification(chat: any, senderId: string, text: string) {

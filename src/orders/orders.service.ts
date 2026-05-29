@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStateMachine } from './fsm/order-state-machine.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ActorType, Order, OrderStatus, Prisma, StoreLoyaltyTier } from '@prisma/client';
+import { ActorType, Order, OrderStatus, Prisma, ShipmentStatus, StoreLoyaltyTier } from '@prisma/client';
 import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 
 import { ChatService } from '../chat/chat.service';
@@ -15,9 +15,12 @@ import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from './order-time.constants';
 import { WaybillsService } from '../waybills/waybills.service';
 import { OfferFulfillmentService } from './offer-fulfillment.service';
 import { OfferFulfillmentStatus } from '@prisma/client';
+import { VerificationTasksService } from '../verification-tasks/verification-tasks.service';
 
 @Injectable()
 export class OrdersService {
+    private readonly logger = new Logger(OrdersService.name);
+
     constructor(
         private prisma: PrismaService,
         private fsm: OrderStateMachine,
@@ -29,6 +32,8 @@ export class OrdersService {
         private usersService: UsersService,
         private waybillsService: WaybillsService,
         private offerFulfillment: OfferFulfillmentService,
+        @Inject(forwardRef(() => VerificationTasksService))
+        private verificationTasks: VerificationTasksService,
     ) { }
 
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
@@ -412,6 +417,7 @@ export class OrdersService {
                     ? { auditLogs: { orderBy: { timestamp: 'desc' as const } } }
                     : {}),
                 verificationDocuments: { orderBy: { createdAt: 'desc' } },
+                shippingAddresses: { orderBy: { createdAt: 'asc' } },
                 _count: {
                     select: { offers: true }
                 }
@@ -419,6 +425,18 @@ export class OrdersService {
         });
         if (!order) throw new NotFoundException(`Order #${id} not found`);
         return order;
+    }
+
+    async issueWaybillsForAdmin(
+        orderId: string,
+        adminId: string,
+        dto: {
+            mode: 'per_part' | 'single_batch' | 'custom';
+            offerIds?: string[];
+            groups?: { offerIds: string[] }[];
+        },
+    ) {
+        return this.waybillsService.adminIssueWaybills(orderId, adminId, dto);
     }
 
     /**
@@ -464,7 +482,25 @@ export class OrdersService {
             });
         }
 
-        return order;
+        if (order.offers?.length) {
+            order.offers = this.enrichOffersWithCartBatch(order.offers as any[]) as any;
+        }
+
+        let shipmentBatches: Awaited<
+            ReturnType<WaybillsService['buildShipmentBatchesForOrder']>
+        > = [] as Awaited<ReturnType<WaybillsService['buildShipmentBatchesForOrder']>>;
+        if (String(order.requestType || '').toLowerCase() === 'multiple') {
+            try {
+                shipmentBatches =
+                    await this.waybillsService.buildShipmentBatchesForOrder(id);
+            } catch (err) {
+                this.logger.warn(
+                    `shipmentBatches omitted for order ${id}: ${err instanceof Error ? err.message : err}`,
+                );
+            }
+        }
+
+        return { ...order, shipmentBatches };
     }
 
     async transitionStatus(
@@ -1113,8 +1149,15 @@ export class OrdersService {
 
         if (!order) throw new NotFoundException('Order not found');
         if (order.customerId !== customerId) throw new ForbiddenException('Not owner of this order');
-        if (order.status !== OrderStatus.AWAITING_PAYMENT) {
-            // We might allow saving data while just preparing to pay, but generally it's AWAITING_PAYMENT by now
+        const allowedCheckoutStatuses: OrderStatus[] = [
+            OrderStatus.AWAITING_PAYMENT,
+            OrderStatus.PARTIALLY_PAID,
+            OrderStatus.AWAITING_SELECTION,
+        ];
+        if (!allowedCheckoutStatuses.includes(order.status)) {
+            throw new BadRequestException(
+                `Cannot update checkout data while order is ${order.status}`,
+            );
         }
 
         // 2. Prepare the shipping addresses
@@ -1228,6 +1271,8 @@ export class OrdersService {
                 const canSelectForShipping =
                     fulfillmentStatus === OfferFulfillmentStatus.READY_FOR_SHIPPING;
                 const lockReason = this.offerFulfillment.getLockReason(fulfillmentStatus);
+                const handoverPending =
+                    fulfillmentStatus === OfferFulfillmentStatus.VERIFICATION_SUCCESS;
 
                 cartItems.push({
                     id: order.id,
@@ -1255,6 +1300,7 @@ export class OrdersService {
                     totalPaid: finalPrice,
                     fulfillmentStatus,
                     canSelectForShipping,
+                    handoverPending,
                     lockReasonAr: lockReason.ar,
                     lockReasonEn: lockReason.en,
                 });
@@ -1341,6 +1387,8 @@ export class OrdersService {
                     isMyOffer &&
                     fulfillmentStatus === OfferFulfillmentStatus.READY_FOR_SHIPPING;
                 const lockReason = this.offerFulfillment.getLockReason(fulfillmentStatus);
+                const handoverPending =
+                    fulfillmentStatus === OfferFulfillmentStatus.VERIFICATION_SUCCESS;
 
                 cartItems.push({
                     id: order.id,
@@ -1369,6 +1417,7 @@ export class OrdersService {
                     isMyOffer: isMyOffer,
                     fulfillmentStatus,
                     canSelectForShipping,
+                    handoverPending,
                     lockReasonAr: lockReason.ar,
                     lockReasonEn: lockReason.en,
                 });
@@ -1376,6 +1425,37 @@ export class OrdersService {
         }
 
         return cartItems;
+    }
+
+    /** Enrich offers with cart batch metadata for grouped-order shipping UI */
+    private enrichOffersWithCartBatch<T extends { cartShipmentId?: string | null; shippedFromCart?: boolean; fulfillmentStatus?: string }>(
+        offers: T[],
+    ): (T & { cartBatchSize: number | null; cartBatchType: 'solo' | 'group' | null; handoverPending: boolean })[] {
+        const counts = new Map<string, number>();
+        for (const o of offers) {
+            if (o.cartShipmentId) {
+                counts.set(o.cartShipmentId, (counts.get(o.cartShipmentId) || 0) + 1);
+            }
+        }
+        return offers.map((o) => {
+            const handoverPending =
+                o.fulfillmentStatus === OfferFulfillmentStatus.VERIFICATION_SUCCESS;
+            if (!o.shippedFromCart || !o.cartShipmentId) {
+                return {
+                    ...o,
+                    cartBatchSize: null,
+                    cartBatchType: null,
+                    handoverPending,
+                };
+            }
+            const size = counts.get(o.cartShipmentId) || 1;
+            return {
+                ...o,
+                cartBatchSize: size,
+                cartBatchType: size > 1 ? ('group' as const) : ('solo' as const),
+                handoverPending,
+            };
+        });
     }
 
     async getDeliveredOrders(customerId: string) {
@@ -1591,7 +1671,8 @@ export class OrdersService {
         if (validOffers.length === 0) {
             return {
                 success: false,
-                reason: 'No items are ready for shipping. Each part must be prepared, verified, and marked ready by its merchant.',
+                reason:
+                    'No items are ready for shipping. Each part must be prepared, verified, and handed over to admin by its merchant before you can ship it from the assembly cart.',
             };
         }
 
@@ -1626,6 +1707,37 @@ export class OrdersService {
 
                 await this.offerFulfillment.recomputeOrderStatus(orderId);
 
+                try {
+                    const orderMeta = await this.prisma.order.findUnique({
+                        where: { id: orderId },
+                        include: { parts: true },
+                    });
+                    if (
+                        orderMeta &&
+                        !this.waybillsService.shouldAutoIssueOnVerification(orderMeta)
+                    ) {
+                        await this.waybillsService.issueWaybillsForOfferBatch(
+                            orderId,
+                            batchOffers.map((o) => o.id),
+                            actor.id === 'SYSTEM' ? null : actor.id,
+                            {
+                                mode: 'single_batch',
+                                shipmentId: shipment.id,
+                                trigger: isSystemAutoTrigger ? 'AUTO_7DAY' : 'CART_BATCH',
+                                automated: isSystemAutoTrigger,
+                                reason: isSystemAutoTrigger
+                                    ? 'Waybill for 7-day auto-ship batch'
+                                    : 'Waybill for customer cart selection batch',
+                            },
+                        );
+                    }
+                } catch (waybillErr) {
+                    console.error(
+                        `[requestShipping] Waybill batch issue failed for order ${orderId}:`,
+                        waybillErr instanceof Error ? waybillErr.message : waybillErr,
+                    );
+                }
+
                 // 3. Check if ALL accepted offers for this order are now shipped
                 const remainingPending = await this.prisma.offer.count({
                     where: { 
@@ -1635,43 +1747,66 @@ export class OrdersService {
                     }
                 });
 
+                const refreshedOrder = await this.prisma.order.findUnique({
+                    where: { id: orderId },
+                    select: { status: true },
+                });
+                const currentStatus = refreshedOrder?.status as OrderStatus;
+
                 if (remainingPending === 0) {
-                    // All items shipped -> transition order to SHIPPED
-                    await this.transitionStatus(
-                        orderId,
-                        OrderStatus.SHIPPED,
-                        actor,
-                        isSystemAutoTrigger ? 'All items auto-shipped after 7-day period' : 'All items shipped from assembly cart'
-                    );
-                } else {
-                    // Some items remain -> transition to PARTIALLY_SHIPPED (if not already)
-                    if (batchOffers[0].order.status !== OrderStatus.PARTIALLY_SHIPPED) {
+                    if (currentStatus !== OrderStatus.SHIPPED) {
                         await this.transitionStatus(
                             orderId,
-                            OrderStatus.PARTIALLY_SHIPPED,
+                            OrderStatus.SHIPPED,
                             actor,
-                            isSystemAutoTrigger 
-                                ? `System auto-shipped ${batchOffers.length} aging items. ${remainingPending} items remaining.`
-                                : `Partial shipment: ${batchOffers.length} items shipped. ${remainingPending} items remaining.`
+                            isSystemAutoTrigger ? 'All items auto-shipped after 7-day period' : 'All items shipped from assembly cart'
                         );
                     } else {
-                        // Already partially shipped, just log the additional batch
                         await this.auditLogs.logAction({
                             orderId,
-                            action: 'PARTIAL_SHIPPING',
+                            action: 'SHIPPING_BATCH',
                             entity: 'Order',
                             actorId: actor.id,
                             actorType: actor.type,
                             actorName: actor.name,
-                            previousState: OrderStatus.PARTIALLY_SHIPPED,
-                            newState: OrderStatus.PARTIALLY_SHIPPED,
+                            previousState: OrderStatus.SHIPPED,
+                            newState: OrderStatus.SHIPPED,
                             metadata: {
                                 batchSize: batchOffers.length,
-                                remaining: remainingPending,
-                                isAuto: isSystemAutoTrigger
-                            }
+                                remaining: 0,
+                                isAuto: isSystemAutoTrigger,
+                                note: 'Final batch; order already SHIPPED after aggregate recompute',
+                            },
                         });
                     }
+                } else if (
+                    currentStatus !== OrderStatus.PARTIALLY_SHIPPED &&
+                    currentStatus !== OrderStatus.SHIPPED
+                ) {
+                    await this.transitionStatus(
+                        orderId,
+                        OrderStatus.PARTIALLY_SHIPPED,
+                        actor,
+                        isSystemAutoTrigger 
+                            ? `System auto-shipped ${batchOffers.length} aging items. ${remainingPending} items remaining.`
+                            : `Partial shipment: ${batchOffers.length} items shipped. ${remainingPending} items remaining.`
+                    );
+                } else {
+                    await this.auditLogs.logAction({
+                        orderId,
+                        action: 'PARTIAL_SHIPPING',
+                        entity: 'Order',
+                        actorId: actor.id,
+                        actorType: actor.type,
+                        actorName: actor.name,
+                        previousState: currentStatus,
+                        newState: currentStatus,
+                        metadata: {
+                            batchSize: batchOffers.length,
+                            remaining: remainingPending,
+                            isAuto: isSystemAutoTrigger,
+                        },
+                    });
                 }
 
                 successCount += batchOffers.length;
@@ -1691,22 +1826,36 @@ export class OrdersService {
         userId: string,
         offerId?: string,
     ) {
-        const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: {
+                offers: {
+                    where: offerId ? { id: offerId } : { storeId },
+                    include: { orderPart: true, store: true },
+                },
+            },
+        });
         if (!order) throw new NotFoundException('Order not found');
 
-        const result = await this.offerFulfillment.markOfferReadyForStore(
+        await this.offerFulfillment.markOfferReadyForStore(
             orderId,
             storeId,
             offerId,
         );
 
+        const handoverOffer = order.offers[0];
+        const partName =
+            handoverOffer?.orderPart?.name || order.partName || 'Part';
+        const storeName = handoverOffer?.store?.name || 'Merchant';
+
         await this.notifications.notifyAdmins({
-            titleAr: 'قطعة جاهزة للتسليم للإدارة',
-            titleEn: 'Part ready for admin pickup',
-            messageAr: `قطعة من الطلب #${order.orderNumber} جاهزة للتسليم.`,
-            messageEn: `A part from order #${order.orderNumber} is ready for pickup.`,
+            titleAr: 'تم طلب تسليم شحنة من التاجر',
+            titleEn: 'Merchant requested shipment handover',
+            messageAr: `التاجر «${storeName}» أرسل طلب تسليم «${partName}» للطلب #${order.orderNumber}.`,
+            messageEn: `Merchant «${storeName}» submitted handover for «${partName}» on order #${order.orderNumber}.`,
             type: 'ORDER_UPDATE',
-            link: `/admin/dashboard/shipping`,
+            link: 'orders-control',
+            metadata: { orderId, offerId: handoverOffer?.id, tab: 'detail' },
         });
 
         return this.prisma.order.findUnique({ where: { id: orderId } });
@@ -1741,41 +1890,38 @@ export class OrdersService {
             orderBy: { updatedAt: 'asc' },
         });
 
-        if (!order.verificationTaskId) {
-            const task = await this.prisma.verificationTask.create({
-                data: {
+        await this.verificationTasks.ensureTaskForOffer(
+            orderId,
+            targetOfferId,
+            availableOfficer?.id ?? null,
+        );
+
+        await this.prisma.order.update({
+            where: { id: orderId },
+            data: { verificationSubmittedAt: new Date() },
+        });
+
+        if (availableOfficer) {
+            const task = await this.prisma.verificationTask.findFirst({
+                where: {
                     orderId,
-                    officerId: availableOfficer?.id ?? null,
-                    status: availableOfficer ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
-                    assignedAt: availableOfficer ? new Date() : null,
+                    offerId: targetOfferId,
+                    status: { notIn: ['ADMIN_APPROVED', 'ADMIN_REJECTED', 'CANCELLED'] },
                 },
+                orderBy: { createdAt: 'desc' },
             });
-
-            await this.prisma.order.update({
-                where: { id: orderId },
-                data: {
-                    verificationSubmittedAt: new Date(),
-                    verificationTaskId: task.id,
-                },
-            });
-
-            if (availableOfficer) {
+            if (task) {
                 await this.notifications.create({
                     recipientId: availableOfficer.id,
                     recipientRole: 'VERIFICATION_OFFICER',
                     type: 'system_alert',
-                    titleAr: 'مهمة مطابقة جديدة',
-                    titleEn: 'New verification task',
-                    messageAr: `تم إسناد مهمة مطابقة للطلب #${order.orderNumber} إليك.`,
-                    messageEn: `Verification task for order #${order.orderNumber} assigned to you.`,
+                    titleAr: 'مهمة مطابقة قطعة جديدة',
+                    titleEn: 'New part verification task',
+                    messageAr: `تم إسناد مهمة مطابقة لقطعة في الطلب #${order.orderNumber}.`,
+                    messageEn: `A part verification task for order #${order.orderNumber} was assigned to you.`,
                     link: `/dashboard/verification-task-details/${task.id}`,
                 });
             }
-        } else {
-            await this.prisma.order.update({
-                where: { id: orderId },
-                data: { verificationSubmittedAt: new Date() },
-            });
         }
 
         return this.offerFulfillment.submitOfferVerification(
@@ -1787,17 +1933,39 @@ export class OrdersService {
     }
 
     async adminReviewVerification(orderId: string, adminId: string, data: any) {
-        const order = await this.prisma.order.findUnique({ 
-            where: { id: orderId }, 
-            include: { verificationDocuments: { orderBy: { createdAt: 'desc' }, take: 1 } }
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: {
+                verificationDocuments: { orderBy: { createdAt: 'desc' } },
+            },
         });
         if (!order) throw new NotFoundException('Order not found');
-        if (order.status !== OrderStatus.VERIFICATION && order.status !== OrderStatus.CORRECTION_SUBMITTED) {
-            throw new BadRequestException('Order not pending verification review.');
+
+        const pendingDocs = order.verificationDocuments.filter(
+            (d) => !d.adminStatus || String(d.adminStatus).toUpperCase() === 'PENDING',
+        );
+
+        let targetDoc = data.documentId
+            ? order.verificationDocuments.find((d) => d.id === data.documentId)
+            : data.offerId
+              ? pendingDocs.find((d) => d.offerId === data.offerId) ??
+                order.verificationDocuments.find((d) => d.offerId === data.offerId)
+              : pendingDocs[0] ?? order.verificationDocuments[0];
+
+        if (!targetDoc) throw new NotFoundException('Verification document not found.');
+
+        const isPerOfferReview = !!targetDoc.offerId;
+        const isDocPending =
+            !targetDoc.adminStatus ||
+            String(targetDoc.adminStatus).toUpperCase() === 'PENDING';
+
+        if (!isDocPending) {
+            throw new BadRequestException(
+                'This verification document is not pending review.',
+            );
         }
 
-        const latestDoc = order.verificationDocuments[0];
-        if (!latestDoc) throw new NotFoundException('Verification document not found.');
+        const latestDoc = targetDoc;
 
         const isApprove = data.action === 'APPROVE' || data.status === 'APPROVED' || data.approved === true;
         const decision = isApprove ? 'APPROVED' : 'REJECTED';
@@ -1806,16 +1974,15 @@ export class OrdersService {
         let correctionDeadline = decision === 'REJECTED' ? new Date(Date.now() + 48 * 60 * 60 * 1000) : null;
         let newRejectionCount = order.rejectionCount;
 
-        if (decision === 'REJECTED') {
+        if (decision === 'REJECTED' && !isPerOfferReview) {
             newRejectionCount += 1;
             if (newRejectionCount >= 2) {
-                // Cancel order and block further corrections
                 newOrderStatus = OrderStatus.CANCELLED;
                 correctionDeadline = null;
             }
         }
 
-        await this.prisma.$transaction([
+        const txOps: any[] = [
             this.prisma.verificationDocument.update({
                 where: { id: latestDoc.id },
                 data: {
@@ -1826,31 +1993,50 @@ export class OrdersService {
                     adminRejectionImages: data.rejectionImages || [],
                     adminRejectionVideo: data.rejectionVideo,
                     correctionDeadlineAt: correctionDeadline,
-                    // New Signature Persistence
                     adminSignatureName: data.adminSignatureName,
                     adminSignatureType: data.adminSignatureType,
                     adminSignatureText: data.adminSignatureText,
                     adminSignatureImage: data.adminSignatureImage,
-                }
+                },
             }),
-            this.prisma.order.update({
-                where: { id: orderId },
-                data: { 
-                    status: newOrderStatus, 
-                    correctionDeadlineAt: correctionDeadline,
-                    rejectionCount: newRejectionCount
-                }
-            }),
-            // Sync with VerificationTask if it exists
-            ...(order.verificationTaskId ? [
-                this.prisma.verificationTask.update({
-                    where: { id: order.verificationTaskId },
-                    data: { status: decision === 'APPROVED' ? 'ADMIN_APPROVED' : 'ADMIN_REJECTED' }
-                })
-            ] : [])
-        ]);
+        ];
 
+        if (!isPerOfferReview) {
+            txOps.push(
+                this.prisma.order.update({
+                    where: { id: orderId },
+                    data: {
+                        status: newOrderStatus,
+                        correctionDeadlineAt: correctionDeadline,
+                        rejectionCount: newRejectionCount,
+                    },
+                }),
+            );
+            if (order.verificationTaskId) {
+                txOps.push(
+                    this.prisma.verificationTask.update({
+                        where: { id: order.verificationTaskId },
+                        data: {
+                            status: decision === 'APPROVED' ? 'ADMIN_APPROVED' : 'ADMIN_REJECTED',
+                        },
+                    }),
+                );
+            }
+        }
+
+        await this.prisma.$transaction(txOps);
+
+        let partName = order.partName || 'Part';
         if (latestDoc.offerId) {
+            const linkedOffer = await this.prisma.offer.findFirst({
+                where: { id: latestDoc.offerId, orderId },
+                include: { orderPart: true },
+            });
+            if (linkedOffer) {
+                partName =
+                    linkedOffer.orderPart?.name || order.partName || 'Part';
+            }
+
             await this.offerFulfillment.applyVerificationDecision(
                 orderId,
                 latestDoc.offerId,
@@ -1862,8 +2048,34 @@ export class OrdersService {
             if (refreshed) newOrderStatus = refreshed.status;
         }
 
-        if (newOrderStatus === OrderStatus.VERIFICATION_SUCCESS) {
-            await this.waybillsService.autoIssueAfterVerificationSuccess(orderId, adminId);
+        const paidOffers =
+            await this.offerFulfillment.getPaidAcceptedOffers(orderId);
+        const allOffersVerified =
+            paidOffers.length > 0 &&
+            paidOffers.every(
+                (o) =>
+                    o.fulfillmentStatus === 'VERIFICATION_SUCCESS' ||
+                    o.fulfillmentStatus === 'READY_FOR_SHIPPING' ||
+                    o.fulfillmentStatus === 'SHIPPED' ||
+                    o.fulfillmentStatus === 'DELIVERED',
+            );
+
+        if (
+            allOffersVerified &&
+            newOrderStatus === OrderStatus.VERIFICATION_SUCCESS &&
+            this.waybillsService.shouldAutoIssueOnVerification(order)
+        ) {
+            try {
+                await this.waybillsService.autoIssueAfterVerificationSuccess(
+                    orderId,
+                    adminId,
+                );
+            } catch (waybillErr) {
+                console.error(
+                    '[adminReviewVerification] Waybill auto-issue failed (non-blocking):',
+                    waybillErr instanceof Error ? waybillErr.message : waybillErr,
+                );
+            }
         }
 
         await this.auditLogs.logAction({
@@ -1893,11 +2105,11 @@ export class OrdersService {
                     await this.notifications.create({
                         recipientId: merchantUserId, recipientRole: 'MERCHANT', type: 'system_alert',
                         titleAr: 'تم قبول مطابقة القطعة', titleEn: 'Part Verification Approved',
-                        messageAr: `تم الموافقة على توثيق الطلب #${order.orderNumber}. يمكنك الآن تسليمه للمندوب ومتابعة الشحن.`,
-                        messageEn: `Verification for #${order.orderNumber} approved. You can now handover to courier.`,
+                        messageAr: `تم اعتماد توثيق «${partName}» للطلب #${order.orderNumber}. يمكنك تسليمها للإدارة ومتابعة الشحن.`,
+                        messageEn: `Verification for "${partName}" (#${order.orderNumber}) approved. You can hand over to admin.`,
                         link: `/merchant/orders/${order.id}`
                     });
-                } else if (newRejectionCount >= 2) {
+                } else if (!isPerOfferReview && newRejectionCount >= 2) {
                     await this.notifications.create({
                         recipientId: merchantUserId, recipientRole: 'MERCHANT', type: 'system_alert',
                         titleAr: '❌ رفض نهائي وإلغاء الطلب', titleEn: '❌ Final Rejection & Order Cancelled',
@@ -1913,11 +2125,14 @@ export class OrdersService {
                         link: `/customer/orders/${order.id}`
                     });
                 } else {
+                    const reasonSnippet = data.rejectionReason
+                        ? `: ${String(data.rejectionReason).slice(0, 120)}`
+                        : '';
                     await this.notifications.create({
                         recipientId: merchantUserId, recipientRole: 'MERCHANT', type: 'system_alert',
                         titleAr: '⚠️ رفض مطابقة القطعة - مطلوب تصحيح', titleEn: '⚠️ Verification Rejected - Correction Required',
-                        messageAr: `تم اكتشاف عدم مطابقة في الطلب #${order.orderNumber}. أمامك 48 ساعة لتصحيح القطعة وإعادة التوثيق.`,
-                        messageEn: `Non-matching part detected for #${order.orderNumber}. You have 48h to submit correction.`,
+                        messageAr: `تم رفض توثيق «${partName}» للطلب #${order.orderNumber}${reasonSnippet}. يرجى تصحيح القطعة وإعادة التوثيق.`,
+                        messageEn: `Verification for "${partName}" (#${order.orderNumber}) was rejected${reasonSnippet}. Please correct and re-submit verification.`,
                         link: `/merchant/orders/${order.id}`
                     });
                 }
@@ -2012,12 +2227,111 @@ export class OrdersService {
         return { success: true, doc };
     }
 
+    /**
+     * After a shipment batch is marked delivered: update per-offer fulfillment and only
+     * move the order to DELIVERED when every shipment record for the order is delivered.
+     */
+    async syncOrderStatusAfterShipmentDelivery(orderId: string) {
+        const shipments = await this.prisma.shipment.findMany({
+            where: { orderId },
+            select: { id: true, status: true, actualDelivery: true },
+        });
+
+        if (shipments.length === 0) {
+            return;
+        }
+
+        const deliveredStatus = ShipmentStatus.DELIVERED_TO_CUSTOMER;
+        const now = new Date();
+
+        for (const s of shipments) {
+            if (s.status !== deliveredStatus) continue;
+            await this.prisma.offer.updateMany({
+                where: { cartShipmentId: s.id },
+                data: { fulfillmentStatus: OfferFulfillmentStatus.DELIVERED },
+            });
+            if (!s.actualDelivery) {
+                await this.prisma.shipment.update({
+                    where: { id: s.id },
+                    data: { actualDelivery: now },
+                });
+            }
+        }
+
+        const deliveredCount = shipments.filter(
+            (s) => s.status === deliveredStatus,
+        ).length;
+        const allDelivered = deliveredCount === shipments.length;
+        const someDelivered = deliveredCount > 0 && !allDelivered;
+
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: { id: true, status: true, orderNumber: true, deliveredAt: true },
+        });
+        if (!order) return;
+
+        const terminal: OrderStatus[] = [
+            OrderStatus.COMPLETED,
+            OrderStatus.WARRANTY_ACTIVE,
+            OrderStatus.WARRANTY_EXPIRED,
+            OrderStatus.CANCELLED,
+        ];
+
+        if (allDelivered) {
+            if (
+                order.status !== OrderStatus.DELIVERED &&
+                !terminal.includes(order.status)
+            ) {
+                await this.transitionStatus(
+                    orderId,
+                    OrderStatus.DELIVERED,
+                    {
+                        id: 'SYSTEM',
+                        type: ActorType.SYSTEM,
+                        name: 'Shipment Delivery Sync',
+                    },
+                    `All ${shipments.length} shipment batch(es) delivered to customer`,
+                    { deliveredBatchCount: shipments.length },
+                );
+            }
+            return;
+        }
+
+        if (someDelivered) {
+            if (order.status === OrderStatus.DELIVERED) {
+                await this.prisma.order.update({
+                    where: { id: orderId },
+                    data: {
+                        status: OrderStatus.SHIPPED,
+                        deliveredAt: null,
+                    },
+                });
+                await this.auditLogs.logAction({
+                    orderId,
+                    action: 'PARTIAL_DELIVERY_ROLLBACK',
+                    entity: 'Order',
+                    actorType: ActorType.SYSTEM,
+                    actorId: 'SYSTEM',
+                    actorName: 'Shipment Delivery Sync',
+                    previousState: OrderStatus.DELIVERED,
+                    newState: OrderStatus.SHIPPED,
+                    metadata: {
+                        deliveredBatches: deliveredCount,
+                        totalBatches: shipments.length,
+                    },
+                });
+            }
+            await this.offerFulfillment.recomputeOrderStatus(orderId);
+        }
+    }
+
     async confirmDelivery(orderId: string, customerUserId: string, note?: string) {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: { 
                 customer: { select: { id: true, email: true } }, 
-                store: { select: { id: true, ownerId: true } } 
+                store: { select: { id: true, ownerId: true } },
+                shipments: { select: { id: true, status: true } },
             }
         });
 
@@ -2025,6 +2339,17 @@ export class OrdersService {
         if (order.customerId !== customerUserId) throw new ForbiddenException('Not your order');
         if (order.status !== OrderStatus.SHIPPED) {
             throw new BadRequestException('Order must be in Shipped state to confirm receipt.');
+        }
+
+        if (order.shipments.length > 0) {
+            const allDelivered = order.shipments.every(
+                (s) => s.status === ShipmentStatus.DELIVERED_TO_CUSTOMER,
+            );
+            if (!allDelivered) {
+                throw new BadRequestException(
+                    'All shipment batches must be delivered before you can confirm receipt for this order.',
+                );
+            }
         }
 
         // Transition to DELIVERED
@@ -2068,28 +2393,44 @@ export class OrdersService {
     }
 
     async getAdminShippingCarts() {
+        const cartOrderStatuses: OrderStatus[] = [
+            OrderStatus.PREPARATION,
+            OrderStatus.PREPARED,
+            OrderStatus.VERIFICATION,
+            OrderStatus.VERIFICATION_SUCCESS,
+            OrderStatus.READY_FOR_SHIPPING,
+            OrderStatus.PARTIALLY_SHIPPED,
+        ];
+
         const orders = await this.prisma.order.findMany({
             where: {
-                status: { in: [OrderStatus.PREPARATION, OrderStatus.PARTIALLY_SHIPPED] },
-                requestType: 'multiple'
+                status: { in: cartOrderStatuses },
+                requestType: 'multiple',
             },
             include: {
                 customer: { select: { id: true, name: true, email: true, phone: true } },
                 parts: true,
                 payments: { where: { status: 'SUCCESS' } },
                 offers: {
-                    where: { status: 'accepted' },
-                    include: { 
+                    where: {
+                        status: { in: ['accepted', 'ACCEPTED'] },
+                        shippedFromCart: false,
+                    },
+                    include: {
                         store: true,
-                        payments: { where: { status: 'SUCCESS' } }
-                    }
-                }
+                        payments: { where: { status: 'SUCCESS' } },
+                    },
+                },
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
         });
 
+        const ordersWithPaidOffers = orders.filter((order) =>
+            order.offers.some((o) => o.payments?.length > 0),
+        );
+
         // Group by customer for better admin oversight
-        const cartsByCustomer = orders.reduce((acc, order) => {
+        const cartsByCustomer = ordersWithPaidOffers.reduce((acc, order) => {
             if (!acc[order.customerId]) {
                 acc[order.customerId] = {
                     customerId: order.customerId,
@@ -2113,7 +2454,8 @@ export class OrdersService {
                 acc[order.customerId].earliestPayment = paidAt;
             }
 
-            order.offers.forEach(offer => {
+            const enrichedOffers = this.enrichOffersWithCartBatch(order.offers as any[]);
+            enrichedOffers.forEach((offer) => {
                 acc[order.customerId].totalItems += 1;
                 acc[order.customerId].totalValue += (Number(offer.unitPrice) + Number(offer.shippingCost));
                 
@@ -2124,8 +2466,13 @@ export class OrdersService {
                     partName: order.parts.find(p => p.id === offer.orderPartId)?.name || order.partName,
                     storeName: offer.store?.name,
                     shippedFromCart: offer.shippedFromCart,
+                    fulfillmentStatus: offer.fulfillmentStatus,
+                    handoverPending: offer.handoverPending,
+                    cartShipmentId: offer.cartShipmentId,
+                    cartBatchType: offer.cartBatchType,
+                    cartBatchSize: offer.cartBatchSize,
                     price: Number(offer.unitPrice),
-                    status: order.status
+                    status: order.status,
                 });
             });
 

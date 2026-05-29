@@ -13,7 +13,9 @@ import { OfferFulfillmentService } from '../orders/offer-fulfillment.service';
 import {
     computeCompletedOrdersCount,
     computeLedgerNetProfit,
+    computeMerchantEscrowBalances,
     computeMerchantGrossSales,
+    reconcileStoreWalletFromEscrow,
 } from './merchant-wallet-metrics.util';
 import {
     buildActiveReferralWindowFilter,
@@ -47,6 +49,7 @@ import {
     countUnifiedFeed,
     encodeFeedCursor,
 } from './financial-feed.util';
+import { CardsService } from '../cards/cards.service';
 
 @Injectable()
 export class PaymentsService {
@@ -61,6 +64,7 @@ export class PaymentsService {
         private readonly auditLogs: AuditLogsService,
         @Inject(forwardRef(() => OfferFulfillmentService))
         private readonly offerFulfillment: OfferFulfillmentService,
+        private readonly cardsService: CardsService,
     ) { }
 
     /**
@@ -211,24 +215,33 @@ export class PaymentsService {
                     },
                 });
 
-                // 7e. Generate invoice
-                const invResult = await tx.$queryRaw<{ generate_invoice_number: string }[]>`SELECT generate_invoice_number()`;
-                const invoiceNumber = invResult[0].generate_invoice_number;
-
-                await tx.invoice.create({
-                    data: {
-                        invoiceNumber,
-                        orderId,
-                        paymentId: payment.id,
-                        customerId,
-                        subtotal: unitPrice,
-                        shipping: shippingCost,
-                        commission,
-                        total: totalAmount,
-                        currency: 'AED',
-                        status: 'PAID',
-                    },
+                // 7e. Generate invoice (once per payment — same guard as Stripe fulfillment)
+                let invoiceNumber: string;
+                const existingInvoice = await tx.invoice.findFirst({
+                    where: { paymentId: payment.id },
+                    select: { invoiceNumber: true },
                 });
+                if (existingInvoice) {
+                    invoiceNumber = existingInvoice.invoiceNumber;
+                } else {
+                    const invResult = await tx.$queryRaw<{ generate_invoice_number: string }[]>`SELECT generate_invoice_number()`;
+                    invoiceNumber = invResult[0].generate_invoice_number;
+
+                    await tx.invoice.create({
+                        data: {
+                            invoiceNumber,
+                            orderId,
+                            paymentId: payment.id,
+                            customerId,
+                            subtotal: unitPrice,
+                            shipping: shippingCost,
+                            commission,
+                            total: totalAmount,
+                            currency: 'AED',
+                            status: 'PAID',
+                        },
+                    });
+                }
 
                 // 7f. Check if ALL accepted offers are now paid
                 const allAcceptedOfferIds = order.offers.map(o => o.id);
@@ -656,28 +669,37 @@ export class PaymentsService {
             throw new Error('Stripe payment amount does not match recorded transaction');
         }
 
-        // 2. Atomic Database Transaction
+        // 2. Atomic Database Transaction — claim PENDING → SUCCESS once (webhook + confirm-intent safe)
         const result = await this.prisma.$transaction(async (tx) => {
-            // Re-check status inside transaction to prevent race conditions
-            const txPayment = await tx.paymentTransaction.findUnique({
-                where: { id: payment.id }
+            const claim = await tx.paymentTransaction.updateMany({
+                where: { id: payment.id, status: 'PENDING' },
+                data: {
+                    status: 'SUCCESS',
+                    paidAt: new Date(),
+                    gatewayFee: 0,
+                },
             });
-            
-            // Idempotency: skip if already successful
-            if (txPayment?.status === 'SUCCESS') {
-                this.logger.log(`Payment intent ${paymentIntentId} already fulfilled. Skipping.`);
-                return;
+
+            if (claim.count === 0) {
+                const existing = await tx.paymentTransaction.findUnique({
+                    where: { id: payment.id },
+                    select: { status: true },
+                });
+                if (existing?.status === 'SUCCESS') {
+                    this.logger.log(`Payment intent ${paymentIntentId} already fulfilled. Skipping.`);
+                    return null;
+                }
+                throw new BadRequestException(
+                    `Payment cannot be fulfilled (status: ${existing?.status ?? 'unknown'})`,
+                );
             }
 
-            // a. Mark Payment SUCCESS
-            const updatedPayment = await tx.paymentTransaction.update({
+            const updatedPayment = await tx.paymentTransaction.findUnique({
                 where: { id: payment.id },
-                data: { 
-                    status: 'SUCCESS', 
-                    paidAt: new Date(),
-                    gatewayFee: 0 
-                }
             });
+            if (!updatedPayment) {
+                throw new BadRequestException('Payment record missing after fulfillment claim');
+            }
 
             await tx.offer.update({
                 where: { id: payment.offerId },
@@ -709,38 +731,98 @@ export class PaymentsService {
             );
 
             // Credit Merchant Wallet (Create transaction record for net amount)
-            await tx.walletTransaction.create({
-                data: {
-                    userId: payment.offer.store.ownerId,
+            const updatedStore = await tx.store.findUnique({
+                where: { id: payment.offer.storeId },
+                select: { pendingBalance: true },
+            });
+            const vendorWalletExists = await tx.walletTransaction.findFirst({
+                where: {
+                    paymentId: payment.id,
                     role: 'VENDOR',
-                    paymentId: payment.id,
                     type: 'CREDIT',
-                    transactionType: 'payment',
-                    amount: merchantNetShare,
-                    currency: 'AED',
-                    description: `Net payout for offer #${payment.offer.offerNumber} (Excludes Admin Commission & Shipping) — Order #${payment.order.orderNumber}`,
-                    balanceAfter: Number(payment.offer.store.balance) + merchantNetShare
-                }
-            });
-
-            // c. Generate Invoice
-            const invResult = await tx.$queryRaw<{ generate_invoice_number: string }[]>`SELECT generate_invoice_number()`;
-            const invoiceNumber = invResult[0].generate_invoice_number;
-
-            await tx.invoice.create({
-                data: {
-                    invoiceNumber,
-                    orderId: payment.orderId,
-                    paymentId: payment.id,
-                    customerId: payment.customerId,
-                    subtotal: unitPrice,
-                    shipping: shippingCost,
-                    commission,
-                    total: Number(payment.totalAmount),
-                    currency: 'AED',
-                    status: 'PAID',
+                    transactionType: 'PAYMENT',
                 },
+                select: { id: true },
             });
+            if (!vendorWalletExists) {
+                await tx.walletTransaction.create({
+                    data: {
+                        userId: payment.offer.store.ownerId,
+                        role: 'VENDOR',
+                        paymentId: payment.id,
+                        type: 'CREDIT',
+                        transactionType: 'PAYMENT',
+                        amount: merchantNetShare,
+                        currency: 'AED',
+                        description: `Net payout for offer #${payment.offer.offerNumber} (Excludes Admin Commission & Shipping) — Order #${payment.order.orderNumber}`,
+                        balanceAfter: Number(updatedStore?.pendingBalance ?? payment.offer.store.pendingBalance ?? 0),
+                    },
+                });
+            }
+
+            // Admin commission ledger entry (visible in financial feed immediately)
+            if (commission > 0) {
+                const commissionExists = await tx.walletTransaction.findFirst({
+                    where: {
+                        paymentId: payment.id,
+                        role: 'ADMIN',
+                        type: 'CREDIT',
+                        transactionType: 'COMMISSION',
+                    },
+                    select: { id: true },
+                });
+                if (!commissionExists) {
+                    const adminUser = await tx.user.findFirst({
+                        where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] } },
+                        select: { id: true },
+                        orderBy: { createdAt: 'asc' },
+                    });
+                    const platformWallet = await tx.platformWallet.findFirst({
+                        select: { commissionBalance: true },
+                    });
+                    await tx.walletTransaction.create({
+                        data: {
+                            userId: adminUser?.id ?? payment.customerId,
+                            role: 'ADMIN',
+                            paymentId: payment.id,
+                            type: 'CREDIT',
+                            transactionType: 'COMMISSION',
+                            amount: commission,
+                            currency: 'AED',
+                            description: `Platform commission for offer #${payment.offer.offerNumber} — Order #${payment.order.orderNumber}`,
+                            balanceAfter: Number(platformWallet?.commissionBalance ?? commission),
+                        },
+                    });
+                }
+            }
+
+            // c. Generate Invoice (once per payment)
+            let invoiceNumber: string | undefined;
+            const existingInvoice = await tx.invoice.findFirst({
+                where: { paymentId: payment.id },
+                select: { invoiceNumber: true },
+            });
+            if (existingInvoice) {
+                invoiceNumber = existingInvoice.invoiceNumber;
+            } else {
+                const invResult = await tx.$queryRaw<{ generate_invoice_number: string }[]>`SELECT generate_invoice_number()`;
+                invoiceNumber = invResult[0].generate_invoice_number;
+
+                await tx.invoice.create({
+                    data: {
+                        invoiceNumber,
+                        orderId: payment.orderId,
+                        paymentId: payment.id,
+                        customerId: payment.customerId,
+                        subtotal: unitPrice,
+                        shipping: shippingCost,
+                        commission,
+                        total: Number(payment.totalAmount),
+                        currency: 'AED',
+                        status: 'PAID',
+                    },
+                });
+            }
 
             // d. Check if ALL accepted offers are now paid
             const allAcceptedOffers = await tx.offer.findMany({
@@ -775,6 +857,11 @@ export class PaymentsService {
         // 3. Post-Transaction Notifications (Outside the DB lock for performance)
         if (result) {
             const { payment, invoiceNumber, orderTransitioned, storeOwnerId, totalAmount, offerNumber, orderNumber, customerId, orderId, unitPrice, shippingCost } = result as any;
+
+            // Save card for future Quick Pay (non-blocking)
+            this.cardsService.syncFromPaymentIntent(customerId, paymentIntentId).catch((err) =>
+                this.logger.warn(`Card sync after payment failed: ${err?.message}`),
+            );
 
             await this.offerFulfillment.recomputeOrderStatus(orderId).catch((err) =>
                 this.logger.warn(`Fulfillment recompute after payment failed: ${err?.message}`),
@@ -814,7 +901,7 @@ export class PaymentsService {
                 messageAr: `تم دفع ${totalAmount} درهم بنجاح للعرض #${offerNumber}. نحن الآن نجهز طلبك.`,
                 messageEn: `Payment of AED ${totalAmount} successful for offer #${offerNumber}. Preparation started.`,
                 link: 'checkout',
-                metadata: { orderId, offerId: payment.offerId, amount: totalAmount },
+                metadata: { orderId, offerId: payment.offerId, amount: totalAmount, paymentIntentId },
             }).catch(() => {});
         }
     }
@@ -906,6 +993,44 @@ export class PaymentsService {
             orderId: payment.orderId,
             orderStatus: payment.order.status
         };
+    }
+
+    /**
+     * Client-side fallback when Stripe succeeds but the webhook is delayed or unavailable.
+     * Verifies the PaymentIntent with Stripe and runs fulfillStripePayment if still PENDING.
+     */
+    async confirmPaymentIntentFromClient(customerId: string, paymentIntentId: string) {
+        if (!paymentIntentId?.trim()) {
+            throw new BadRequestException('paymentIntentId is required');
+        }
+
+        const payment = await this.prisma.paymentTransaction.findFirst({
+            where: { stripePaymentId: paymentIntentId },
+            select: { id: true, customerId: true, status: true },
+        });
+
+        if (!payment) {
+            throw new NotFoundException('Payment record not found for this intent');
+        }
+        if (payment.customerId !== customerId) {
+            throw new ForbiddenException('Not owner of this payment');
+        }
+        if (payment.status === 'SUCCESS') {
+            return { status: 'SUCCESS', alreadyFulfilled: true };
+        }
+
+        const stripeClient = this.stripeService.getStripeClient();
+        const intent = await stripeClient.paymentIntents.retrieve(paymentIntentId);
+
+        if (intent.status === 'succeeded') {
+            await this.fulfillStripePayment(paymentIntentId);
+            return { status: 'SUCCESS', fulfilled: true };
+        }
+        if (intent.status === 'processing') {
+            return { status: 'PROCESSING' };
+        }
+
+        return { status: intent.status };
     }
 
     /**
@@ -1590,9 +1715,24 @@ export class PaymentsService {
         // ═══════════════════════════════════════════════════════
         // 3. KPI cards — always all-time (never date-filtered)
         // ═══════════════════════════════════════════════════════
+        const escrowBalances = await computeMerchantEscrowBalances(
+            this.prisma,
+            store.id,
+        );
+        const storedPending = Number(store.pendingBalance);
+        const storedFrozen = Number(store.frozenBalance);
+        if (
+            Math.abs(storedPending - escrowBalances.pending) > 0.01 ||
+            Math.abs(storedFrozen - escrowBalances.frozen) > 0.01
+        ) {
+            void reconcileStoreWalletFromEscrow(this.prisma, store.id).catch(
+                () => undefined,
+            );
+        }
+
         stats.available = Number(store.balance);
-        stats.pending = Number(store.pendingBalance);
-        stats.frozen = Number(store.frozenBalance);
+        stats.pending = escrowBalances.pending;
+        stats.frozen = escrowBalances.frozen;
 
         stats.totalSales = merchantGrossSales;
 
@@ -1604,8 +1744,10 @@ export class PaymentsService {
             0,
         );
 
-        const totalWalletBalance = stats.available + stats.pending + stats.frozen;
         const ledgerNetProfit = computeLedgerNetProfit(allTimeVendorTxs);
+        const totalWalletBalance =
+            stats.available + stats.pending + stats.frozen;
+        // صافي الأرباح = مبيعات/إحالات معترف بها في السجل؛ إجمالي الرصيد = مستحق + معلّق + مجمّد
         stats.netEarnings = ledgerNetProfit;
 
         (stats as any).totalWalletBalance = Number(totalWalletBalance.toFixed(2));
@@ -1739,30 +1881,48 @@ export class PaymentsService {
         const store = await this.prisma.store.findUnique({
             where: { ownerId: userId },
             select: {
+                id: true,
                 balance: true,
                 pendingBalance: true,
                 frozenBalance: true,
                 stripeAccountId: true,
                 stripeOnboarded: true,
                 payoutSchedule: true,
-                lifetimeEarnings: true
-            }
+                lifetimeEarnings: true,
+            },
         });
 
         if (!store) throw new NotFoundException('Store not found');
 
         const balance = Number(store.balance);
-        const pendingBalance = Number(store.pendingBalance);
-        const frozenBalance = Number(store.frozenBalance);
-        const totalSales = Number(store.lifetimeEarnings);
+        const escrowBalances = await computeMerchantEscrowBalances(
+            this.prisma,
+            store.id,
+        );
+        const pendingBalance = escrowBalances.pending;
+        const frozenBalance = escrowBalances.frozen;
+        const totalSales = await computeMerchantGrossSales(this.prisma, store.id);
+        const vendorTxs = await this.prisma.walletTransaction.findMany({
+            where: { userId, role: 'VENDOR' },
+            select: {
+                amount: true,
+                type: true,
+                transactionType: true,
+                paymentId: true,
+                escrowId: true,
+            },
+        });
+        const ledgerNetProfit = computeLedgerNetProfit(vendorTxs);
 
-        // Logic for "Net Earnings" or "Monthly Sales" could go here
         return {
             ...store,
             balance,
             pendingBalance,
             frozenBalance,
-            totalSales
+            totalSales,
+            netEarnings: ledgerNetProfit,
+            totalWalletBalance: balance + pendingBalance + frozenBalance,
+            ledgerNetProfit,
         };
     }
 

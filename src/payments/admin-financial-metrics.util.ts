@@ -72,8 +72,30 @@ export function buildGrossSalesPaymentWhere(
   return {
     status: 'SUCCESS',
     order: { status: { notIn: [...EXCLUDED_ORDER_STATUSES_FOR_PURCHASES] } },
-    ...(dateFilter ? { createdAt: dateFilter } : {}),
+    ...(dateFilter
+      ? {
+          OR: [
+            { paidAt: dateFilter },
+            { paidAt: null, createdAt: dateFilter },
+          ],
+        }
+      : {}),
   };
+}
+
+/** Previous period of equal length, ending the day before range.startDate. */
+export function buildPreviousAdminDateRange(
+  range: AdminDateRange,
+): AdminDateRange {
+  if (!range.startDate || !range.endDate) {
+    return { startDate: null, endDate: null };
+  }
+  const periodMs = range.endDate.getTime() - range.startDate.getTime();
+  const prevEnd = new Date(range.startDate.getTime() - 1);
+  prevEnd.setHours(23, 59, 59, 999);
+  const prevStart = new Date(prevEnd.getTime() - periodMs);
+  prevStart.setHours(0, 0, 0, 0);
+  return { startDate: prevStart, endDate: prevEnd };
 }
 
 export function roundMoney(value: number): number {
@@ -280,7 +302,7 @@ export async function computeSalesTrend(
           JOIN "orders" o ON o."id" = pt."order_id"
           WHERE pt."status" = 'SUCCESS'
             AND o."status" NOT IN ('CANCELLED', 'REFUNDED')
-            AND pt."created_at" BETWEEN ${startDate} AND ${endDate}
+            AND COALESCE(pt."paid_at", pt."created_at") BETWEEN ${startDate} AND ${endDate}
           GROUP BY DATE(COALESCE(pt."paid_at", pt."created_at"))
           ORDER BY day ASC`
       : await prisma.$queryRaw<Array<{ day: Date; gross: unknown; refunds: unknown }>>`
@@ -328,7 +350,7 @@ export async function computeTopSpenders(
           WHERE pt."status" = 'SUCCESS'
             AND pt."customer_id" IS NOT NULL
             AND o."status" NOT IN ('CANCELLED', 'REFUNDED')
-            AND pt."created_at" BETWEEN ${startDate} AND ${endDate}
+            AND COALESCE(pt."paid_at", pt."created_at") BETWEEN ${startDate} AND ${endDate}
           GROUP BY pt."customer_id"
           ORDER BY "totalAmount" DESC
           LIMIT ${limit}`
@@ -388,7 +410,7 @@ export async function computeTopEarners(
           WHERE pt."status" = 'SUCCESS'
             AND off."store_id" IS NOT NULL
             AND o."status" NOT IN ('CANCELLED', 'REFUNDED')
-            AND pt."created_at" BETWEEN ${startDate} AND ${endDate}
+            AND COALESCE(pt."paid_at", pt."created_at") BETWEEN ${startDate} AND ${endDate}
           GROUP BY off."store_id"
           ORDER BY "totalAmount" DESC
           LIMIT ${limit}`

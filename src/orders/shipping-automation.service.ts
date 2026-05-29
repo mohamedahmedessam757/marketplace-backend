@@ -24,6 +24,7 @@ export class ShippingAutomationService {
         const orders = await this.prisma.order.findMany({
             where: {
                 status: OrderStatus.VERIFICATION_SUCCESS,
+                requestType: { not: 'multiple' },
                 shippingWaybills: { none: {} },
             },
             select: { id: true, orderNumber: true },
@@ -85,24 +86,32 @@ export class ShippingAutomationService {
                 return;
             }
 
-            this.logger.log(`📦 Found ${agingOffers.length} aging items. Grouping by customer...`);
+            this.logger.log(`📦 Found ${agingOffers.length} aging items. Grouping by order...`);
 
-            // Group by customer to minimize shipment records and notifications
-            const byCustomer = agingOffers.reduce((acc, offer: any) => {
-                const customerId = offer.order.customerId;
-                if (!acc[customerId]) acc[customerId] = [];
-                acc[customerId].push(offer.id);
-                return acc;
-            }, {} as Record<string, string[]>);
+            const byOrder = agingOffers.reduce(
+                (acc, offer: { id: string; order: { id: string; customerId: string } }) => {
+                    if (!acc[offer.order.id]) {
+                        acc[offer.order.id] = {
+                            customerId: offer.order.customerId,
+                            offerIds: [] as string[],
+                        };
+                    }
+                    acc[offer.order.id].offerIds.push(offer.id);
+                    return acc;
+                },
+                {} as Record<string, { customerId: string; offerIds: string[] }>,
+            );
 
-            for (const [customerId, offerIds] of Object.entries(byCustomer)) {
-                this.logger.log(`🤖 Auto-shipping ${offerIds.length} items for customer ${customerId}...`);
-                
+            for (const { customerId, offerIds } of Object.values(byOrder)) {
+                this.logger.log(
+                    `🤖 Auto-shipping ${offerIds.length} item(s) for customer ${customerId} (one shipment per order batch)...`,
+                );
+
                 await this.ordersService.requestShipping(
                     customerId,
-                    undefined, // No specific order IDs
+                    undefined,
                     offerIds,
-                    true // isSystemAutoTrigger
+                    true,
                 );
             }
 

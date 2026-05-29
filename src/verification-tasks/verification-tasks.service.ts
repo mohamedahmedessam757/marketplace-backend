@@ -114,13 +114,21 @@ export class VerificationTasksService {
     return rows;
   }
 
-  async assignTask(dto: CreateTaskDto, adminId: string) {
+    async assignTask(dto: CreateTaskDto, adminId: string) {
     const order = await this.prisma.order.findUnique({ where: { id: dto.orderId } });
     if (!order) throw new NotFoundException('Order not found');
+
+    if (dto.offerId) {
+      const offer = await this.prisma.offer.findFirst({
+        where: { id: dto.offerId, orderId: dto.orderId },
+      });
+      if (!offer) throw new BadRequestException('Offer does not belong to this order');
+    }
 
     const openTask = await this.prisma.verificationTask.findFirst({
       where: {
         orderId: dto.orderId,
+        offerId: dto.offerId ?? null,
         status: { notIn: [...TERMINAL_TASK_STATUSES, 'CANCELLED'] },
       },
       orderBy: { cycleNumber: 'desc' },
@@ -156,6 +164,7 @@ export class VerificationTasksService {
       const task = await tx.verificationTask.create({
         data: {
           orderId: dto.orderId,
+          offerId: dto.offerId ?? null,
           officerId: dto.officerId,
           assignedById: adminId,
           status: dto.officerId ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
@@ -193,9 +202,48 @@ export class VerificationTasksService {
     return result;
   }
 
+  /** Create or return open field-verification task for a specific offer (multi-part orders). */
+  async ensureTaskForOffer(
+    orderId: string,
+    offerId: string,
+    officerId?: string | null,
+  ) {
+    const existing = await this.prisma.verificationTask.findFirst({
+      where: {
+        orderId,
+        offerId,
+        status: { notIn: [...TERMINAL_TASK_STATUSES, 'CANCELLED'] },
+      },
+      orderBy: { cycleNumber: 'desc' },
+    });
+    if (existing) return existing;
+
+    const task = await this.prisma.verificationTask.create({
+      data: {
+        orderId,
+        offerId,
+        officerId: officerId ?? null,
+        status: officerId ? 'ASSIGNED' : 'PENDING_ASSIGNMENT',
+        assignedAt: officerId ? new Date() : null,
+      },
+    });
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { verificationTaskId: task.id },
+    });
+
+    return task;
+  }
+
   async generateLink(taskId: string, adminId: string, durationHours: number = 24) {
     const task = await this.prisma.verificationTask.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException('Task not found');
+    if (!task.officerId) {
+      throw new BadRequestException(
+        'Assign a verification officer before generating a link',
+      );
+    }
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
@@ -403,6 +451,11 @@ export class VerificationTasksService {
     if (link.task.officerId && link.task.officerId !== officerId) {
       throw new ForbiddenException('Task is assigned to another officer');
     }
+    if (!link.task.officerId) {
+      throw new ForbiddenException(
+        'This verification link is not assigned to any officer yet. Contact admin.',
+      );
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.verificationLink.update({
@@ -415,13 +468,6 @@ export class VerificationTasksService {
           gpsLng: meta?.lng ?? link.gpsLng,
         },
       });
-
-      if (!link.task.officerId) {
-        await tx.verificationTask.update({
-          where: { id: link.taskId },
-          data: { officerId, status: 'ASSIGNED', assignedAt: new Date() },
-        });
-      }
 
       await tx.verificationActivityLog.create({
         data: {
@@ -474,6 +520,31 @@ export class VerificationTasksService {
     return `/verification-tasks/${taskId}/report`;
   }
 
+  private resolveMerchantDocForTask(task: { offerId?: string | null }, order: { verificationDocuments?: any[] }) {
+    const docs = order.verificationDocuments ?? [];
+    if (task.offerId) {
+      const forOffer =
+        docs.find((d) => d.offerId === task.offerId) ??
+        docs.find(
+          (d) =>
+            !d.adminStatus || String(d.adminStatus).toUpperCase() === 'PENDING',
+        );
+      return forOffer ?? docs[0] ?? {};
+    }
+    return docs[0] ?? {};
+  }
+
+  private resolvePartLabelFromTask(task: any, order: any): string {
+    const partFromOffer = task.offer?.orderPart?.name;
+    if (partFromOffer) return partFromOffer;
+    if (task.offerId && order.parts?.length) {
+      const offer = order.offers?.find((o: any) => o.id === task.offerId);
+      const part = order.parts.find((p: any) => p.id === offer?.orderPartId);
+      if (part?.name) return part.name;
+    }
+    return order.partName ?? '—';
+  }
+
   private composeVerificationReportHtml(task: any): string {
     const isAr = true; // Defaulting to Arabic for this template as requested
     const order = task.order ?? {};
@@ -484,11 +555,11 @@ export class VerificationTasksService {
     
     // Comparison Evidence
     const customerImages = this.getCustomerReferenceImages(order);
-    const merchantDoc = order.verificationDocuments?.[0] ?? {};
+    const merchantDoc = this.resolveMerchantDocForTask(task, order);
     const merchantImages = this.asImageUrls(merchantDoc.images);
     
     const orderNumber = order.orderNumber ?? '—';
-    const partName = order.partName ?? '—';
+    const partName = this.resolvePartLabelFromTask(task, order);
     const decision = task.decision;
     
     const decisionLabel = decision === 'MATCHING' 
@@ -799,13 +870,20 @@ export class VerificationTasksService {
 
   async getVerificationReportHtml(taskId: string, userId: string, role: string): Promise<string> {
     const accessProbe = await this.loadTaskForAccess(taskId);
-    assertVerificationTaskAccess(accessProbe, userId, role, {
-      allowUnassignedOfficer: role === 'VERIFICATION_OFFICER' && !accessProbe.officerId,
-    });
+    assertVerificationTaskAccess(accessProbe, userId, role);
 
     const task = await this.prisma.verificationTask.findUnique({
       where: { id: taskId },
-      include: VERIFICATION_TASK_DETAILS_INCLUDE,
+      include: {
+        ...VERIFICATION_TASK_DETAILS_INCLUDE,
+        offer: {
+          select: {
+            id: true,
+            orderPartId: true,
+            orderPart: { select: { id: true, name: true } },
+          },
+        },
+      },
     });
     
     if (!task) throw new NotFoundException('Task not found');
@@ -813,9 +891,8 @@ export class VerificationTasksService {
       throw new BadRequestException('Report is available only after the task is completed');
     }
 
-    // Resolve store correctly (same logic as getTaskDetails)
-    const latestDoc = task.order.verificationDocuments?.[0];
-    const resolvedStore = task.order.store ?? latestDoc?.store ?? null;
+    const merchantDoc = this.resolveMerchantDocForTask(task, task.order);
+    const resolvedStore = task.order.store ?? merchantDoc?.store ?? null;
     
     const enrichedTask = {
       ...task,
@@ -838,6 +915,13 @@ export class VerificationTasksService {
   private adminTasksListInclude() {
     return {
       officer: { select: { id: true, name: true, email: true } },
+      offer: {
+        select: {
+          id: true,
+          orderPartId: true,
+          orderPart: { select: { id: true, name: true } },
+        },
+      },
       order: {
         select: {
           id: true,
@@ -846,6 +930,7 @@ export class VerificationTasksService {
           vehicleMake: true,
           vehicleModel: true,
           vehicleYear: true,
+          parts: { select: { id: true, name: true } },
         },
       },
     };
@@ -855,11 +940,24 @@ export class VerificationTasksService {
     return this.prisma.verificationTask.findMany({
       where: { officerId },
       include: {
+        offer: {
+          select: {
+            orderPartId: true,
+            orderPart: { select: { name: true } },
+          },
+        },
         order: {
-          select: { orderNumber: true, partName: true, vehicleMake: true, vehicleModel: true, vehicleYear: true }
-        }
+          select: {
+            orderNumber: true,
+            partName: true,
+            vehicleMake: true,
+            vehicleModel: true,
+            vehicleYear: true,
+            parts: { select: { id: true, name: true } },
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -878,13 +976,20 @@ export class VerificationTasksService {
       where: { orderId },
       include: {
         officer: { select: { id: true, name: true, email: true } },
+        offer: {
+          select: {
+            id: true,
+            orderPartId: true,
+            orderPart: { select: { id: true, name: true } },
+          },
+        },
         links: { orderBy: { createdAt: 'desc' } },
         fieldPhotos: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           select: { id: true, url: true, sortOrder: true },
         },
       },
-      orderBy: { cycleNumber: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { cycleNumber: 'desc' }],
     });
   }
 
@@ -912,9 +1017,11 @@ export class VerificationTasksService {
             id: true,
             orderNumber: true,
             status: true,
+            requestType: true,
             rejectionCount: true,
             customerId: true,
             verificationDocuments: { orderBy: { createdAt: 'desc' }, take: 1 },
+            parts: { select: { id: true } },
           },
         },
       },
@@ -997,8 +1104,20 @@ export class VerificationTasksService {
       });
     });
 
-    if (newOrderStatus === OrderStatus.VERIFICATION_SUCCESS) {
-      await this.waybillsService.autoIssueAfterVerificationSuccess(task.orderId, adminId);
+    if (
+      newOrderStatus === OrderStatus.VERIFICATION_SUCCESS &&
+      this.waybillsService.shouldAutoIssueOnVerification(task.order)
+    ) {
+      try {
+        await this.waybillsService.autoIssueAfterVerificationSuccess(
+          task.orderId,
+          adminId,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Field verification waybill auto-issue skipped/failed: ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
 
     await this.auditLogs
@@ -1035,13 +1154,20 @@ export class VerificationTasksService {
 
   async getTaskDetails(taskId: string, userId: string, role: string) {
     const accessProbe = await this.loadTaskForAccess(taskId);
-    assertVerificationTaskAccess(accessProbe, userId, role, {
-      allowUnassignedOfficer: role === 'VERIFICATION_OFFICER' && !accessProbe.officerId,
-    });
+    assertVerificationTaskAccess(accessProbe, userId, role);
 
     const task = await this.prisma.verificationTask.findUnique({
       where: { id: taskId },
-      include: VERIFICATION_TASK_DETAILS_INCLUDE,
+      include: {
+        ...VERIFICATION_TASK_DETAILS_INCLUDE,
+        offer: {
+          select: {
+            id: true,
+            orderPartId: true,
+            orderPart: { select: { id: true, name: true } },
+          },
+        },
+      },
     });
 
     if (!task) throw new NotFoundException('Task not found');
@@ -1054,6 +1180,7 @@ export class VerificationTasksService {
     const orderTaskHistory = await this.prisma.verificationTask.findMany({
       where: {
         orderId: task.orderId,
+        offerId: task.offerId ?? null,
         id: { not: taskId },
         OR: [
           { decision: { not: null } },
@@ -1073,6 +1200,7 @@ export class VerificationTasksService {
         reportUrl: true,
         completedAt: true,
         createdAt: true,
+        offerId: true,
         officer: { select: { id: true, name: true, email: true } },
         fieldPhotos: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -1081,11 +1209,14 @@ export class VerificationTasksService {
       },
     });
 
-    const latestDoc = task.order.verificationDocuments?.[0];
-    const resolvedStore = task.order.store ?? latestDoc?.store ?? null;
+    const merchantDoc = this.resolveMerchantDocForTask(task, task.order);
+    const resolvedStore = task.order.store ?? merchantDoc?.store ?? null;
+    const partLabel = this.resolvePartLabelFromTask(task, task.order);
 
     return {
       ...task,
+      partLabel,
+      merchantVerificationDoc: merchantDoc,
       order: { ...task.order, store: resolvedStore },
       activeLink,
       sessionDeadline,
@@ -1110,9 +1241,7 @@ export class VerificationTasksService {
 
   async getActivityLog(taskId: string, userId: string, role: string) {
     const accessProbe = await this.loadTaskForAccess(taskId);
-    assertVerificationTaskAccess(accessProbe, userId, role, {
-      allowUnassignedOfficer: role === 'VERIFICATION_OFFICER' && !accessProbe.officerId,
-    });
+    assertVerificationTaskAccess(accessProbe, userId, role);
 
     return this.prisma.verificationActivityLog.findMany({
       where: { taskId },

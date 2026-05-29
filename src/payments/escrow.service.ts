@@ -57,6 +57,15 @@ export class EscrowService {
      */
     async holdFunds(paymentId: string, orderId: string, storeId: string, amounts: EscrowAmounts, tx?: Prisma.TransactionClient): Promise<void> {
         const prisma = tx || this.prisma;
+
+        const existing = await prisma.escrowTransaction.findUnique({
+            where: { paymentId },
+            select: { id: true },
+        });
+        if (existing) {
+            this.logger.log(`Escrow already held for payment ${paymentId}; skipping duplicate hold`);
+            return;
+        }
         
         // 1. Create Escrow transaction
         await prisma.escrowTransaction.create({
@@ -90,7 +99,17 @@ export class EscrowService {
             }
         });
 
-        // Note: Platform wallet update for commission/fees is deferred until RELEASE.
+        // 3. Accrue platform commission & fees at payment time (visible in admin financials immediately)
+        const commissionTotal = Number(amounts.commissionAmount) + Number(amounts.gatewayFee);
+        if (commissionTotal > 0) {
+            await prisma.platformWallet.updateMany({
+                data: {
+                    commissionBalance: { increment: Number(amounts.commissionAmount) },
+                    feesBalance: { increment: Number(amounts.gatewayFee) },
+                    totalRevenue: { increment: commissionTotal },
+                },
+            });
+        }
     }
 
     /**
@@ -159,14 +178,7 @@ export class EscrowService {
                 }
             });
 
-            // 3. Update Platform Wallet (Commission & Fees are now realized)
-            await tx.platformWallet.updateMany({
-                data: {
-                    commissionBalance: { increment: Number(escrow.commissionAmount) },
-                    feesBalance: { increment: Number(escrow.gatewayFee) },
-                    totalRevenue: { increment: Number(escrow.commissionAmount) + Number(escrow.gatewayFee) }
-                }
-            });
+            // 3. Platform commission/fees were accrued at escrow hold (payment time).
 
             // 4. Update Payment Transaction
             await tx.paymentTransaction.update({
@@ -186,7 +198,7 @@ export class EscrowService {
                    userId: store.ownerId,
                    role: 'VENDOR',
                    type: 'CREDIT',
-                   transactionType: 'payment',
+                   transactionType: 'ESCROW_RELEASE',
                    amount: Number(escrow.merchantAmount),
                    balanceAfter: newBalance, 
                    escrowId: escrow.id,

@@ -2,117 +2,110 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrderStatus, StoreStatus, UserRole } from '@prisma/client';
+import {
+    buildAdminDateRange,
+    buildPreviousAdminDateRange,
+    computeAdminFinancialKpis,
+    computeSalesTrend,
+    computeTopEarners,
+} from '../payments/admin-financial-metrics.util';
 
 @Injectable()
 export class DashboardService {
     constructor(private prisma: PrismaService) { }
 
     async getStats(startDateStr?: string, endDateStr?: string) {
-        // 0. Base Timestamps setup for queries
         const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        
-        // Use provided dates or fallback to defaults
-        const startDate = startDateStr ? new Date(startDateStr) : thirtyDaysAgo;
-        const endDate = endDateStr ? new Date(endDateStr) : now;
+        const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        // For trend comparisons (Last period)
-        const periodDiff = endDate.getTime() - startDate.getTime();
-        const prevStartDate = new Date(startDate.getTime() - periodDiff);
-        const prevEndDate = new Date(startDate.getTime());
+        const range = buildAdminDateRange({
+            startDate: startDateStr || defaultStart.toISOString().split('T')[0],
+            endDate: endDateStr || now.toISOString().split('T')[0],
+        });
+        const prevRange = buildPreviousAdminDateRange(range);
 
         const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
         const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-        // Define valid sales statuses
-        const activeSalesStatuses: OrderStatus[] = [
-            OrderStatus.PREPARATION, 
-            OrderStatus.SHIPPED, 
-            OrderStatus.DELIVERED, 
-            OrderStatus.COMPLETED
-        ];
+        const orderDateFilter =
+            range.startDate && range.endDate
+                ? { createdAt: { gte: range.startDate, lte: range.endDate } }
+                : {};
 
-        // 1. Massive Concurrent Query execution
         const [
             totalOrders,
             activeCustomers,
             activeStores,
             openDisputes,
-            // Accurate Financials from PaymentTransaction
-            financialStats,
-            prevFinancialStats,
-            // Sales Trend
-            trendTransactions,
-            // Top Stores with Revenue
-            storeRevenueStats,
-            // Donut Distribution
+            kpis,
+            prevKpis,
+            salesTrendPoints,
+            topEarners,
             statusDist,
-            // Alerts
             lateResponseCount,
             latePrepCount,
             expiringLicensesCount,
             expiredLicensesCount,
             stalledVerificationCount,
-            lastOrders
+            lastOrders,
         ] = await Promise.all([
-            this.prisma.order.count({
-                where: { createdAt: { gte: startDate, lte: endDate } }
-            }),
+            this.prisma.order.count({ where: orderDateFilter }),
             this.prisma.user.count({ where: { role: UserRole.CUSTOMER } }),
             this.prisma.store.count({ where: { status: StoreStatus.ACTIVE } }),
-            this.prisma.order.count({ where: { status: { in: [OrderStatus.DISPUTED, OrderStatus.RETURN_REQUESTED] } } }),
-            
-            // Current Period Financials
-            this.prisma.paymentTransaction.aggregate({
-                where: { 
-                    status: 'SUCCESS',
-                    createdAt: { gte: startDate, lte: endDate }
-                },
-                _sum: { totalAmount: true, commission: true }
-            }),
-            
-            // Previous Period Financials (for trend calculation)
-            this.prisma.paymentTransaction.aggregate({
-                where: { 
-                    status: 'SUCCESS',
-                    createdAt: { gte: prevStartDate, lte: prevEndDate }
-                },
-                _sum: { totalAmount: true, commission: true }
-            }),
-
-            // Sales Trend (Timeline)
-            this.prisma.paymentTransaction.findMany({
+            this.prisma.order.count({
                 where: {
-                    status: 'SUCCESS',
-                    createdAt: { gte: startDate, lte: endDate },
+                    status: {
+                        in: [OrderStatus.DISPUTED, OrderStatus.RETURN_REQUESTED],
+                    },
                 },
-                select: { createdAt: true, totalAmount: true },
-                orderBy: { createdAt: 'asc' }
             }),
-
-            // Top Stores logic: Group by storeId inside PaymentTransaction or join
-            this.prisma.paymentTransaction.groupBy({
-                by: ['offerId'], // We'll link this to store later, or use Order relation
-                where: {
-                    status: 'SUCCESS',
-                    createdAt: { gte: startDate, lte: endDate }
-                },
-                _sum: { totalAmount: true },
-                _count: { id: true }
-            }),
-
+            computeAdminFinancialKpis(this.prisma, range),
+            computeAdminFinancialKpis(this.prisma, prevRange),
+            computeSalesTrend(this.prisma, range),
+            computeTopEarners(this.prisma, range, 5),
             this.prisma.order.groupBy({
                 by: ['status'],
-                where: { createdAt: { gte: startDate, lte: endDate } },
-                _count: { id: true }
+                where: orderDateFilter,
+                _count: { id: true },
             }),
-            this.prisma.order.count({ where: { status: { in: [OrderStatus.AWAITING_OFFERS, OrderStatus.COLLECTING_OFFERS, OrderStatus.AWAITING_SELECTION] }, createdAt: { lt: oneDayAgo } } }),
-            this.prisma.order.count({ where: { status: { in: [OrderStatus.PREPARATION, OrderStatus.DELAYED_PREPARATION] }, updatedAt: { lt: twoDaysAgo } } }),
-            this.prisma.order.count({ where: { status: OrderStatus.VERIFICATION, updatedAt: { lt: oneDayAgo } } }), // Stalled Verification
-            this.prisma.store.count({ where: { licenseExpiry: { lte: thirtyDaysFromNow, gte: now } } }),
-            this.prisma.store.count({ where: { licenseExpiry: { lt: now } } }),
-            
+            this.prisma.order.count({
+                where: {
+                    status: {
+                        in: [
+                            OrderStatus.AWAITING_OFFERS,
+                            OrderStatus.COLLECTING_OFFERS,
+                            OrderStatus.AWAITING_SELECTION,
+                        ],
+                    },
+                    createdAt: { lt: oneDayAgo },
+                },
+            }),
+            this.prisma.order.count({
+                where: {
+                    status: {
+                        in: [
+                            OrderStatus.PREPARATION,
+                            OrderStatus.DELAYED_PREPARATION,
+                        ],
+                    },
+                    updatedAt: { lt: twoDaysAgo },
+                },
+            }),
+            this.prisma.store.count({
+                where: {
+                    licenseExpiry: { lte: thirtyDaysFromNow, gte: now },
+                },
+            }),
+            this.prisma.store.count({
+                where: { licenseExpiry: { lt: now } },
+            }),
+            this.prisma.order.count({
+                where: {
+                    status: OrderStatus.VERIFICATION,
+                    updatedAt: { lt: oneDayAgo },
+                },
+            }),
             this.prisma.order.findMany({
                 take: 5,
                 orderBy: { createdAt: 'desc' },
@@ -122,91 +115,101 @@ export class DashboardService {
                         select: {
                             unitPrice: true,
                             shippingCost: true,
-                            store: { select: { id: true, name: true, logo: true, rating: true } }
-                        }
+                            store: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    logo: true,
+                                    rating: true,
+                                },
+                            },
+                        },
                     },
                     offers: {
-                        include: { store: { select: { name: true } } }
+                        include: { store: { select: { name: true } } },
                     },
-                    _count: { select: { offers: true } }
-                }
-            })
+                    _count: { select: { offers: true } },
+                },
+            }),
         ]);
 
-        // 2. Compute Financials
-        const totalSales = Number(financialStats._sum.totalAmount || 0);
-        const totalCommission = Number(financialStats._sum.commission || 0);
-        
-        const prevSales = Number(prevFinancialStats._sum.totalAmount || 0);
-        const salesTrendPercent = prevSales > 0 ? ((totalSales - prevSales) / prevSales) * 100 : 0;
+        const totalSales = kpis.grossSales;
+        const totalCommission = kpis.netCommission;
+        const prevSales = prevKpis.grossSales;
+        const salesTrendPercent =
+            prevSales > 0
+                ? ((totalSales - prevSales) / prevSales) * 100
+                : 0;
 
-        // 3. Compute Timeline Trend Map
-        const trendMap = new Map<string, number>();
-        const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24));
-        for (let i = 0; i <= diffDays; i++) {
-            const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-            trendMap.set(d.toISOString().split('T')[0], 0);
-        }
+        const salesTrend = salesTrendPoints.map((point) => ({
+            date: point.date,
+            value: point.grossSales,
+        }));
 
-        trendTransactions.forEach(tx => {
-            const key = tx.createdAt.toISOString().split('T')[0];
-            if (trendMap.has(key)) {
-                trendMap.set(key, trendMap.get(key)! + Number(tx.totalAmount));
-            }
-        });
+        const topStores = topEarners.map((store) => ({
+            storeId: store.id,
+            name: store.name,
+            logo: store.logo,
+            rating: Number(store.rating || 0),
+            revenue: store.totalEarned,
+            ordersCount: store.ordersCount,
+        }));
 
-        const salesTrend = Array.from(trendMap.entries())
-            .map(([date, value]) => ({ date, value }))
-            .sort((a, b) => a.date.localeCompare(b.date));
-
-        // 4. Resolve Top Stores details
-        // Since groupBy was on offerId (or store would be better if denormalized), we fetch store via offers
-        const topStoresList = await Promise.all(
-            storeRevenueStats.map(async (stat) => {
-                const offer = await this.prisma.offer.findUnique({
-                    where: { id: stat.offerId },
-                    select: { store: { select: { id: true, name: true, logo: true, rating: true } } }
-                });
-                return {
-                    storeId: offer?.store?.id,
-                    name: offer?.store?.name || 'Unknown',
-                    logo: offer?.store?.logo,
-                    rating: Number(offer?.store?.rating || 0),
-                    revenue: Number(stat._sum.totalAmount || 0),
-                    ordersCount: stat._count.id
-                };
-            })
-        );
-
-        // Aggregate by storeId (in case one store has multiple offers)
-        const aggregatedStores = topStoresList.reduce((acc, curr) => {
-            if (!curr.storeId) return acc;
-            if (!acc[curr.storeId]) {
-                acc[curr.storeId] = { ...curr };
-            } else {
-                acc[curr.storeId].revenue += curr.revenue;
-                acc[curr.storeId].ordersCount += curr.ordersCount;
-            }
-            return acc;
-        }, {} as Record<string, any>);
-
-        const topStores = Object.values(aggregatedStores)
-            .sort((a, b) => b.revenue - a.revenue)
-            .slice(0, 5);
-
-        // 5. Build Alerts array
         const alerts = [
-            lateResponseCount > 0 ? { type: 'warning', code: 'LATE_RESPONSE', count: lateResponseCount, priority: 'high' } : null,
-            latePrepCount > 0 ? { type: 'error', code: 'LATE_PREP', count: latePrepCount, priority: 'high' } : null,
-            stalledVerificationCount > 0 ? { type: 'error', code: 'STALLED_VERIFICATION', count: stalledVerificationCount, priority: 'medium' } : null,
-            expiringLicensesCount > 0 ? { type: 'warning', code: 'LICENSE_EXPIRING', count: expiringLicensesCount, priority: 'medium' } : null,
-            expiredLicensesCount > 0 ? { type: 'error', code: 'LICENSE_EXPIRED', count: expiredLicensesCount, priority: 'critical' } : null,
-            openDisputes > 0 ? { type: 'error', code: 'DISPUTES_OPEN', count: openDisputes, priority: 'high' } : null
+            lateResponseCount > 0
+                ? {
+                      type: 'warning',
+                      code: 'LATE_RESPONSE',
+                      count: lateResponseCount,
+                      priority: 'high',
+                  }
+                : null,
+            latePrepCount > 0
+                ? {
+                      type: 'error',
+                      code: 'LATE_PREP',
+                      count: latePrepCount,
+                      priority: 'high',
+                  }
+                : null,
+            stalledVerificationCount > 0
+                ? {
+                      type: 'error',
+                      code: 'STALLED_VERIFICATION',
+                      count: stalledVerificationCount,
+                      priority: 'medium',
+                  }
+                : null,
+            expiringLicensesCount > 0
+                ? {
+                      type: 'warning',
+                      code: 'LICENSE_EXPIRING',
+                      count: expiringLicensesCount,
+                      priority: 'medium',
+                  }
+                : null,
+            expiredLicensesCount > 0
+                ? {
+                      type: 'error',
+                      code: 'LICENSE_EXPIRED',
+                      count: expiredLicensesCount,
+                      priority: 'critical',
+                  }
+                : null,
+            openDisputes > 0
+                ? {
+                      type: 'error',
+                      code: 'DISPUTES_OPEN',
+                      count: openDisputes,
+                      priority: 'high',
+                  }
+                : null,
         ].filter(Boolean);
 
         return {
             totalSales,
             totalCommission,
+            grossCommission: kpis.grossCommission,
             salesTrendPercent: Number(salesTrendPercent.toFixed(1)),
             totalOrders,
             activeCustomers,
@@ -215,9 +218,11 @@ export class DashboardService {
             salesTrend,
             topStores,
             recentOrders: lastOrders,
-            statusDistribution: statusDist.map(s => ({ status: s.status, count: s._count.id })),
-            alerts
+            statusDistribution: statusDist.map((s) => ({
+                status: s.status,
+                count: s._count.id,
+            })),
+            alerts,
         };
     }
-
 }

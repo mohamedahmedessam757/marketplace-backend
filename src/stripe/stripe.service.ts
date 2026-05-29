@@ -142,6 +142,18 @@ export class StripeService {
         return paymentMethods.data;
     }
 
+    /** Attach a payment method to a Stripe customer (idempotent if already attached). */
+    async attachPaymentMethod(paymentMethodId: string, customerId: string): Promise<void> {
+        try {
+            await this.stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+        } catch (error: any) {
+            const msg = error?.message || '';
+            if (!msg.includes('already been attached')) {
+                throw error;
+            }
+        }
+    }
+
     /**
      * Creates a Stripe Checkout Session for one-time payment (e.g. shipping).
      * 2026 Best Practice: Using hosted checkout for maximum 3DS and SCA compliance.

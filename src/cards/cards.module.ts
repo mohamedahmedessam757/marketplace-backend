@@ -8,5 +8,6 @@ import { StripeModule } from '../stripe/stripe.module';
     imports: [PrismaModule, StripeModule],
     controllers: [CardsController],
     providers: [CardsService],
+    exports: [CardsService],
 })
 export class CardsModule { }

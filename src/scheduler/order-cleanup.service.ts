@@ -42,15 +42,13 @@ export class OrderCleanupService {
     async handleDeliveredReturnsAutoCompletion() {
         this.logger.debug('Running Delivered Orders Auto-Completion Job...');
 
-        // Find orders in DELIVERED status where more than 72 hours have passed since delivery
-        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
+        const windowEnd = new Date(Date.now() - windowMs);
 
         const deliveredOrders = await this.prisma.order.findMany({
             where: {
                 status: OrderStatus.DELIVERED,
-                updatedAt: { // We use updatedAt assuming the last update was when it was marked DELIVERED, or deliveredAt if available in schema
-                    lt: threeDaysAgo,
-                },
+                deliveredAt: { lt: windowEnd },
             },
             select: { id: true, orderNumber: true, customerId: true, storeId: true },
         });

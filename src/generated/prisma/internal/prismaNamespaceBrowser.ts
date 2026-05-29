@@ -862,6 +862,9 @@ export const ShippingWaybillScalarFieldEnum = {
   senderCity: 'senderCity',
   senderCountry: 'senderCountry',
   shippingRefund: 'shippingRefund',
+  bundledOfferIds: 'bundledOfferIds',
+  shipmentId: 'shipmentId',
+  issueMode: 'issueMode',
   issuedBy: 'issuedBy',
   issuedAt: 'issuedAt',
   createdAt: 'createdAt',
@@ -1176,6 +1179,7 @@ export type AdminPermissionScalarFieldEnum = (typeof AdminPermissionScalarFieldE
 export const VerificationTaskScalarFieldEnum = {
   id: 'id',
   orderId: 'orderId',
+  offerId: 'offerId',
   officerId: 'officerId',
   assignedById: 'assignedById',
   status: 'status',

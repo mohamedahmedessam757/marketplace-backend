@@ -135,23 +135,8 @@ export class OfferFulfillmentService {
         );
 
         if (order.status !== nextStatus) {
-            try {
-                this.fsm.validateTransition(order.status, nextStatus);
-            } catch {
-                // Aggregated status may skip intermediate FSM steps for multi-part; allow safe forward jumps
-                const forwardOnly =
-                    FULFILLMENT_RANK[
-                        this.orderStatusToFulfillmentFloor(nextStatus)
-                    ] >=
-                    FULFILLMENT_RANK[
-                        this.orderStatusToFulfillmentFloor(order.status)
-                    ];
-                if (!forwardOnly) {
-                    throw new BadRequestException(
-                        `Cannot aggregate order to ${nextStatus} from ${order.status}`,
-                    );
-                }
-            }
+            // Multi-part orders follow the slowest offer; backward steps are valid
+            // (e.g. VERIFICATION → PREPARED when one part is approved but others are not verified yet).
 
             await this.prisma.order.update({
                 where: { id: orderId },
@@ -568,8 +553,10 @@ export class OfferFulfillmentService {
             prepared: 0,
             verification: 0,
             verificationSuccess: 0,
+            handoverPending: 0,
             readyForShipping: 0,
             shipped: 0,
+            inCart: 0,
         };
 
         for (const o of paidOffers) {
@@ -580,6 +567,9 @@ export class OfferFulfillmentService {
             if (r >= FULFILLMENT_RANK.VERIFICATION_SUCCESS) {
                 stepCounts.verificationSuccess++;
             }
+            if (o.fulfillmentStatus === OfferFulfillmentStatus.VERIFICATION_SUCCESS) {
+                stepCounts.handoverPending++;
+            }
             if (r >= FULFILLMENT_RANK.READY_FOR_SHIPPING) {
                 stepCounts.readyForShipping++;
             }
@@ -588,6 +578,9 @@ export class OfferFulfillmentService {
                 o.fulfillmentStatus === OfferFulfillmentStatus.SHIPPED
             ) {
                 stepCounts.shipped++;
+            }
+            if (!o.shippedFromCart) {
+                stepCounts.inCart++;
             }
         }
 
@@ -637,8 +630,8 @@ export class OfferFulfillmentService {
                 };
             case OfferFulfillmentStatus.VERIFICATION_SUCCESS:
                 return {
-                    ar: 'بانتظار تأكيد الجاهزية للشحن من التاجر',
-                    en: 'Awaiting merchant ready-for-shipping',
+                    ar: 'بانتظار تسليم التاجر للإدارة',
+                    en: 'Awaiting merchant handover to admin',
                 };
             default:
                 return {

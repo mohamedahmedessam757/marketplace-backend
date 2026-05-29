@@ -18,6 +18,11 @@ export class CardsController {
         return this.cardsService.addCard(req.user.id, dto);
     }
 
+    @Post('sync-intent')
+    syncFromIntent(@Request() req, @Body() body: { paymentIntentId: string }) {
+        return this.cardsService.syncFromPaymentIntent(req.user.id, body.paymentIntentId);
+    }
+
     @Delete(':id')
     deleteCard(@Request() req, @Param('id') id: string) {
         return this.cardsService.deleteCard(req.user.id, id);

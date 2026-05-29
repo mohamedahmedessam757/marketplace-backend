@@ -42,9 +42,18 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       message = 'Internal server error';
     }
 
+    const safeMessage =
+      typeof message === 'string'
+        ? message
+        : Array.isArray(message)
+          ? message.map((m) => String(m)).join('; ')
+          : typeof message === 'object' && message !== null && 'message' in message
+            ? String((message as { message: unknown }).message)
+            : 'Request failed';
+
     response.status(status).json({
       statusCode: status,
-      message,
+      message: safeMessage,
       timestamp: new Date().toISOString(),
       path: request.url,
     });

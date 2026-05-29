@@ -61,6 +61,8 @@ export type ShippingWaybillMinAggregateOutputType = {
   senderCity: string | null
   senderCountry: string | null
   shippingRefund: runtime.Decimal | null
+  shipmentId: string | null
+  issueMode: string | null
   issuedBy: string | null
   issuedAt: Date | null
   createdAt: Date | null
@@ -92,6 +94,8 @@ export type ShippingWaybillMaxAggregateOutputType = {
   senderCity: string | null
   senderCountry: string | null
   shippingRefund: runtime.Decimal | null
+  shipmentId: string | null
+  issueMode: string | null
   issuedBy: string | null
   issuedAt: Date | null
   createdAt: Date | null
@@ -123,6 +127,9 @@ export type ShippingWaybillCountAggregateOutputType = {
   senderCity: number
   senderCountry: number
   shippingRefund: number
+  bundledOfferIds: number
+  shipmentId: number
+  issueMode: number
   issuedBy: number
   issuedAt: number
   createdAt: number
@@ -166,6 +173,8 @@ export type ShippingWaybillMinAggregateInputType = {
   senderCity?: true
   senderCountry?: true
   shippingRefund?: true
+  shipmentId?: true
+  issueMode?: true
   issuedBy?: true
   issuedAt?: true
   createdAt?: true
@@ -197,6 +206,8 @@ export type ShippingWaybillMaxAggregateInputType = {
   senderCity?: true
   senderCountry?: true
   shippingRefund?: true
+  shipmentId?: true
+  issueMode?: true
   issuedBy?: true
   issuedAt?: true
   createdAt?: true
@@ -228,6 +239,9 @@ export type ShippingWaybillCountAggregateInputType = {
   senderCity?: true
   senderCountry?: true
   shippingRefund?: true
+  bundledOfferIds?: true
+  shipmentId?: true
+  issueMode?: true
   issuedBy?: true
   issuedAt?: true
   createdAt?: true
@@ -346,6 +360,9 @@ export type ShippingWaybillGroupByOutputType = {
   senderCity: string | null
   senderCountry: string | null
   shippingRefund: runtime.Decimal | null
+  bundledOfferIds: runtime.JsonValue
+  shipmentId: string | null
+  issueMode: string | null
   issuedBy: string | null
   issuedAt: Date
   createdAt: Date
@@ -400,6 +417,9 @@ export type ShippingWaybillWhereInput = {
   senderCity?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   senderCountry?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   shippingRefund?: Prisma.DecimalNullableFilter<"ShippingWaybill"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonFilter<"ShippingWaybill">
+  shipmentId?: Prisma.UuidNullableFilter<"ShippingWaybill"> | string | null
+  issueMode?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   issuedBy?: Prisma.UuidNullableFilter<"ShippingWaybill"> | string | null
   issuedAt?: Prisma.DateTimeFilter<"ShippingWaybill"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"ShippingWaybill"> | Date | string
@@ -408,6 +428,7 @@ export type ShippingWaybillWhereInput = {
   orderPart?: Prisma.XOR<Prisma.OrderPartNullableScalarRelationFilter, Prisma.OrderPartWhereInput> | null
   store?: Prisma.XOR<Prisma.StoreScalarRelationFilter, Prisma.StoreWhereInput>
   issuer?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
+  shipment?: Prisma.XOR<Prisma.ShipmentNullableScalarRelationFilter, Prisma.ShipmentWhereInput> | null
   shipments?: Prisma.ShipmentListRelationFilter
 }
 
@@ -436,6 +457,9 @@ export type ShippingWaybillOrderByWithRelationInput = {
   senderCity?: Prisma.SortOrderInput | Prisma.SortOrder
   senderCountry?: Prisma.SortOrderInput | Prisma.SortOrder
   shippingRefund?: Prisma.SortOrderInput | Prisma.SortOrder
+  bundledOfferIds?: Prisma.SortOrder
+  shipmentId?: Prisma.SortOrderInput | Prisma.SortOrder
+  issueMode?: Prisma.SortOrderInput | Prisma.SortOrder
   issuedBy?: Prisma.SortOrderInput | Prisma.SortOrder
   issuedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -444,12 +468,14 @@ export type ShippingWaybillOrderByWithRelationInput = {
   orderPart?: Prisma.OrderPartOrderByWithRelationInput
   store?: Prisma.StoreOrderByWithRelationInput
   issuer?: Prisma.UserOrderByWithRelationInput
+  shipment?: Prisma.ShipmentOrderByWithRelationInput
   shipments?: Prisma.ShipmentOrderByRelationAggregateInput
 }
 
 export type ShippingWaybillWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   waybillNumber?: string
+  shipmentId?: string
   AND?: Prisma.ShippingWaybillWhereInput | Prisma.ShippingWaybillWhereInput[]
   OR?: Prisma.ShippingWaybillWhereInput[]
   NOT?: Prisma.ShippingWaybillWhereInput | Prisma.ShippingWaybillWhereInput[]
@@ -475,6 +501,8 @@ export type ShippingWaybillWhereUniqueInput = Prisma.AtLeast<{
   senderCity?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   senderCountry?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   shippingRefund?: Prisma.DecimalNullableFilter<"ShippingWaybill"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonFilter<"ShippingWaybill">
+  issueMode?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   issuedBy?: Prisma.UuidNullableFilter<"ShippingWaybill"> | string | null
   issuedAt?: Prisma.DateTimeFilter<"ShippingWaybill"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"ShippingWaybill"> | Date | string
@@ -483,8 +511,9 @@ export type ShippingWaybillWhereUniqueInput = Prisma.AtLeast<{
   orderPart?: Prisma.XOR<Prisma.OrderPartNullableScalarRelationFilter, Prisma.OrderPartWhereInput> | null
   store?: Prisma.XOR<Prisma.StoreScalarRelationFilter, Prisma.StoreWhereInput>
   issuer?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
+  shipment?: Prisma.XOR<Prisma.ShipmentNullableScalarRelationFilter, Prisma.ShipmentWhereInput> | null
   shipments?: Prisma.ShipmentListRelationFilter
-}, "id" | "waybillNumber">
+}, "id" | "waybillNumber" | "shipmentId">
 
 export type ShippingWaybillOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -511,6 +540,9 @@ export type ShippingWaybillOrderByWithAggregationInput = {
   senderCity?: Prisma.SortOrderInput | Prisma.SortOrder
   senderCountry?: Prisma.SortOrderInput | Prisma.SortOrder
   shippingRefund?: Prisma.SortOrderInput | Prisma.SortOrder
+  bundledOfferIds?: Prisma.SortOrder
+  shipmentId?: Prisma.SortOrderInput | Prisma.SortOrder
+  issueMode?: Prisma.SortOrderInput | Prisma.SortOrder
   issuedBy?: Prisma.SortOrderInput | Prisma.SortOrder
   issuedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -550,6 +582,9 @@ export type ShippingWaybillScalarWhereWithAggregatesInput = {
   senderCity?: Prisma.StringNullableWithAggregatesFilter<"ShippingWaybill"> | string | null
   senderCountry?: Prisma.StringNullableWithAggregatesFilter<"ShippingWaybill"> | string | null
   shippingRefund?: Prisma.DecimalNullableWithAggregatesFilter<"ShippingWaybill"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonWithAggregatesFilter<"ShippingWaybill">
+  shipmentId?: Prisma.UuidNullableWithAggregatesFilter<"ShippingWaybill"> | string | null
+  issueMode?: Prisma.StringNullableWithAggregatesFilter<"ShippingWaybill"> | string | null
   issuedBy?: Prisma.UuidNullableWithAggregatesFilter<"ShippingWaybill"> | string | null
   issuedAt?: Prisma.DateTimeWithAggregatesFilter<"ShippingWaybill"> | Date | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"ShippingWaybill"> | Date | string
@@ -578,6 +613,8 @@ export type ShippingWaybillCreateInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -585,6 +622,7 @@ export type ShippingWaybillCreateInput = {
   orderPart?: Prisma.OrderPartCreateNestedOneWithoutShippingWaybillsInput
   store: Prisma.StoreCreateNestedOneWithoutShippingWaybillsInput
   issuer?: Prisma.UserCreateNestedOneWithoutShippingWaybillsInput
+  shipment?: Prisma.ShipmentCreateNestedOneWithoutPrimaryForWaybillInput
   shipments?: Prisma.ShipmentCreateNestedManyWithoutWaybillInput
 }
 
@@ -613,6 +651,9 @@ export type ShippingWaybillUncheckedCreateInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -642,6 +683,8 @@ export type ShippingWaybillUpdateInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -649,6 +692,7 @@ export type ShippingWaybillUpdateInput = {
   orderPart?: Prisma.OrderPartUpdateOneWithoutShippingWaybillsNestedInput
   store?: Prisma.StoreUpdateOneRequiredWithoutShippingWaybillsNestedInput
   issuer?: Prisma.UserUpdateOneWithoutShippingWaybillsNestedInput
+  shipment?: Prisma.ShipmentUpdateOneWithoutPrimaryForWaybillNestedInput
   shipments?: Prisma.ShipmentUpdateManyWithoutWaybillNestedInput
 }
 
@@ -677,6 +721,9 @@ export type ShippingWaybillUncheckedUpdateInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -709,6 +756,9 @@ export type ShippingWaybillCreateManyInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -737,6 +787,8 @@ export type ShippingWaybillUpdateManyMutationInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -767,6 +819,9 @@ export type ShippingWaybillUncheckedUpdateManyInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -808,6 +863,9 @@ export type ShippingWaybillCountOrderByAggregateInput = {
   senderCity?: Prisma.SortOrder
   senderCountry?: Prisma.SortOrder
   shippingRefund?: Prisma.SortOrder
+  bundledOfferIds?: Prisma.SortOrder
+  shipmentId?: Prisma.SortOrder
+  issueMode?: Prisma.SortOrder
   issuedBy?: Prisma.SortOrder
   issuedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -844,6 +902,8 @@ export type ShippingWaybillMaxOrderByAggregateInput = {
   senderCity?: Prisma.SortOrder
   senderCountry?: Prisma.SortOrder
   shippingRefund?: Prisma.SortOrder
+  shipmentId?: Prisma.SortOrder
+  issueMode?: Prisma.SortOrder
   issuedBy?: Prisma.SortOrder
   issuedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -875,6 +935,8 @@ export type ShippingWaybillMinOrderByAggregateInput = {
   senderCity?: Prisma.SortOrder
   senderCountry?: Prisma.SortOrder
   shippingRefund?: Prisma.SortOrder
+  shipmentId?: Prisma.SortOrder
+  issueMode?: Prisma.SortOrder
   issuedBy?: Prisma.SortOrder
   issuedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -1065,6 +1127,18 @@ export type ShippingWaybillCreateNestedOneWithoutShipmentsInput = {
   connect?: Prisma.ShippingWaybillWhereUniqueInput
 }
 
+export type ShippingWaybillCreateNestedOneWithoutShipmentInput = {
+  create?: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentInput>
+  connectOrCreate?: Prisma.ShippingWaybillCreateOrConnectWithoutShipmentInput
+  connect?: Prisma.ShippingWaybillWhereUniqueInput
+}
+
+export type ShippingWaybillUncheckedCreateNestedOneWithoutShipmentInput = {
+  create?: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentInput>
+  connectOrCreate?: Prisma.ShippingWaybillCreateOrConnectWithoutShipmentInput
+  connect?: Prisma.ShippingWaybillWhereUniqueInput
+}
+
 export type ShippingWaybillUpdateOneWithoutShipmentsNestedInput = {
   create?: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentsInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentsInput>
   connectOrCreate?: Prisma.ShippingWaybillCreateOrConnectWithoutShipmentsInput
@@ -1073,6 +1147,26 @@ export type ShippingWaybillUpdateOneWithoutShipmentsNestedInput = {
   delete?: Prisma.ShippingWaybillWhereInput | boolean
   connect?: Prisma.ShippingWaybillWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.ShippingWaybillUpdateToOneWithWhereWithoutShipmentsInput, Prisma.ShippingWaybillUpdateWithoutShipmentsInput>, Prisma.ShippingWaybillUncheckedUpdateWithoutShipmentsInput>
+}
+
+export type ShippingWaybillUpdateOneWithoutShipmentNestedInput = {
+  create?: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentInput>
+  connectOrCreate?: Prisma.ShippingWaybillCreateOrConnectWithoutShipmentInput
+  upsert?: Prisma.ShippingWaybillUpsertWithoutShipmentInput
+  disconnect?: Prisma.ShippingWaybillWhereInput | boolean
+  delete?: Prisma.ShippingWaybillWhereInput | boolean
+  connect?: Prisma.ShippingWaybillWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ShippingWaybillUpdateToOneWithWhereWithoutShipmentInput, Prisma.ShippingWaybillUpdateWithoutShipmentInput>, Prisma.ShippingWaybillUncheckedUpdateWithoutShipmentInput>
+}
+
+export type ShippingWaybillUncheckedUpdateOneWithoutShipmentNestedInput = {
+  create?: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentInput>
+  connectOrCreate?: Prisma.ShippingWaybillCreateOrConnectWithoutShipmentInput
+  upsert?: Prisma.ShippingWaybillUpsertWithoutShipmentInput
+  disconnect?: Prisma.ShippingWaybillWhereInput | boolean
+  delete?: Prisma.ShippingWaybillWhereInput | boolean
+  connect?: Prisma.ShippingWaybillWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ShippingWaybillUpdateToOneWithWhereWithoutShipmentInput, Prisma.ShippingWaybillUpdateWithoutShipmentInput>, Prisma.ShippingWaybillUncheckedUpdateWithoutShipmentInput>
 }
 
 export type ShippingWaybillCreateWithoutIssuerInput = {
@@ -1097,12 +1191,15 @@ export type ShippingWaybillCreateWithoutIssuerInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShippingWaybillsInput
   orderPart?: Prisma.OrderPartCreateNestedOneWithoutShippingWaybillsInput
   store: Prisma.StoreCreateNestedOneWithoutShippingWaybillsInput
+  shipment?: Prisma.ShipmentCreateNestedOneWithoutPrimaryForWaybillInput
   shipments?: Prisma.ShipmentCreateNestedManyWithoutWaybillInput
 }
 
@@ -1131,6 +1228,9 @@ export type ShippingWaybillUncheckedCreateWithoutIssuerInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1191,6 +1291,9 @@ export type ShippingWaybillScalarWhereInput = {
   senderCity?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   senderCountry?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   shippingRefund?: Prisma.DecimalNullableFilter<"ShippingWaybill"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonFilter<"ShippingWaybill">
+  shipmentId?: Prisma.UuidNullableFilter<"ShippingWaybill"> | string | null
+  issueMode?: Prisma.StringNullableFilter<"ShippingWaybill"> | string | null
   issuedBy?: Prisma.UuidNullableFilter<"ShippingWaybill"> | string | null
   issuedAt?: Prisma.DateTimeFilter<"ShippingWaybill"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"ShippingWaybill"> | Date | string
@@ -1219,12 +1322,15 @@ export type ShippingWaybillCreateWithoutStoreInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShippingWaybillsInput
   orderPart?: Prisma.OrderPartCreateNestedOneWithoutShippingWaybillsInput
   issuer?: Prisma.UserCreateNestedOneWithoutShippingWaybillsInput
+  shipment?: Prisma.ShipmentCreateNestedOneWithoutPrimaryForWaybillInput
   shipments?: Prisma.ShipmentCreateNestedManyWithoutWaybillInput
 }
 
@@ -1252,6 +1358,9 @@ export type ShippingWaybillUncheckedCreateWithoutStoreInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -1307,12 +1416,15 @@ export type ShippingWaybillCreateWithoutOrderInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
   orderPart?: Prisma.OrderPartCreateNestedOneWithoutShippingWaybillsInput
   store: Prisma.StoreCreateNestedOneWithoutShippingWaybillsInput
   issuer?: Prisma.UserCreateNestedOneWithoutShippingWaybillsInput
+  shipment?: Prisma.ShipmentCreateNestedOneWithoutPrimaryForWaybillInput
   shipments?: Prisma.ShipmentCreateNestedManyWithoutWaybillInput
 }
 
@@ -1340,6 +1452,9 @@ export type ShippingWaybillUncheckedCreateWithoutOrderInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -1395,12 +1510,15 @@ export type ShippingWaybillCreateWithoutOrderPartInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutShippingWaybillsInput
   store: Prisma.StoreCreateNestedOneWithoutShippingWaybillsInput
   issuer?: Prisma.UserCreateNestedOneWithoutShippingWaybillsInput
+  shipment?: Prisma.ShipmentCreateNestedOneWithoutPrimaryForWaybillInput
   shipments?: Prisma.ShipmentCreateNestedManyWithoutWaybillInput
 }
 
@@ -1428,6 +1546,9 @@ export type ShippingWaybillUncheckedCreateWithoutOrderPartInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -1483,6 +1604,8 @@ export type ShippingWaybillCreateWithoutShipmentsInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1490,6 +1613,7 @@ export type ShippingWaybillCreateWithoutShipmentsInput = {
   orderPart?: Prisma.OrderPartCreateNestedOneWithoutShippingWaybillsInput
   store: Prisma.StoreCreateNestedOneWithoutShippingWaybillsInput
   issuer?: Prisma.UserCreateNestedOneWithoutShippingWaybillsInput
+  shipment?: Prisma.ShipmentCreateNestedOneWithoutPrimaryForWaybillInput
 }
 
 export type ShippingWaybillUncheckedCreateWithoutShipmentsInput = {
@@ -1517,6 +1641,9 @@ export type ShippingWaybillUncheckedCreateWithoutShipmentsInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -1526,6 +1653,79 @@ export type ShippingWaybillUncheckedCreateWithoutShipmentsInput = {
 export type ShippingWaybillCreateOrConnectWithoutShipmentsInput = {
   where: Prisma.ShippingWaybillWhereUniqueInput
   create: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentsInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentsInput>
+}
+
+export type ShippingWaybillCreateWithoutShipmentInput = {
+  id?: string
+  waybillNumber: string
+  storeName: string
+  storeCode: string
+  recipientName: string
+  recipientPhone?: string | null
+  recipientEmail?: string | null
+  recipientCity?: string | null
+  recipientCountry?: string | null
+  recipientAddress?: string | null
+  customerCode?: string | null
+  partName: string
+  partDescription?: string | null
+  finalPrice: runtime.Decimal | runtime.DecimalJsLike | number | string
+  currency?: string
+  senderName?: string | null
+  senderPhone?: string | null
+  senderAddress?: string | null
+  senderCity?: string | null
+  senderCountry?: string | null
+  shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
+  issuedAt?: Date | string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  order: Prisma.OrderCreateNestedOneWithoutShippingWaybillsInput
+  orderPart?: Prisma.OrderPartCreateNestedOneWithoutShippingWaybillsInput
+  store: Prisma.StoreCreateNestedOneWithoutShippingWaybillsInput
+  issuer?: Prisma.UserCreateNestedOneWithoutShippingWaybillsInput
+  shipments?: Prisma.ShipmentCreateNestedManyWithoutWaybillInput
+}
+
+export type ShippingWaybillUncheckedCreateWithoutShipmentInput = {
+  id?: string
+  waybillNumber: string
+  orderId: string
+  partId?: string | null
+  storeId: string
+  storeName: string
+  storeCode: string
+  recipientName: string
+  recipientPhone?: string | null
+  recipientEmail?: string | null
+  recipientCity?: string | null
+  recipientCountry?: string | null
+  recipientAddress?: string | null
+  customerCode?: string | null
+  partName: string
+  partDescription?: string | null
+  finalPrice: runtime.Decimal | runtime.DecimalJsLike | number | string
+  currency?: string
+  senderName?: string | null
+  senderPhone?: string | null
+  senderAddress?: string | null
+  senderCity?: string | null
+  senderCountry?: string | null
+  shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: string | null
+  issuedBy?: string | null
+  issuedAt?: Date | string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  shipments?: Prisma.ShipmentUncheckedCreateNestedManyWithoutWaybillInput
+}
+
+export type ShippingWaybillCreateOrConnectWithoutShipmentInput = {
+  where: Prisma.ShippingWaybillWhereUniqueInput
+  create: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentInput>
 }
 
 export type ShippingWaybillUpsertWithoutShipmentsInput = {
@@ -1561,6 +1761,8 @@ export type ShippingWaybillUpdateWithoutShipmentsInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1568,6 +1770,7 @@ export type ShippingWaybillUpdateWithoutShipmentsInput = {
   orderPart?: Prisma.OrderPartUpdateOneWithoutShippingWaybillsNestedInput
   store?: Prisma.StoreUpdateOneRequiredWithoutShippingWaybillsNestedInput
   issuer?: Prisma.UserUpdateOneWithoutShippingWaybillsNestedInput
+  shipment?: Prisma.ShipmentUpdateOneWithoutPrimaryForWaybillNestedInput
 }
 
 export type ShippingWaybillUncheckedUpdateWithoutShipmentsInput = {
@@ -1595,10 +1798,92 @@ export type ShippingWaybillUncheckedUpdateWithoutShipmentsInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type ShippingWaybillUpsertWithoutShipmentInput = {
+  update: Prisma.XOR<Prisma.ShippingWaybillUpdateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedUpdateWithoutShipmentInput>
+  create: Prisma.XOR<Prisma.ShippingWaybillCreateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedCreateWithoutShipmentInput>
+  where?: Prisma.ShippingWaybillWhereInput
+}
+
+export type ShippingWaybillUpdateToOneWithWhereWithoutShipmentInput = {
+  where?: Prisma.ShippingWaybillWhereInput
+  data: Prisma.XOR<Prisma.ShippingWaybillUpdateWithoutShipmentInput, Prisma.ShippingWaybillUncheckedUpdateWithoutShipmentInput>
+}
+
+export type ShippingWaybillUpdateWithoutShipmentInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  waybillNumber?: Prisma.StringFieldUpdateOperationsInput | string
+  storeName?: Prisma.StringFieldUpdateOperationsInput | string
+  storeCode?: Prisma.StringFieldUpdateOperationsInput | string
+  recipientName?: Prisma.StringFieldUpdateOperationsInput | string
+  recipientPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientAddress?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  partName?: Prisma.StringFieldUpdateOperationsInput | string
+  partDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  finalPrice?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  senderName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderAddress?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  order?: Prisma.OrderUpdateOneRequiredWithoutShippingWaybillsNestedInput
+  orderPart?: Prisma.OrderPartUpdateOneWithoutShippingWaybillsNestedInput
+  store?: Prisma.StoreUpdateOneRequiredWithoutShippingWaybillsNestedInput
+  issuer?: Prisma.UserUpdateOneWithoutShippingWaybillsNestedInput
+  shipments?: Prisma.ShipmentUpdateManyWithoutWaybillNestedInput
+}
+
+export type ShippingWaybillUncheckedUpdateWithoutShipmentInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  waybillNumber?: Prisma.StringFieldUpdateOperationsInput | string
+  orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  partId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  storeId?: Prisma.StringFieldUpdateOperationsInput | string
+  storeName?: Prisma.StringFieldUpdateOperationsInput | string
+  storeCode?: Prisma.StringFieldUpdateOperationsInput | string
+  recipientName?: Prisma.StringFieldUpdateOperationsInput | string
+  recipientPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientEmail?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recipientAddress?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  partName?: Prisma.StringFieldUpdateOperationsInput | string
+  partDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  finalPrice?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  senderName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderPhone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderAddress?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  shipments?: Prisma.ShipmentUncheckedUpdateManyWithoutWaybillNestedInput
 }
 
 export type ShippingWaybillCreateManyIssuerInput = {
@@ -1626,6 +1911,9 @@ export type ShippingWaybillCreateManyIssuerInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1653,12 +1941,15 @@ export type ShippingWaybillUpdateWithoutIssuerInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShippingWaybillsNestedInput
   orderPart?: Prisma.OrderPartUpdateOneWithoutShippingWaybillsNestedInput
   store?: Prisma.StoreUpdateOneRequiredWithoutShippingWaybillsNestedInput
+  shipment?: Prisma.ShipmentUpdateOneWithoutPrimaryForWaybillNestedInput
   shipments?: Prisma.ShipmentUpdateManyWithoutWaybillNestedInput
 }
 
@@ -1687,6 +1978,9 @@ export type ShippingWaybillUncheckedUpdateWithoutIssuerInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1718,6 +2012,9 @@ export type ShippingWaybillUncheckedUpdateManyWithoutIssuerInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1747,6 +2044,9 @@ export type ShippingWaybillCreateManyStoreInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -1775,12 +2075,15 @@ export type ShippingWaybillUpdateWithoutStoreInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShippingWaybillsNestedInput
   orderPart?: Prisma.OrderPartUpdateOneWithoutShippingWaybillsNestedInput
   issuer?: Prisma.UserUpdateOneWithoutShippingWaybillsNestedInput
+  shipment?: Prisma.ShipmentUpdateOneWithoutPrimaryForWaybillNestedInput
   shipments?: Prisma.ShipmentUpdateManyWithoutWaybillNestedInput
 }
 
@@ -1808,6 +2111,9 @@ export type ShippingWaybillUncheckedUpdateWithoutStoreInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1839,6 +2145,9 @@ export type ShippingWaybillUncheckedUpdateManyWithoutStoreInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1869,6 +2178,9 @@ export type ShippingWaybillCreateManyOrderInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -1897,12 +2209,15 @@ export type ShippingWaybillUpdateWithoutOrderInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   orderPart?: Prisma.OrderPartUpdateOneWithoutShippingWaybillsNestedInput
   store?: Prisma.StoreUpdateOneRequiredWithoutShippingWaybillsNestedInput
   issuer?: Prisma.UserUpdateOneWithoutShippingWaybillsNestedInput
+  shipment?: Prisma.ShipmentUpdateOneWithoutPrimaryForWaybillNestedInput
   shipments?: Prisma.ShipmentUpdateManyWithoutWaybillNestedInput
 }
 
@@ -1930,6 +2245,9 @@ export type ShippingWaybillUncheckedUpdateWithoutOrderInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1961,6 +2279,9 @@ export type ShippingWaybillUncheckedUpdateManyWithoutOrderInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1991,6 +2312,9 @@ export type ShippingWaybillCreateManyOrderPartInput = {
   senderCity?: string | null
   senderCountry?: string | null
   shippingRefund?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: string | null
+  issueMode?: string | null
   issuedBy?: string | null
   issuedAt?: Date | string
   createdAt?: Date | string
@@ -2019,12 +2343,15 @@ export type ShippingWaybillUpdateWithoutOrderPartInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutShippingWaybillsNestedInput
   store?: Prisma.StoreUpdateOneRequiredWithoutShippingWaybillsNestedInput
   issuer?: Prisma.UserUpdateOneWithoutShippingWaybillsNestedInput
+  shipment?: Prisma.ShipmentUpdateOneWithoutPrimaryForWaybillNestedInput
   shipments?: Prisma.ShipmentUpdateManyWithoutWaybillNestedInput
 }
 
@@ -2052,6 +2379,9 @@ export type ShippingWaybillUncheckedUpdateWithoutOrderPartInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2083,6 +2413,9 @@ export type ShippingWaybillUncheckedUpdateManyWithoutOrderPartInput = {
   senderCity?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   senderCountry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippingRefund?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  bundledOfferIds?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  shipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  issueMode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedBy?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   issuedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -2145,6 +2478,9 @@ export type ShippingWaybillSelect<ExtArgs extends runtime.Types.Extensions.Inter
   senderCity?: boolean
   senderCountry?: boolean
   shippingRefund?: boolean
+  bundledOfferIds?: boolean
+  shipmentId?: boolean
+  issueMode?: boolean
   issuedBy?: boolean
   issuedAt?: boolean
   createdAt?: boolean
@@ -2153,6 +2489,7 @@ export type ShippingWaybillSelect<ExtArgs extends runtime.Types.Extensions.Inter
   orderPart?: boolean | Prisma.ShippingWaybill$orderPartArgs<ExtArgs>
   store?: boolean | Prisma.StoreDefaultArgs<ExtArgs>
   issuer?: boolean | Prisma.ShippingWaybill$issuerArgs<ExtArgs>
+  shipment?: boolean | Prisma.ShippingWaybill$shipmentArgs<ExtArgs>
   shipments?: boolean | Prisma.ShippingWaybill$shipmentsArgs<ExtArgs>
   _count?: boolean | Prisma.ShippingWaybillCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["shippingWaybill"]>
@@ -2182,6 +2519,9 @@ export type ShippingWaybillSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   senderCity?: boolean
   senderCountry?: boolean
   shippingRefund?: boolean
+  bundledOfferIds?: boolean
+  shipmentId?: boolean
+  issueMode?: boolean
   issuedBy?: boolean
   issuedAt?: boolean
   createdAt?: boolean
@@ -2190,6 +2530,7 @@ export type ShippingWaybillSelectCreateManyAndReturn<ExtArgs extends runtime.Typ
   orderPart?: boolean | Prisma.ShippingWaybill$orderPartArgs<ExtArgs>
   store?: boolean | Prisma.StoreDefaultArgs<ExtArgs>
   issuer?: boolean | Prisma.ShippingWaybill$issuerArgs<ExtArgs>
+  shipment?: boolean | Prisma.ShippingWaybill$shipmentArgs<ExtArgs>
 }, ExtArgs["result"]["shippingWaybill"]>
 
 export type ShippingWaybillSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -2217,6 +2558,9 @@ export type ShippingWaybillSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   senderCity?: boolean
   senderCountry?: boolean
   shippingRefund?: boolean
+  bundledOfferIds?: boolean
+  shipmentId?: boolean
+  issueMode?: boolean
   issuedBy?: boolean
   issuedAt?: boolean
   createdAt?: boolean
@@ -2225,6 +2569,7 @@ export type ShippingWaybillSelectUpdateManyAndReturn<ExtArgs extends runtime.Typ
   orderPart?: boolean | Prisma.ShippingWaybill$orderPartArgs<ExtArgs>
   store?: boolean | Prisma.StoreDefaultArgs<ExtArgs>
   issuer?: boolean | Prisma.ShippingWaybill$issuerArgs<ExtArgs>
+  shipment?: boolean | Prisma.ShippingWaybill$shipmentArgs<ExtArgs>
 }, ExtArgs["result"]["shippingWaybill"]>
 
 export type ShippingWaybillSelectScalar = {
@@ -2252,18 +2597,22 @@ export type ShippingWaybillSelectScalar = {
   senderCity?: boolean
   senderCountry?: boolean
   shippingRefund?: boolean
+  bundledOfferIds?: boolean
+  shipmentId?: boolean
+  issueMode?: boolean
   issuedBy?: boolean
   issuedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ShippingWaybillOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "waybillNumber" | "orderId" | "partId" | "storeId" | "storeName" | "storeCode" | "recipientName" | "recipientPhone" | "recipientEmail" | "recipientCity" | "recipientCountry" | "recipientAddress" | "customerCode" | "partName" | "partDescription" | "finalPrice" | "currency" | "senderName" | "senderPhone" | "senderAddress" | "senderCity" | "senderCountry" | "shippingRefund" | "issuedBy" | "issuedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["shippingWaybill"]>
+export type ShippingWaybillOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "waybillNumber" | "orderId" | "partId" | "storeId" | "storeName" | "storeCode" | "recipientName" | "recipientPhone" | "recipientEmail" | "recipientCity" | "recipientCountry" | "recipientAddress" | "customerCode" | "partName" | "partDescription" | "finalPrice" | "currency" | "senderName" | "senderPhone" | "senderAddress" | "senderCity" | "senderCountry" | "shippingRefund" | "bundledOfferIds" | "shipmentId" | "issueMode" | "issuedBy" | "issuedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["shippingWaybill"]>
 export type ShippingWaybillInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
   orderPart?: boolean | Prisma.ShippingWaybill$orderPartArgs<ExtArgs>
   store?: boolean | Prisma.StoreDefaultArgs<ExtArgs>
   issuer?: boolean | Prisma.ShippingWaybill$issuerArgs<ExtArgs>
+  shipment?: boolean | Prisma.ShippingWaybill$shipmentArgs<ExtArgs>
   shipments?: boolean | Prisma.ShippingWaybill$shipmentsArgs<ExtArgs>
   _count?: boolean | Prisma.ShippingWaybillCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -2272,12 +2621,14 @@ export type ShippingWaybillIncludeCreateManyAndReturn<ExtArgs extends runtime.Ty
   orderPart?: boolean | Prisma.ShippingWaybill$orderPartArgs<ExtArgs>
   store?: boolean | Prisma.StoreDefaultArgs<ExtArgs>
   issuer?: boolean | Prisma.ShippingWaybill$issuerArgs<ExtArgs>
+  shipment?: boolean | Prisma.ShippingWaybill$shipmentArgs<ExtArgs>
 }
 export type ShippingWaybillIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
   orderPart?: boolean | Prisma.ShippingWaybill$orderPartArgs<ExtArgs>
   store?: boolean | Prisma.StoreDefaultArgs<ExtArgs>
   issuer?: boolean | Prisma.ShippingWaybill$issuerArgs<ExtArgs>
+  shipment?: boolean | Prisma.ShippingWaybill$shipmentArgs<ExtArgs>
 }
 
 export type $ShippingWaybillPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -2287,6 +2638,7 @@ export type $ShippingWaybillPayload<ExtArgs extends runtime.Types.Extensions.Int
     orderPart: Prisma.$OrderPartPayload<ExtArgs> | null
     store: Prisma.$StorePayload<ExtArgs>
     issuer: Prisma.$UserPayload<ExtArgs> | null
+    shipment: Prisma.$ShipmentPayload<ExtArgs> | null
     shipments: Prisma.$ShipmentPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -2314,6 +2666,9 @@ export type $ShippingWaybillPayload<ExtArgs extends runtime.Types.Extensions.Int
     senderCity: string | null
     senderCountry: string | null
     shippingRefund: runtime.Decimal | null
+    bundledOfferIds: runtime.JsonValue
+    shipmentId: string | null
+    issueMode: string | null
     issuedBy: string | null
     issuedAt: Date
     createdAt: Date
@@ -2716,6 +3071,7 @@ export interface Prisma__ShippingWaybillClient<T, Null = never, ExtArgs extends 
   orderPart<T extends Prisma.ShippingWaybill$orderPartArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ShippingWaybill$orderPartArgs<ExtArgs>>): Prisma.Prisma__OrderPartClient<runtime.Types.Result.GetResult<Prisma.$OrderPartPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   store<T extends Prisma.StoreDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.StoreDefaultArgs<ExtArgs>>): Prisma.Prisma__StoreClient<runtime.Types.Result.GetResult<Prisma.$StorePayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   issuer<T extends Prisma.ShippingWaybill$issuerArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ShippingWaybill$issuerArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  shipment<T extends Prisma.ShippingWaybill$shipmentArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ShippingWaybill$shipmentArgs<ExtArgs>>): Prisma.Prisma__ShipmentClient<runtime.Types.Result.GetResult<Prisma.$ShipmentPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   shipments<T extends Prisma.ShippingWaybill$shipmentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ShippingWaybill$shipmentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ShipmentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -2770,6 +3126,9 @@ export interface ShippingWaybillFieldRefs {
   readonly senderCity: Prisma.FieldRef<"ShippingWaybill", 'String'>
   readonly senderCountry: Prisma.FieldRef<"ShippingWaybill", 'String'>
   readonly shippingRefund: Prisma.FieldRef<"ShippingWaybill", 'Decimal'>
+  readonly bundledOfferIds: Prisma.FieldRef<"ShippingWaybill", 'Json'>
+  readonly shipmentId: Prisma.FieldRef<"ShippingWaybill", 'String'>
+  readonly issueMode: Prisma.FieldRef<"ShippingWaybill", 'String'>
   readonly issuedBy: Prisma.FieldRef<"ShippingWaybill", 'String'>
   readonly issuedAt: Prisma.FieldRef<"ShippingWaybill", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"ShippingWaybill", 'DateTime'>
@@ -3210,6 +3569,25 @@ export type ShippingWaybill$issuerArgs<ExtArgs extends runtime.Types.Extensions.
    */
   include?: Prisma.UserInclude<ExtArgs> | null
   where?: Prisma.UserWhereInput
+}
+
+/**
+ * ShippingWaybill.shipment
+ */
+export type ShippingWaybill$shipmentArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Shipment
+   */
+  select?: Prisma.ShipmentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Shipment
+   */
+  omit?: Prisma.ShipmentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ShipmentInclude<ExtArgs> | null
+  where?: Prisma.ShipmentWhereInput
 }
 
 /**

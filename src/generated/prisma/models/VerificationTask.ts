@@ -45,6 +45,7 @@ export type VerificationTaskSumAggregateOutputType = {
 export type VerificationTaskMinAggregateOutputType = {
   id: string | null
   orderId: string | null
+  offerId: string | null
   officerId: string | null
   assignedById: string | null
   status: string | null
@@ -68,6 +69,7 @@ export type VerificationTaskMinAggregateOutputType = {
 export type VerificationTaskMaxAggregateOutputType = {
   id: string | null
   orderId: string | null
+  offerId: string | null
   officerId: string | null
   assignedById: string | null
   status: string | null
@@ -91,6 +93,7 @@ export type VerificationTaskMaxAggregateOutputType = {
 export type VerificationTaskCountAggregateOutputType = {
   id: number
   orderId: number
+  offerId: number
   officerId: number
   assignedById: number
   status: number
@@ -135,6 +138,7 @@ export type VerificationTaskSumAggregateInputType = {
 export type VerificationTaskMinAggregateInputType = {
   id?: true
   orderId?: true
+  offerId?: true
   officerId?: true
   assignedById?: true
   status?: true
@@ -158,6 +162,7 @@ export type VerificationTaskMinAggregateInputType = {
 export type VerificationTaskMaxAggregateInputType = {
   id?: true
   orderId?: true
+  offerId?: true
   officerId?: true
   assignedById?: true
   status?: true
@@ -181,6 +186,7 @@ export type VerificationTaskMaxAggregateInputType = {
 export type VerificationTaskCountAggregateInputType = {
   id?: true
   orderId?: true
+  offerId?: true
   officerId?: true
   assignedById?: true
   status?: true
@@ -294,6 +300,7 @@ export type VerificationTaskGroupByArgs<ExtArgs extends runtime.Types.Extensions
 export type VerificationTaskGroupByOutputType = {
   id: string
   orderId: string
+  offerId: string | null
   officerId: string | null
   assignedById: string | null
   status: string
@@ -343,6 +350,7 @@ export type VerificationTaskWhereInput = {
   NOT?: Prisma.VerificationTaskWhereInput | Prisma.VerificationTaskWhereInput[]
   id?: Prisma.UuidFilter<"VerificationTask"> | string
   orderId?: Prisma.UuidFilter<"VerificationTask"> | string
+  offerId?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   officerId?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   assignedById?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   status?: Prisma.StringFilter<"VerificationTask"> | string
@@ -365,6 +373,7 @@ export type VerificationTaskWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"VerificationTask"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"VerificationTask"> | Date | string
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
+  offer?: Prisma.XOR<Prisma.OfferNullableScalarRelationFilter, Prisma.OfferWhereInput> | null
   officer?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   assignedBy?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   previousTask?: Prisma.XOR<Prisma.VerificationTaskNullableScalarRelationFilter, Prisma.VerificationTaskWhereInput> | null
@@ -377,6 +386,7 @@ export type VerificationTaskWhereInput = {
 export type VerificationTaskOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  offerId?: Prisma.SortOrderInput | Prisma.SortOrder
   officerId?: Prisma.SortOrderInput | Prisma.SortOrder
   assignedById?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -399,6 +409,7 @@ export type VerificationTaskOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   order?: Prisma.OrderOrderByWithRelationInput
+  offer?: Prisma.OfferOrderByWithRelationInput
   officer?: Prisma.UserOrderByWithRelationInput
   assignedBy?: Prisma.UserOrderByWithRelationInput
   previousTask?: Prisma.VerificationTaskOrderByWithRelationInput
@@ -414,6 +425,7 @@ export type VerificationTaskWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.VerificationTaskWhereInput[]
   NOT?: Prisma.VerificationTaskWhereInput | Prisma.VerificationTaskWhereInput[]
   orderId?: Prisma.UuidFilter<"VerificationTask"> | string
+  offerId?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   officerId?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   assignedById?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   status?: Prisma.StringFilter<"VerificationTask"> | string
@@ -436,6 +448,7 @@ export type VerificationTaskWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"VerificationTask"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"VerificationTask"> | Date | string
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
+  offer?: Prisma.XOR<Prisma.OfferNullableScalarRelationFilter, Prisma.OfferWhereInput> | null
   officer?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   assignedBy?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   previousTask?: Prisma.XOR<Prisma.VerificationTaskNullableScalarRelationFilter, Prisma.VerificationTaskWhereInput> | null
@@ -448,6 +461,7 @@ export type VerificationTaskWhereUniqueInput = Prisma.AtLeast<{
 export type VerificationTaskOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  offerId?: Prisma.SortOrderInput | Prisma.SortOrder
   officerId?: Prisma.SortOrderInput | Prisma.SortOrder
   assignedById?: Prisma.SortOrderInput | Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -482,6 +496,7 @@ export type VerificationTaskScalarWhereWithAggregatesInput = {
   NOT?: Prisma.VerificationTaskScalarWhereWithAggregatesInput | Prisma.VerificationTaskScalarWhereWithAggregatesInput[]
   id?: Prisma.UuidWithAggregatesFilter<"VerificationTask"> | string
   orderId?: Prisma.UuidWithAggregatesFilter<"VerificationTask"> | string
+  offerId?: Prisma.UuidNullableWithAggregatesFilter<"VerificationTask"> | string | null
   officerId?: Prisma.UuidNullableWithAggregatesFilter<"VerificationTask"> | string | null
   assignedById?: Prisma.UuidNullableWithAggregatesFilter<"VerificationTask"> | string | null
   status?: Prisma.StringWithAggregatesFilter<"VerificationTask"> | string
@@ -526,6 +541,7 @@ export type VerificationTaskCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
@@ -538,6 +554,7 @@ export type VerificationTaskCreateInput = {
 export type VerificationTaskUncheckedCreateInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -586,6 +603,7 @@ export type VerificationTaskUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
@@ -598,6 +616,7 @@ export type VerificationTaskUpdateInput = {
 export type VerificationTaskUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -628,6 +647,7 @@ export type VerificationTaskUncheckedUpdateInput = {
 export type VerificationTaskCreateManyInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -676,6 +696,7 @@ export type VerificationTaskUpdateManyMutationInput = {
 export type VerificationTaskUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -717,6 +738,7 @@ export type VerificationTaskNullableScalarRelationFilter = {
 export type VerificationTaskCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  offerId?: Prisma.SortOrder
   officerId?: Prisma.SortOrder
   assignedById?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -751,6 +773,7 @@ export type VerificationTaskAvgOrderByAggregateInput = {
 export type VerificationTaskMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  offerId?: Prisma.SortOrder
   officerId?: Prisma.SortOrder
   assignedById?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -774,6 +797,7 @@ export type VerificationTaskMaxOrderByAggregateInput = {
 export type VerificationTaskMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  offerId?: Prisma.SortOrder
   officerId?: Prisma.SortOrder
   assignedById?: Prisma.SortOrder
   status?: Prisma.SortOrder
@@ -933,6 +957,48 @@ export type VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput = {
   deleteMany?: Prisma.VerificationTaskScalarWhereInput | Prisma.VerificationTaskScalarWhereInput[]
 }
 
+export type VerificationTaskCreateNestedManyWithoutOfferInput = {
+  create?: Prisma.XOR<Prisma.VerificationTaskCreateWithoutOfferInput, Prisma.VerificationTaskUncheckedCreateWithoutOfferInput> | Prisma.VerificationTaskCreateWithoutOfferInput[] | Prisma.VerificationTaskUncheckedCreateWithoutOfferInput[]
+  connectOrCreate?: Prisma.VerificationTaskCreateOrConnectWithoutOfferInput | Prisma.VerificationTaskCreateOrConnectWithoutOfferInput[]
+  createMany?: Prisma.VerificationTaskCreateManyOfferInputEnvelope
+  connect?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+}
+
+export type VerificationTaskUncheckedCreateNestedManyWithoutOfferInput = {
+  create?: Prisma.XOR<Prisma.VerificationTaskCreateWithoutOfferInput, Prisma.VerificationTaskUncheckedCreateWithoutOfferInput> | Prisma.VerificationTaskCreateWithoutOfferInput[] | Prisma.VerificationTaskUncheckedCreateWithoutOfferInput[]
+  connectOrCreate?: Prisma.VerificationTaskCreateOrConnectWithoutOfferInput | Prisma.VerificationTaskCreateOrConnectWithoutOfferInput[]
+  createMany?: Prisma.VerificationTaskCreateManyOfferInputEnvelope
+  connect?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+}
+
+export type VerificationTaskUpdateManyWithoutOfferNestedInput = {
+  create?: Prisma.XOR<Prisma.VerificationTaskCreateWithoutOfferInput, Prisma.VerificationTaskUncheckedCreateWithoutOfferInput> | Prisma.VerificationTaskCreateWithoutOfferInput[] | Prisma.VerificationTaskUncheckedCreateWithoutOfferInput[]
+  connectOrCreate?: Prisma.VerificationTaskCreateOrConnectWithoutOfferInput | Prisma.VerificationTaskCreateOrConnectWithoutOfferInput[]
+  upsert?: Prisma.VerificationTaskUpsertWithWhereUniqueWithoutOfferInput | Prisma.VerificationTaskUpsertWithWhereUniqueWithoutOfferInput[]
+  createMany?: Prisma.VerificationTaskCreateManyOfferInputEnvelope
+  set?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  disconnect?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  delete?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  connect?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  update?: Prisma.VerificationTaskUpdateWithWhereUniqueWithoutOfferInput | Prisma.VerificationTaskUpdateWithWhereUniqueWithoutOfferInput[]
+  updateMany?: Prisma.VerificationTaskUpdateManyWithWhereWithoutOfferInput | Prisma.VerificationTaskUpdateManyWithWhereWithoutOfferInput[]
+  deleteMany?: Prisma.VerificationTaskScalarWhereInput | Prisma.VerificationTaskScalarWhereInput[]
+}
+
+export type VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput = {
+  create?: Prisma.XOR<Prisma.VerificationTaskCreateWithoutOfferInput, Prisma.VerificationTaskUncheckedCreateWithoutOfferInput> | Prisma.VerificationTaskCreateWithoutOfferInput[] | Prisma.VerificationTaskUncheckedCreateWithoutOfferInput[]
+  connectOrCreate?: Prisma.VerificationTaskCreateOrConnectWithoutOfferInput | Prisma.VerificationTaskCreateOrConnectWithoutOfferInput[]
+  upsert?: Prisma.VerificationTaskUpsertWithWhereUniqueWithoutOfferInput | Prisma.VerificationTaskUpsertWithWhereUniqueWithoutOfferInput[]
+  createMany?: Prisma.VerificationTaskCreateManyOfferInputEnvelope
+  set?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  disconnect?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  delete?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  connect?: Prisma.VerificationTaskWhereUniqueInput | Prisma.VerificationTaskWhereUniqueInput[]
+  update?: Prisma.VerificationTaskUpdateWithWhereUniqueWithoutOfferInput | Prisma.VerificationTaskUpdateWithWhereUniqueWithoutOfferInput[]
+  updateMany?: Prisma.VerificationTaskUpdateManyWithWhereWithoutOfferInput | Prisma.VerificationTaskUpdateManyWithWhereWithoutOfferInput[]
+  deleteMany?: Prisma.VerificationTaskScalarWhereInput | Prisma.VerificationTaskScalarWhereInput[]
+}
+
 export type VerificationTaskCreateNestedOneWithoutNextTasksInput = {
   create?: Prisma.XOR<Prisma.VerificationTaskCreateWithoutNextTasksInput, Prisma.VerificationTaskUncheckedCreateWithoutNextTasksInput>
   connectOrCreate?: Prisma.VerificationTaskCreateOrConnectWithoutNextTasksInput
@@ -1054,6 +1120,7 @@ export type VerificationTaskCreateWithoutOfficerInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
   nextTasks?: Prisma.VerificationTaskCreateNestedManyWithoutPreviousTaskInput
@@ -1065,6 +1132,7 @@ export type VerificationTaskCreateWithoutOfficerInput = {
 export type VerificationTaskUncheckedCreateWithoutOfficerInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   assignedById?: string | null
   status?: string
   assignedAt?: Date | string | null
@@ -1122,6 +1190,7 @@ export type VerificationTaskCreateWithoutAssignedByInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
   nextTasks?: Prisma.VerificationTaskCreateNestedManyWithoutPreviousTaskInput
@@ -1133,6 +1202,7 @@ export type VerificationTaskCreateWithoutAssignedByInput = {
 export type VerificationTaskUncheckedCreateWithoutAssignedByInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   status?: string
   assignedAt?: Date | string | null
@@ -1191,6 +1261,7 @@ export type VerificationTaskScalarWhereInput = {
   NOT?: Prisma.VerificationTaskScalarWhereInput | Prisma.VerificationTaskScalarWhereInput[]
   id?: Prisma.UuidFilter<"VerificationTask"> | string
   orderId?: Prisma.UuidFilter<"VerificationTask"> | string
+  offerId?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   officerId?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   assignedById?: Prisma.UuidNullableFilter<"VerificationTask"> | string | null
   status?: Prisma.StringFilter<"VerificationTask"> | string
@@ -1250,6 +1321,7 @@ export type VerificationTaskCreateWithoutOrderInput = {
   cycleNumber?: number
   createdAt?: Date | string
   updatedAt?: Date | string
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
@@ -1261,6 +1333,7 @@ export type VerificationTaskCreateWithoutOrderInput = {
 
 export type VerificationTaskUncheckedCreateWithoutOrderInput = {
   id?: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -1314,7 +1387,7 @@ export type VerificationTaskUpdateManyWithWhereWithoutOrderInput = {
   data: Prisma.XOR<Prisma.VerificationTaskUpdateManyMutationInput, Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderInput>
 }
 
-export type VerificationTaskCreateWithoutNextTasksInput = {
+export type VerificationTaskCreateWithoutOfferInput = {
   id?: string
   status?: string
   assignedAt?: Date | string | null
@@ -1338,6 +1411,93 @@ export type VerificationTaskCreateWithoutNextTasksInput = {
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
+  nextTasks?: Prisma.VerificationTaskCreateNestedManyWithoutPreviousTaskInput
+  links?: Prisma.VerificationLinkCreateNestedManyWithoutTaskInput
+  activityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutTaskInput
+  fieldPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutTaskInput
+}
+
+export type VerificationTaskUncheckedCreateWithoutOfferInput = {
+  id?: string
+  orderId: string
+  officerId?: string | null
+  assignedById?: string | null
+  status?: string
+  assignedAt?: Date | string | null
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  startLat?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startLng?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  endLat?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endLng?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  decision?: string | null
+  decisionReason?: string | null
+  officerPhotos?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  officerNotes?: string | null
+  reportUrl?: string | null
+  cycleNumber?: number
+  previousTaskId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  nextTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutPreviousTaskInput
+  links?: Prisma.VerificationLinkUncheckedCreateNestedManyWithoutTaskInput
+  activityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutTaskInput
+  fieldPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutTaskInput
+}
+
+export type VerificationTaskCreateOrConnectWithoutOfferInput = {
+  where: Prisma.VerificationTaskWhereUniqueInput
+  create: Prisma.XOR<Prisma.VerificationTaskCreateWithoutOfferInput, Prisma.VerificationTaskUncheckedCreateWithoutOfferInput>
+}
+
+export type VerificationTaskCreateManyOfferInputEnvelope = {
+  data: Prisma.VerificationTaskCreateManyOfferInput | Prisma.VerificationTaskCreateManyOfferInput[]
+  skipDuplicates?: boolean
+}
+
+export type VerificationTaskUpsertWithWhereUniqueWithoutOfferInput = {
+  where: Prisma.VerificationTaskWhereUniqueInput
+  update: Prisma.XOR<Prisma.VerificationTaskUpdateWithoutOfferInput, Prisma.VerificationTaskUncheckedUpdateWithoutOfferInput>
+  create: Prisma.XOR<Prisma.VerificationTaskCreateWithoutOfferInput, Prisma.VerificationTaskUncheckedCreateWithoutOfferInput>
+}
+
+export type VerificationTaskUpdateWithWhereUniqueWithoutOfferInput = {
+  where: Prisma.VerificationTaskWhereUniqueInput
+  data: Prisma.XOR<Prisma.VerificationTaskUpdateWithoutOfferInput, Prisma.VerificationTaskUncheckedUpdateWithoutOfferInput>
+}
+
+export type VerificationTaskUpdateManyWithWhereWithoutOfferInput = {
+  where: Prisma.VerificationTaskScalarWhereInput
+  data: Prisma.XOR<Prisma.VerificationTaskUpdateManyMutationInput, Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferInput>
+}
+
+export type VerificationTaskCreateWithoutNextTasksInput = {
+  id?: string
+  status?: string
+  assignedAt?: Date | string | null
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  startLat?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startLng?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  endLat?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endLng?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  decision?: string | null
+  decisionReason?: string | null
+  officerPhotos?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  officerNotes?: string | null
+  reportUrl?: string | null
+  cycleNumber?: number
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
+  officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
+  assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
+  previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
   links?: Prisma.VerificationLinkCreateNestedManyWithoutTaskInput
   activityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutTaskInput
   fieldPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutTaskInput
@@ -1346,6 +1506,7 @@ export type VerificationTaskCreateWithoutNextTasksInput = {
 export type VerificationTaskUncheckedCreateWithoutNextTasksInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -1398,6 +1559,7 @@ export type VerificationTaskCreateWithoutPreviousTaskInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   nextTasks?: Prisma.VerificationTaskCreateNestedManyWithoutPreviousTaskInput
@@ -1409,6 +1571,7 @@ export type VerificationTaskCreateWithoutPreviousTaskInput = {
 export type VerificationTaskUncheckedCreateWithoutPreviousTaskInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -1477,6 +1640,7 @@ export type VerificationTaskUpdateWithoutNextTasksInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
@@ -1488,6 +1652,7 @@ export type VerificationTaskUpdateWithoutNextTasksInput = {
 export type VerificationTaskUncheckedUpdateWithoutNextTasksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1551,6 +1716,7 @@ export type VerificationTaskCreateWithoutFieldPhotosInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
@@ -1562,6 +1728,7 @@ export type VerificationTaskCreateWithoutFieldPhotosInput = {
 export type VerificationTaskUncheckedCreateWithoutFieldPhotosInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -1625,6 +1792,7 @@ export type VerificationTaskUpdateWithoutFieldPhotosInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
@@ -1636,6 +1804,7 @@ export type VerificationTaskUpdateWithoutFieldPhotosInput = {
 export type VerificationTaskUncheckedUpdateWithoutFieldPhotosInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1683,6 +1852,7 @@ export type VerificationTaskCreateWithoutLinksInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
@@ -1694,6 +1864,7 @@ export type VerificationTaskCreateWithoutLinksInput = {
 export type VerificationTaskUncheckedCreateWithoutLinksInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -1757,6 +1928,7 @@ export type VerificationTaskUpdateWithoutLinksInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
@@ -1768,6 +1940,7 @@ export type VerificationTaskUpdateWithoutLinksInput = {
 export type VerificationTaskUncheckedUpdateWithoutLinksInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1815,6 +1988,7 @@ export type VerificationTaskCreateWithoutActivityLogsInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutVerificationTasksInput
+  offer?: Prisma.OfferCreateNestedOneWithoutVerificationTasksInput
   officer?: Prisma.UserCreateNestedOneWithoutVerificationTasksAssignedInput
   assignedBy?: Prisma.UserCreateNestedOneWithoutVerificationTasksCreatedInput
   previousTask?: Prisma.VerificationTaskCreateNestedOneWithoutNextTasksInput
@@ -1826,6 +2000,7 @@ export type VerificationTaskCreateWithoutActivityLogsInput = {
 export type VerificationTaskUncheckedCreateWithoutActivityLogsInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -1889,6 +2064,7 @@ export type VerificationTaskUpdateWithoutActivityLogsInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
@@ -1900,6 +2076,7 @@ export type VerificationTaskUpdateWithoutActivityLogsInput = {
 export type VerificationTaskUncheckedUpdateWithoutActivityLogsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1929,6 +2106,7 @@ export type VerificationTaskUncheckedUpdateWithoutActivityLogsInput = {
 export type VerificationTaskCreateManyOfficerInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   assignedById?: string | null
   status?: string
   assignedAt?: Date | string | null
@@ -1954,6 +2132,7 @@ export type VerificationTaskCreateManyOfficerInput = {
 export type VerificationTaskCreateManyAssignedByInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   status?: string
   assignedAt?: Date | string | null
@@ -1997,6 +2176,7 @@ export type VerificationTaskUpdateWithoutOfficerInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
   nextTasks?: Prisma.VerificationTaskUpdateManyWithoutPreviousTaskNestedInput
@@ -2008,6 +2188,7 @@ export type VerificationTaskUpdateWithoutOfficerInput = {
 export type VerificationTaskUncheckedUpdateWithoutOfficerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   assignedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2037,6 +2218,7 @@ export type VerificationTaskUncheckedUpdateWithoutOfficerInput = {
 export type VerificationTaskUncheckedUpdateManyWithoutOfficerInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   assignedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2080,6 +2262,7 @@ export type VerificationTaskUpdateWithoutAssignedByInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
   nextTasks?: Prisma.VerificationTaskUpdateManyWithoutPreviousTaskNestedInput
@@ -2091,6 +2274,7 @@ export type VerificationTaskUpdateWithoutAssignedByInput = {
 export type VerificationTaskUncheckedUpdateWithoutAssignedByInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   assignedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2120,6 +2304,7 @@ export type VerificationTaskUncheckedUpdateWithoutAssignedByInput = {
 export type VerificationTaskUncheckedUpdateManyWithoutAssignedByInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
   assignedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -2144,6 +2329,7 @@ export type VerificationTaskUncheckedUpdateManyWithoutAssignedByInput = {
 
 export type VerificationTaskCreateManyOrderInput = {
   id?: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -2187,6 +2373,7 @@ export type VerificationTaskUpdateWithoutOrderInput = {
   cycleNumber?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
@@ -2198,6 +2385,7 @@ export type VerificationTaskUpdateWithoutOrderInput = {
 
 export type VerificationTaskUncheckedUpdateWithoutOrderInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -2227,6 +2415,119 @@ export type VerificationTaskUncheckedUpdateWithoutOrderInput = {
 
 export type VerificationTaskUncheckedUpdateManyWithoutOrderInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  assignedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  startLat?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startLng?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  endLat?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endLng?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  decision?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  officerPhotos?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  officerNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cycleNumber?: Prisma.IntFieldUpdateOperationsInput | number
+  previousTaskId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type VerificationTaskCreateManyOfferInput = {
+  id?: string
+  orderId: string
+  officerId?: string | null
+  assignedById?: string | null
+  status?: string
+  assignedAt?: Date | string | null
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  startLat?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startLng?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  endLat?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endLng?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  decision?: string | null
+  decisionReason?: string | null
+  officerPhotos?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  officerNotes?: string | null
+  reportUrl?: string | null
+  cycleNumber?: number
+  previousTaskId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type VerificationTaskUpdateWithoutOfferInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  assignedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  startLat?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startLng?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  endLat?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endLng?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  decision?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  officerPhotos?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  officerNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cycleNumber?: Prisma.IntFieldUpdateOperationsInput | number
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
+  assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
+  previousTask?: Prisma.VerificationTaskUpdateOneWithoutNextTasksNestedInput
+  nextTasks?: Prisma.VerificationTaskUpdateManyWithoutPreviousTaskNestedInput
+  links?: Prisma.VerificationLinkUpdateManyWithoutTaskNestedInput
+  activityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutTaskNestedInput
+  fieldPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutTaskNestedInput
+}
+
+export type VerificationTaskUncheckedUpdateWithoutOfferInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  assignedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  startLat?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startLng?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  startDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  endLat?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endLng?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  endDeviceInfo?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  decision?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  decisionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  officerPhotos?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  officerNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  reportUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cycleNumber?: Prisma.IntFieldUpdateOperationsInput | number
+  previousTaskId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  nextTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutPreviousTaskNestedInput
+  links?: Prisma.VerificationLinkUncheckedUpdateManyWithoutTaskNestedInput
+  activityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutTaskNestedInput
+  fieldPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutTaskNestedInput
+}
+
+export type VerificationTaskUncheckedUpdateManyWithoutOfferInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  orderId?: Prisma.StringFieldUpdateOperationsInput | string
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -2253,6 +2554,7 @@ export type VerificationTaskUncheckedUpdateManyWithoutOrderInput = {
 export type VerificationTaskCreateManyPreviousTaskInput = {
   id?: string
   orderId: string
+  offerId?: string | null
   officerId?: string | null
   assignedById?: string | null
   status?: string
@@ -2296,6 +2598,7 @@ export type VerificationTaskUpdateWithoutPreviousTaskInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutVerificationTasksNestedInput
+  offer?: Prisma.OfferUpdateOneWithoutVerificationTasksNestedInput
   officer?: Prisma.UserUpdateOneWithoutVerificationTasksAssignedNestedInput
   assignedBy?: Prisma.UserUpdateOneWithoutVerificationTasksCreatedNestedInput
   nextTasks?: Prisma.VerificationTaskUpdateManyWithoutPreviousTaskNestedInput
@@ -2307,6 +2610,7 @@ export type VerificationTaskUpdateWithoutPreviousTaskInput = {
 export type VerificationTaskUncheckedUpdateWithoutPreviousTaskInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -2336,6 +2640,7 @@ export type VerificationTaskUncheckedUpdateWithoutPreviousTaskInput = {
 export type VerificationTaskUncheckedUpdateManyWithoutPreviousTaskInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  offerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   officerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   assignedById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   status?: Prisma.StringFieldUpdateOperationsInput | string
@@ -2419,6 +2724,7 @@ export type VerificationTaskCountOutputTypeCountFieldPhotosArgs<ExtArgs extends 
 export type VerificationTaskSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   orderId?: boolean
+  offerId?: boolean
   officerId?: boolean
   assignedById?: boolean
   status?: boolean
@@ -2441,6 +2747,7 @@ export type VerificationTaskSelect<ExtArgs extends runtime.Types.Extensions.Inte
   createdAt?: boolean
   updatedAt?: boolean
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  offer?: boolean | Prisma.VerificationTask$offerArgs<ExtArgs>
   officer?: boolean | Prisma.VerificationTask$officerArgs<ExtArgs>
   assignedBy?: boolean | Prisma.VerificationTask$assignedByArgs<ExtArgs>
   previousTask?: boolean | Prisma.VerificationTask$previousTaskArgs<ExtArgs>
@@ -2454,6 +2761,7 @@ export type VerificationTaskSelect<ExtArgs extends runtime.Types.Extensions.Inte
 export type VerificationTaskSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   orderId?: boolean
+  offerId?: boolean
   officerId?: boolean
   assignedById?: boolean
   status?: boolean
@@ -2476,6 +2784,7 @@ export type VerificationTaskSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
   createdAt?: boolean
   updatedAt?: boolean
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  offer?: boolean | Prisma.VerificationTask$offerArgs<ExtArgs>
   officer?: boolean | Prisma.VerificationTask$officerArgs<ExtArgs>
   assignedBy?: boolean | Prisma.VerificationTask$assignedByArgs<ExtArgs>
   previousTask?: boolean | Prisma.VerificationTask$previousTaskArgs<ExtArgs>
@@ -2484,6 +2793,7 @@ export type VerificationTaskSelectCreateManyAndReturn<ExtArgs extends runtime.Ty
 export type VerificationTaskSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   orderId?: boolean
+  offerId?: boolean
   officerId?: boolean
   assignedById?: boolean
   status?: boolean
@@ -2506,6 +2816,7 @@ export type VerificationTaskSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
   createdAt?: boolean
   updatedAt?: boolean
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  offer?: boolean | Prisma.VerificationTask$offerArgs<ExtArgs>
   officer?: boolean | Prisma.VerificationTask$officerArgs<ExtArgs>
   assignedBy?: boolean | Prisma.VerificationTask$assignedByArgs<ExtArgs>
   previousTask?: boolean | Prisma.VerificationTask$previousTaskArgs<ExtArgs>
@@ -2514,6 +2825,7 @@ export type VerificationTaskSelectUpdateManyAndReturn<ExtArgs extends runtime.Ty
 export type VerificationTaskSelectScalar = {
   id?: boolean
   orderId?: boolean
+  offerId?: boolean
   officerId?: boolean
   assignedById?: boolean
   status?: boolean
@@ -2537,9 +2849,10 @@ export type VerificationTaskSelectScalar = {
   updatedAt?: boolean
 }
 
-export type VerificationTaskOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orderId" | "officerId" | "assignedById" | "status" | "assignedAt" | "startedAt" | "completedAt" | "startLat" | "startLng" | "startDeviceInfo" | "endLat" | "endLng" | "endDeviceInfo" | "decision" | "decisionReason" | "officerPhotos" | "officerNotes" | "reportUrl" | "cycleNumber" | "previousTaskId" | "createdAt" | "updatedAt", ExtArgs["result"]["verificationTask"]>
+export type VerificationTaskOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orderId" | "offerId" | "officerId" | "assignedById" | "status" | "assignedAt" | "startedAt" | "completedAt" | "startLat" | "startLng" | "startDeviceInfo" | "endLat" | "endLng" | "endDeviceInfo" | "decision" | "decisionReason" | "officerPhotos" | "officerNotes" | "reportUrl" | "cycleNumber" | "previousTaskId" | "createdAt" | "updatedAt", ExtArgs["result"]["verificationTask"]>
 export type VerificationTaskInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  offer?: boolean | Prisma.VerificationTask$offerArgs<ExtArgs>
   officer?: boolean | Prisma.VerificationTask$officerArgs<ExtArgs>
   assignedBy?: boolean | Prisma.VerificationTask$assignedByArgs<ExtArgs>
   previousTask?: boolean | Prisma.VerificationTask$previousTaskArgs<ExtArgs>
@@ -2551,12 +2864,14 @@ export type VerificationTaskInclude<ExtArgs extends runtime.Types.Extensions.Int
 }
 export type VerificationTaskIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  offer?: boolean | Prisma.VerificationTask$offerArgs<ExtArgs>
   officer?: boolean | Prisma.VerificationTask$officerArgs<ExtArgs>
   assignedBy?: boolean | Prisma.VerificationTask$assignedByArgs<ExtArgs>
   previousTask?: boolean | Prisma.VerificationTask$previousTaskArgs<ExtArgs>
 }
 export type VerificationTaskIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  offer?: boolean | Prisma.VerificationTask$offerArgs<ExtArgs>
   officer?: boolean | Prisma.VerificationTask$officerArgs<ExtArgs>
   assignedBy?: boolean | Prisma.VerificationTask$assignedByArgs<ExtArgs>
   previousTask?: boolean | Prisma.VerificationTask$previousTaskArgs<ExtArgs>
@@ -2566,6 +2881,7 @@ export type $VerificationTaskPayload<ExtArgs extends runtime.Types.Extensions.In
   name: "VerificationTask"
   objects: {
     order: Prisma.$OrderPayload<ExtArgs>
+    offer: Prisma.$OfferPayload<ExtArgs> | null
     officer: Prisma.$UserPayload<ExtArgs> | null
     assignedBy: Prisma.$UserPayload<ExtArgs> | null
     previousTask: Prisma.$VerificationTaskPayload<ExtArgs> | null
@@ -2577,6 +2893,7 @@ export type $VerificationTaskPayload<ExtArgs extends runtime.Types.Extensions.In
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     orderId: string
+    offerId: string | null
     officerId: string | null
     assignedById: string | null
     status: string
@@ -2993,6 +3310,7 @@ readonly fields: VerificationTaskFieldRefs;
 export interface Prisma__VerificationTaskClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   order<T extends Prisma.OrderDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrderDefaultArgs<ExtArgs>>): Prisma.Prisma__OrderClient<runtime.Types.Result.GetResult<Prisma.$OrderPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  offer<T extends Prisma.VerificationTask$offerArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.VerificationTask$offerArgs<ExtArgs>>): Prisma.Prisma__OfferClient<runtime.Types.Result.GetResult<Prisma.$OfferPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   officer<T extends Prisma.VerificationTask$officerArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.VerificationTask$officerArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   assignedBy<T extends Prisma.VerificationTask$assignedByArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.VerificationTask$assignedByArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   previousTask<T extends Prisma.VerificationTask$previousTaskArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.VerificationTask$previousTaskArgs<ExtArgs>>): Prisma.Prisma__VerificationTaskClient<runtime.Types.Result.GetResult<Prisma.$VerificationTaskPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
@@ -3031,6 +3349,7 @@ export interface Prisma__VerificationTaskClient<T, Null = never, ExtArgs extends
 export interface VerificationTaskFieldRefs {
   readonly id: Prisma.FieldRef<"VerificationTask", 'String'>
   readonly orderId: Prisma.FieldRef<"VerificationTask", 'String'>
+  readonly offerId: Prisma.FieldRef<"VerificationTask", 'String'>
   readonly officerId: Prisma.FieldRef<"VerificationTask", 'String'>
   readonly assignedById: Prisma.FieldRef<"VerificationTask", 'String'>
   readonly status: Prisma.FieldRef<"VerificationTask", 'String'>
@@ -3450,6 +3769,25 @@ export type VerificationTaskDeleteManyArgs<ExtArgs extends runtime.Types.Extensi
    * Limit how many VerificationTasks to delete.
    */
   limit?: number
+}
+
+/**
+ * VerificationTask.offer
+ */
+export type VerificationTask$offerArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Offer
+   */
+  select?: Prisma.OfferSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Offer
+   */
+  omit?: Prisma.OfferOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OfferInclude<ExtArgs> | null
+  where?: Prisma.OfferWhereInput
 }
 
 /**

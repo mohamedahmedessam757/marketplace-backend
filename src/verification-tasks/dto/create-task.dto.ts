@@ -8,4 +8,9 @@ export class CreateTaskDto {
   @IsUUID()
   @IsOptional()
   officerId?: string;
+
+  /** When set, task is scoped to one accepted offer / part */
+  @IsUUID()
+  @IsOptional()
+  offerId?: string;
 }

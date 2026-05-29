@@ -27,6 +27,12 @@ export class PaymentsController {
         return this.paymentsService.getPaymentStatus(req.user.id, offerId);
     }
 
+    /** Fallback fulfillment when Stripe succeeds on the client before the webhook arrives. */
+    @Post('confirm-intent')
+    confirmPaymentIntent(@Request() req, @Body() body: { paymentIntentId: string }) {
+        return this.paymentsService.confirmPaymentIntentFromClient(req.user.id, body.paymentIntentId);
+    }
+
     @Post('shipping-intent')
     createShippingPaymentIntent(@Request() req, @Body() body: { caseId: string; caseType: 'return' | 'dispute' }) {
         return this.paymentsService.createShippingPaymentIntent(req.user.id, body.caseId, body.caseType);

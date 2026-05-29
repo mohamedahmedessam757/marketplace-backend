@@ -96,6 +96,74 @@ export class CardsService {
         return { success: true };
     }
 
+    /**
+     * Persist a card from a succeeded PaymentIntent (checkout / wallet sync).
+     * Links stripePaymentMethodId so Quick Pay works on future checkouts.
+     */
+    async syncFromPaymentIntent(userId: string, paymentIntentId: string) {
+        const stripe = this.stripeService.getStripeClient();
+        const intent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+            expand: ['payment_method'],
+        });
+
+        if (intent.status !== 'succeeded') {
+            return null;
+        }
+
+        const pmRaw = intent.payment_method;
+        if (!pmRaw) return null;
+
+        const paymentMethodId = typeof pmRaw === 'string' ? pmRaw : pmRaw.id;
+        const cardDetails = typeof pmRaw === 'object' ? pmRaw.card : null;
+        if (!cardDetails) return null;
+
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { stripeCustomerId: true, email: true, name: true },
+        });
+
+        let stripeCustomerId = user?.stripeCustomerId;
+        if (!stripeCustomerId && user?.email) {
+            stripeCustomerId = await this.stripeService.getOrCreateCustomer(userId, user.email, user.name ?? undefined);
+        }
+        if (!stripeCustomerId) return null;
+
+        await this.stripeService.attachPaymentMethod(paymentMethodId, stripeCustomerId);
+
+        const existingByPm = await this.prisma.userCard.findFirst({
+            where: { userId, stripePaymentMethodId: paymentMethodId },
+        });
+        if (existingByPm) return existingByPm;
+
+        const existingByLast4 = await this.prisma.userCard.findFirst({
+            where: { userId, last4: cardDetails.last4 },
+        });
+        if (existingByLast4) {
+            return this.prisma.userCard.update({
+                where: { id: existingByLast4.id },
+                data: {
+                    stripePaymentMethodId: paymentMethodId,
+                    brand: cardDetails.brand ?? existingByLast4.brand,
+                    expiryMonth: cardDetails.exp_month ?? existingByLast4.expiryMonth,
+                    expiryYear: cardDetails.exp_year ?? existingByLast4.expiryYear,
+                },
+            });
+        }
+
+        const existingCount = await this.prisma.userCard.count({ where: { userId } });
+        return this.prisma.userCard.create({
+            data: {
+                userId,
+                last4: cardDetails.last4,
+                brand: cardDetails.brand ?? 'card',
+                expiryMonth: cardDetails.exp_month,
+                expiryYear: cardDetails.exp_year,
+                stripePaymentMethodId: paymentMethodId,
+                isDefault: existingCount === 0,
+            },
+        });
+    }
+
     async setDefaultCard(userId: string, cardId: string) {
         const card = await this.prisma.userCard.findFirst({
             where: { id: cardId, userId },

@@ -4,6 +4,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { TransitionOrderDto } from './dto/transition-order.dto';
 import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 import { ReviewVerificationDto } from './dto/review-verification.dto';
+import { IssueWaybillDto } from '../waybills/dto/issue-waybill.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -226,6 +227,18 @@ export class OrdersController {
         if (!storeId) throw new ForbiddenException('Only verified merchants can mark ready for shipping.');
         return this.ordersService.requestShippingByMerchant(orderId, storeId, req.user.id, offerId);
     }
+    @Post(':id/waybills/issue')
+    issueWaybills(
+        @Request() req,
+        @Param('id') orderId: string,
+        @Body() dto: IssueWaybillDto,
+    ) {
+        if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
+            throw new ForbiddenException('Only admins can issue waybills.');
+        }
+        return this.ordersService.issueWaybillsForAdmin(orderId, req.user.id, dto);
+    }
+
     @Patch(':id/verification/review')
     adminReviewVerification(
         @Request() req,

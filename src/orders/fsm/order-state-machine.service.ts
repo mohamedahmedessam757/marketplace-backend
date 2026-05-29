@@ -11,7 +11,7 @@ export class OrderStateMachine {
         [OrderStatus.AWAITING_PAYMENT]: [OrderStatus.PARTIALLY_PAID, OrderStatus.PREPARATION, OrderStatus.CANCELLED],
         [OrderStatus.PARTIALLY_PAID]: [OrderStatus.AWAITING_PAYMENT, OrderStatus.PREPARATION, OrderStatus.CANCELLED],
         [OrderStatus.PREPARATION]: [OrderStatus.PREPARED, OrderStatus.DELAYED_PREPARATION, OrderStatus.PARTIALLY_SHIPPED, OrderStatus.CANCELLED], 
-        [OrderStatus.PARTIALLY_SHIPPED]: [OrderStatus.PARTIALLY_SHIPPED, OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+        [OrderStatus.PARTIALLY_SHIPPED]: [OrderStatus.PARTIALLY_SHIPPED, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
         [OrderStatus.PREPARED]: [OrderStatus.VERIFICATION, OrderStatus.CANCELLED],
         [OrderStatus.VERIFICATION]: [OrderStatus.VERIFICATION_SUCCESS, OrderStatus.NON_MATCHING, OrderStatus.CANCELLED],
         [OrderStatus.VERIFICATION_SUCCESS]: [OrderStatus.READY_FOR_SHIPPING, OrderStatus.CANCELLED],

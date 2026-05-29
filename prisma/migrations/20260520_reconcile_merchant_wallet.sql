@@ -2,21 +2,27 @@
 -- Run manually on Supabase for seed/test stores. Safe to re-run (idempotent UPDATE).
 --
 -- Formulas (matches merchant-wallet-metrics.util.ts):
---   lifetime_earnings      = SUM(payment_transactions.unit_price) for SUCCESS payments on store offers
+--   lifetime_earnings      = SUM(unit_price) once per offer_id (dedupe duplicate SUCCESS payments)
 --   completed_orders_count = COUNT(DISTINCT order_id) for paid orders with COMPLETED/DELIVERED or active escrow
 
 BEGIN;
 
 WITH merchant_gross AS (
   SELECT
-    o.store_id,
-    COALESCE(SUM(pt.unit_price), 0)::numeric(14, 2) AS lifetime_earnings
-  FROM payment_transactions pt
-  INNER JOIN offers o ON o.id = pt.offer_id
-  INNER JOIN orders ord ON ord.id = pt.order_id
-  WHERE pt.status = 'SUCCESS'
-    AND ord.status NOT IN ('CANCELLED', 'REFUNDED')
-  GROUP BY o.store_id
+    store_id,
+    COALESCE(SUM(unit_price), 0)::numeric(14, 2) AS lifetime_earnings
+  FROM (
+    SELECT DISTINCT ON (o.store_id, pt.offer_id)
+      o.store_id,
+      pt.unit_price
+    FROM payment_transactions pt
+    INNER JOIN offers o ON o.id = pt.offer_id
+    INNER JOIN orders ord ON ord.id = pt.order_id
+    WHERE pt.status = 'SUCCESS'
+      AND ord.status NOT IN ('CANCELLED', 'REFUNDED')
+    ORDER BY o.store_id, pt.offer_id, pt.created_at DESC
+  ) per_offer
+  GROUP BY store_id
 ),
 completed_orders AS (
   SELECT

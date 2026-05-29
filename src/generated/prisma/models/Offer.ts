@@ -430,6 +430,7 @@ export type OfferWhereInput = {
   returns?: Prisma.ReturnRequestListRelationFilter
   disputes?: Prisma.DisputeListRelationFilter
   verificationDocuments?: Prisma.VerificationDocumentListRelationFilter
+  verificationTasks?: Prisma.VerificationTaskListRelationFilter
 }
 
 export type OfferOrderByWithRelationInput = {
@@ -472,6 +473,7 @@ export type OfferOrderByWithRelationInput = {
   returns?: Prisma.ReturnRequestOrderByRelationAggregateInput
   disputes?: Prisma.DisputeOrderByRelationAggregateInput
   verificationDocuments?: Prisma.VerificationDocumentOrderByRelationAggregateInput
+  verificationTasks?: Prisma.VerificationTaskOrderByRelationAggregateInput
 }
 
 export type OfferWhereUniqueInput = Prisma.AtLeast<{
@@ -517,6 +519,7 @@ export type OfferWhereUniqueInput = Prisma.AtLeast<{
   returns?: Prisma.ReturnRequestListRelationFilter
   disputes?: Prisma.DisputeListRelationFilter
   verificationDocuments?: Prisma.VerificationDocumentListRelationFilter
+  verificationTasks?: Prisma.VerificationTaskListRelationFilter
 }, "id" | "offerNumber">
 
 export type OfferOrderByWithAggregationInput = {
@@ -627,6 +630,7 @@ export type OfferCreateInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateInput = {
@@ -665,6 +669,7 @@ export type OfferUncheckedCreateInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUpdateInput = {
@@ -703,6 +708,7 @@ export type OfferUpdateInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateInput = {
@@ -741,6 +747,7 @@ export type OfferUncheckedUpdateInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateManyInput = {
@@ -1237,6 +1244,22 @@ export type OfferUncheckedUpdateManyWithoutCartShipmentNestedInput = {
   deleteMany?: Prisma.OfferScalarWhereInput | Prisma.OfferScalarWhereInput[]
 }
 
+export type OfferCreateNestedOneWithoutVerificationTasksInput = {
+  create?: Prisma.XOR<Prisma.OfferCreateWithoutVerificationTasksInput, Prisma.OfferUncheckedCreateWithoutVerificationTasksInput>
+  connectOrCreate?: Prisma.OfferCreateOrConnectWithoutVerificationTasksInput
+  connect?: Prisma.OfferWhereUniqueInput
+}
+
+export type OfferUpdateOneWithoutVerificationTasksNestedInput = {
+  create?: Prisma.XOR<Prisma.OfferCreateWithoutVerificationTasksInput, Prisma.OfferUncheckedCreateWithoutVerificationTasksInput>
+  connectOrCreate?: Prisma.OfferCreateOrConnectWithoutVerificationTasksInput
+  upsert?: Prisma.OfferUpsertWithoutVerificationTasksInput
+  disconnect?: Prisma.OfferWhereInput | boolean
+  delete?: Prisma.OfferWhereInput | boolean
+  connect?: Prisma.OfferWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OfferUpdateToOneWithWhereWithoutVerificationTasksInput, Prisma.OfferUpdateWithoutVerificationTasksInput>, Prisma.OfferUncheckedUpdateWithoutVerificationTasksInput>
+}
+
 export type OfferCreateWithoutStoreInput = {
   id?: string
   offerNumber: string
@@ -1272,6 +1295,7 @@ export type OfferCreateWithoutStoreInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutStoreInput = {
@@ -1309,6 +1333,7 @@ export type OfferUncheckedCreateWithoutStoreInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutStoreInput = {
@@ -1407,6 +1432,7 @@ export type OfferCreateWithoutOrderInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutOrderInput = {
@@ -1444,6 +1470,7 @@ export type OfferUncheckedCreateWithoutOrderInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutOrderInput = {
@@ -1491,6 +1518,7 @@ export type OfferCreateWithoutAcceptedByOrderInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutAcceptedByOrderInput = {
@@ -1528,6 +1556,7 @@ export type OfferUncheckedCreateWithoutAcceptedByOrderInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutAcceptedByOrderInput = {
@@ -1597,6 +1626,7 @@ export type OfferUpdateWithoutAcceptedByOrderInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutAcceptedByOrderInput = {
@@ -1634,6 +1664,7 @@ export type OfferUncheckedUpdateWithoutAcceptedByOrderInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateWithoutVerificationDocumentsInput = {
@@ -1671,6 +1702,7 @@ export type OfferCreateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutVerificationDocumentsInput = {
@@ -1708,6 +1740,7 @@ export type OfferUncheckedCreateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutVerificationDocumentsInput = {
@@ -1761,6 +1794,7 @@ export type OfferUpdateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutVerificationDocumentsInput = {
@@ -1798,6 +1832,7 @@ export type OfferUncheckedUpdateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateWithoutRejectionInput = {
@@ -1835,6 +1870,7 @@ export type OfferCreateWithoutRejectionInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutRejectionInput = {
@@ -1872,6 +1908,7 @@ export type OfferUncheckedCreateWithoutRejectionInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutRejectionInput = {
@@ -1925,6 +1962,7 @@ export type OfferUpdateWithoutRejectionInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutRejectionInput = {
@@ -1962,6 +2000,7 @@ export type OfferUncheckedUpdateWithoutRejectionInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateWithoutOrderPartInput = {
@@ -1999,6 +2038,7 @@ export type OfferCreateWithoutOrderPartInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutOrderPartInput = {
@@ -2036,6 +2076,7 @@ export type OfferUncheckedCreateWithoutOrderPartInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutOrderPartInput = {
@@ -2099,6 +2140,7 @@ export type OfferCreateWithoutReturnsInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutReturnsInput = {
@@ -2136,6 +2178,7 @@ export type OfferUncheckedCreateWithoutReturnsInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutReturnsInput = {
@@ -2189,6 +2232,7 @@ export type OfferUpdateWithoutReturnsInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutReturnsInput = {
@@ -2226,6 +2270,7 @@ export type OfferUncheckedUpdateWithoutReturnsInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateWithoutDisputesInput = {
@@ -2263,6 +2308,7 @@ export type OfferCreateWithoutDisputesInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutDisputesInput = {
@@ -2300,6 +2346,7 @@ export type OfferUncheckedCreateWithoutDisputesInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutDisputesInput = {
@@ -2353,6 +2400,7 @@ export type OfferUpdateWithoutDisputesInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutDisputesInput = {
@@ -2390,6 +2438,7 @@ export type OfferUncheckedUpdateWithoutDisputesInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateWithoutPaymentsInput = {
@@ -2427,6 +2476,7 @@ export type OfferCreateWithoutPaymentsInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutPaymentsInput = {
@@ -2464,6 +2514,7 @@ export type OfferUncheckedCreateWithoutPaymentsInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutPaymentsInput = {
@@ -2517,6 +2568,7 @@ export type OfferUpdateWithoutPaymentsInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutPaymentsInput = {
@@ -2554,6 +2606,7 @@ export type OfferUncheckedUpdateWithoutPaymentsInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateWithoutCartShipmentInput = {
@@ -2591,6 +2644,7 @@ export type OfferCreateWithoutCartShipmentInput = {
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
 export type OfferUncheckedCreateWithoutCartShipmentInput = {
@@ -2628,6 +2682,7 @@ export type OfferUncheckedCreateWithoutCartShipmentInput = {
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
 export type OfferCreateOrConnectWithoutCartShipmentInput = {
@@ -2654,6 +2709,174 @@ export type OfferUpdateWithWhereUniqueWithoutCartShipmentInput = {
 export type OfferUpdateManyWithWhereWithoutCartShipmentInput = {
   where: Prisma.OfferScalarWhereInput
   data: Prisma.XOR<Prisma.OfferUpdateManyMutationInput, Prisma.OfferUncheckedUpdateManyWithoutCartShipmentInput>
+}
+
+export type OfferCreateWithoutVerificationTasksInput = {
+  id?: string
+  offerNumber: string
+  unitPrice: runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg: runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: boolean
+  warrantyDuration?: string | null
+  deliveryDays?: string | null
+  condition?: string | null
+  partType?: string | null
+  notes?: string | null
+  offerImage?: string | null
+  cylinders?: number | null
+  status?: string
+  fulfillmentStatus?: $Enums.OfferFulfillmentStatus
+  preparedAt?: Date | string | null
+  verificationSubmittedAt?: Date | string | null
+  readyForShippingAt?: Date | string | null
+  canEditUntil?: Date | string | null
+  isWithdrawn?: boolean
+  withdrawalType?: string | null
+  shippedFromCart?: boolean
+  shippedFromCartAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  order: Prisma.OrderCreateNestedOneWithoutOffersInput
+  orderPart?: Prisma.OrderPartCreateNestedOneWithoutOffersInput
+  store: Prisma.StoreCreateNestedOneWithoutOffersInput
+  acceptedByOrder?: Prisma.OrderCreateNestedOneWithoutAcceptedOfferInput
+  cartShipment?: Prisma.ShipmentCreateNestedOneWithoutCartOffersInput
+  rejection?: Prisma.OfferRejectionCreateNestedOneWithoutOfferInput
+  payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
+  returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
+  disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+}
+
+export type OfferUncheckedCreateWithoutVerificationTasksInput = {
+  id?: string
+  offerNumber: string
+  orderId: string
+  orderPartId?: string | null
+  storeId: string
+  unitPrice: runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg: runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: boolean
+  warrantyDuration?: string | null
+  deliveryDays?: string | null
+  condition?: string | null
+  partType?: string | null
+  notes?: string | null
+  offerImage?: string | null
+  cylinders?: number | null
+  status?: string
+  fulfillmentStatus?: $Enums.OfferFulfillmentStatus
+  preparedAt?: Date | string | null
+  verificationSubmittedAt?: Date | string | null
+  readyForShippingAt?: Date | string | null
+  canEditUntil?: Date | string | null
+  isWithdrawn?: boolean
+  withdrawalType?: string | null
+  shippedFromCart?: boolean
+  shippedFromCartAt?: Date | string | null
+  cartShipmentId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
+  rejection?: Prisma.OfferRejectionUncheckedCreateNestedOneWithoutOfferInput
+  payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
+  returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
+  disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+}
+
+export type OfferCreateOrConnectWithoutVerificationTasksInput = {
+  where: Prisma.OfferWhereUniqueInput
+  create: Prisma.XOR<Prisma.OfferCreateWithoutVerificationTasksInput, Prisma.OfferUncheckedCreateWithoutVerificationTasksInput>
+}
+
+export type OfferUpsertWithoutVerificationTasksInput = {
+  update: Prisma.XOR<Prisma.OfferUpdateWithoutVerificationTasksInput, Prisma.OfferUncheckedUpdateWithoutVerificationTasksInput>
+  create: Prisma.XOR<Prisma.OfferCreateWithoutVerificationTasksInput, Prisma.OfferUncheckedCreateWithoutVerificationTasksInput>
+  where?: Prisma.OfferWhereInput
+}
+
+export type OfferUpdateToOneWithWhereWithoutVerificationTasksInput = {
+  where?: Prisma.OfferWhereInput
+  data: Prisma.XOR<Prisma.OfferUpdateWithoutVerificationTasksInput, Prisma.OfferUncheckedUpdateWithoutVerificationTasksInput>
+}
+
+export type OfferUpdateWithoutVerificationTasksInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  offerNumber?: Prisma.StringFieldUpdateOperationsInput | string
+  unitPrice?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyDuration?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveryDays?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  condition?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  partType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  offerImage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cylinders?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  fulfillmentStatus?: Prisma.EnumOfferFulfillmentStatusFieldUpdateOperationsInput | $Enums.OfferFulfillmentStatus
+  preparedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  verificationSubmittedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  readyForShippingAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  canEditUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isWithdrawn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
+  orderPart?: Prisma.OrderPartUpdateOneWithoutOffersNestedInput
+  store?: Prisma.StoreUpdateOneRequiredWithoutOffersNestedInput
+  acceptedByOrder?: Prisma.OrderUpdateOneWithoutAcceptedOfferNestedInput
+  cartShipment?: Prisma.ShipmentUpdateOneWithoutCartOffersNestedInput
+  rejection?: Prisma.OfferRejectionUpdateOneWithoutOfferNestedInput
+  payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
+  returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
+  disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+}
+
+export type OfferUncheckedUpdateWithoutVerificationTasksInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  offerNumber?: Prisma.StringFieldUpdateOperationsInput | string
+  orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  orderPartId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  storeId?: Prisma.StringFieldUpdateOperationsInput | string
+  unitPrice?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyDuration?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveryDays?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  condition?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  partType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  offerImage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cylinders?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  fulfillmentStatus?: Prisma.EnumOfferFulfillmentStatusFieldUpdateOperationsInput | $Enums.OfferFulfillmentStatus
+  preparedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  verificationSubmittedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  readyForShippingAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  canEditUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isWithdrawn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
+  rejection?: Prisma.OfferRejectionUncheckedUpdateOneWithoutOfferNestedInput
+  payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
+  returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
+  disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferCreateManyStoreInput = {
@@ -2722,6 +2945,7 @@ export type OfferUpdateWithoutStoreInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutStoreInput = {
@@ -2759,6 +2983,7 @@ export type OfferUncheckedUpdateWithoutStoreInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateManyWithoutStoreInput = {
@@ -2858,6 +3083,7 @@ export type OfferUpdateWithoutOrderInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutOrderInput = {
@@ -2895,6 +3121,7 @@ export type OfferUncheckedUpdateWithoutOrderInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateManyWithoutOrderInput = {
@@ -2994,6 +3221,7 @@ export type OfferUpdateWithoutOrderPartInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutOrderPartInput = {
@@ -3031,6 +3259,7 @@ export type OfferUncheckedUpdateWithoutOrderPartInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateManyWithoutOrderPartInput = {
@@ -3130,6 +3359,7 @@ export type OfferUpdateWithoutCartShipmentInput = {
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateWithoutCartShipmentInput = {
@@ -3167,6 +3397,7 @@ export type OfferUncheckedUpdateWithoutCartShipmentInput = {
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
 export type OfferUncheckedUpdateManyWithoutCartShipmentInput = {
@@ -3210,6 +3441,7 @@ export type OfferCountOutputType = {
   returns: number
   disputes: number
   verificationDocuments: number
+  verificationTasks: number
 }
 
 export type OfferCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -3217,6 +3449,7 @@ export type OfferCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.
   returns?: boolean | OfferCountOutputTypeCountReturnsArgs
   disputes?: boolean | OfferCountOutputTypeCountDisputesArgs
   verificationDocuments?: boolean | OfferCountOutputTypeCountVerificationDocumentsArgs
+  verificationTasks?: boolean | OfferCountOutputTypeCountVerificationTasksArgs
 }
 
 /**
@@ -3255,6 +3488,13 @@ export type OfferCountOutputTypeCountDisputesArgs<ExtArgs extends runtime.Types.
  */
 export type OfferCountOutputTypeCountVerificationDocumentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.VerificationDocumentWhereInput
+}
+
+/**
+ * OfferCountOutputType without action
+ */
+export type OfferCountOutputTypeCountVerificationTasksArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.VerificationTaskWhereInput
 }
 
 
@@ -3298,6 +3538,7 @@ export type OfferSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   returns?: boolean | Prisma.Offer$returnsArgs<ExtArgs>
   disputes?: boolean | Prisma.Offer$disputesArgs<ExtArgs>
   verificationDocuments?: boolean | Prisma.Offer$verificationDocumentsArgs<ExtArgs>
+  verificationTasks?: boolean | Prisma.Offer$verificationTasksArgs<ExtArgs>
   _count?: boolean | Prisma.OfferCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["offer"]>
 
@@ -3417,6 +3658,7 @@ export type OfferInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   returns?: boolean | Prisma.Offer$returnsArgs<ExtArgs>
   disputes?: boolean | Prisma.Offer$disputesArgs<ExtArgs>
   verificationDocuments?: boolean | Prisma.Offer$verificationDocumentsArgs<ExtArgs>
+  verificationTasks?: boolean | Prisma.Offer$verificationTasksArgs<ExtArgs>
   _count?: boolean | Prisma.OfferCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OfferIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -3445,6 +3687,7 @@ export type $OfferPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     returns: Prisma.$ReturnRequestPayload<ExtArgs>[]
     disputes: Prisma.$DisputePayload<ExtArgs>[]
     verificationDocuments: Prisma.$VerificationDocumentPayload<ExtArgs>[]
+    verificationTasks: Prisma.$VerificationTaskPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -3880,6 +4123,7 @@ export interface Prisma__OfferClient<T, Null = never, ExtArgs extends runtime.Ty
   returns<T extends Prisma.Offer$returnsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$returnsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ReturnRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   disputes<T extends Prisma.Offer$disputesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$disputesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DisputePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   verificationDocuments<T extends Prisma.Offer$verificationDocumentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$verificationDocumentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VerificationDocumentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  verificationTasks<T extends Prisma.Offer$verificationTasksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$verificationTasksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VerificationTaskPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -4508,6 +4752,30 @@ export type Offer$verificationDocumentsArgs<ExtArgs extends runtime.Types.Extens
   take?: number
   skip?: number
   distinct?: Prisma.VerificationDocumentScalarFieldEnum | Prisma.VerificationDocumentScalarFieldEnum[]
+}
+
+/**
+ * Offer.verificationTasks
+ */
+export type Offer$verificationTasksArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the VerificationTask
+   */
+  select?: Prisma.VerificationTaskSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the VerificationTask
+   */
+  omit?: Prisma.VerificationTaskOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.VerificationTaskInclude<ExtArgs> | null
+  where?: Prisma.VerificationTaskWhereInput
+  orderBy?: Prisma.VerificationTaskOrderByWithRelationInput | Prisma.VerificationTaskOrderByWithRelationInput[]
+  cursor?: Prisma.VerificationTaskWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.VerificationTaskScalarFieldEnum | Prisma.VerificationTaskScalarFieldEnum[]
 }
 
 /**

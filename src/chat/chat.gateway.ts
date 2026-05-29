@@ -141,4 +141,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     broadcastNewMessage(chatId: string, message: any) {
         this.server.to(chatId).emit('newMessage', message);
     }
+
+    broadcastMessageUpdated(chatId: string, message: any) {
+        this.server.to(chatId).emit('messageUpdated', message);
+    }
 }
