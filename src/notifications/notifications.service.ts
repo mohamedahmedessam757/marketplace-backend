@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationsGateway } from './notifications.gateway';
+import { WhatsAppChannelService } from '../widers/whatsapp-channel.service';
 
 const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -12,7 +13,8 @@ export class NotificationsService {
 
     constructor(
         private prisma: PrismaService,
-        private readonly gateway: NotificationsGateway
+        private readonly gateway: NotificationsGateway,
+        private readonly whatsappChannel: WhatsAppChannelService,
     ) { }
 
     async create(data: CreateNotificationDto) {
@@ -57,6 +59,25 @@ export class NotificationsService {
 
         // 4. Real-time Emission
         this.gateway.sendToUser(data.recipientId, notification);
+
+        // 5. WhatsApp transactional dispatch (Phase 5 — customer + merchant only)
+        void this.whatsappChannel
+            .maybeSend({
+                recipientId: data.recipientId,
+                recipientRole: recipientRole ?? 'CUSTOMER',
+                type: data.type,
+                titleAr: data.titleAr,
+                titleEn: data.titleEn,
+                messageAr: data.messageAr,
+                messageEn: data.messageEn,
+                link: data.link,
+                metadata: data.metadata,
+            })
+            .catch((err) =>
+                this.logger.warn(
+                    `WhatsApp dispatch hook failed: ${err instanceof Error ? err.message : err}`,
+                ),
+            );
 
         return notification;
     }

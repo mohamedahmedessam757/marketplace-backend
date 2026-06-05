@@ -319,10 +319,10 @@ export type EscrowTransactionOrderByWithRelationInput = {
 export type EscrowTransactionWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   paymentId?: string
-  orderId?: string
   AND?: Prisma.EscrowTransactionWhereInput | Prisma.EscrowTransactionWhereInput[]
   OR?: Prisma.EscrowTransactionWhereInput[]
   NOT?: Prisma.EscrowTransactionWhereInput | Prisma.EscrowTransactionWhereInput[]
+  orderId?: Prisma.UuidFilter<"EscrowTransaction"> | string
   merchantAmount?: Prisma.DecimalFilter<"EscrowTransaction"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   commissionAmount?: Prisma.DecimalFilter<"EscrowTransaction"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   shippingAmount?: Prisma.DecimalFilter<"EscrowTransaction"> | runtime.Decimal | runtime.DecimalJsLike | number | string
@@ -336,7 +336,7 @@ export type EscrowTransactionWhereUniqueInput = Prisma.AtLeast<{
   payment?: Prisma.XOR<Prisma.PaymentTransactionScalarRelationFilter, Prisma.PaymentTransactionWhereInput>
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
   walletTransactions?: Prisma.WalletTransactionListRelationFilter
-}, "id" | "paymentId" | "orderId">
+}, "id" | "paymentId">
 
 export type EscrowTransactionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder

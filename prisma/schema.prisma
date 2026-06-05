@@ -56,6 +56,7 @@ enum OrderStatus {
   DELAYED_PREPARATION
   PARTIALLY_SHIPPED
   SHIPPED
+  PARTIALLY_DELIVERED
   DELIVERED
   COMPLETED
   CANCELLED
@@ -81,6 +82,7 @@ enum OfferFulfillmentStatus {
   READY_FOR_SHIPPING
   SHIPPED
   DELIVERED
+  COMPLETED
   CANCELLED
 
   @@map("offer_fulfillment_status")
@@ -113,6 +115,88 @@ enum DocType {
   AUTH_LETTER
 
   @@map("doc_type")
+}
+
+/// Short-lived WhatsApp OTP challenges (register, login, recovery)
+model OtpChallenge {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String
+  email      String?
+  purpose    String    @db.VarChar(32)
+  role       String?   @db.VarChar(16)
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  attempts   Int       @default(0)
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz
+  metadata   Json      @default("{}")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([phone, purpose])
+  @@index([email, purpose])
+  @@map("otp_challenges")
+}
+
+enum WhatsAppMessageDirection {
+  OUTBOUND
+  INBOUND
+
+  @@map("whatsapp_message_direction")
+}
+
+enum WhatsAppDeliveryStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  UNKNOWN
+
+  @@map("whatsapp_delivery_status")
+}
+
+/// Outbound sends + inbound webhook events (Phase 6 Widers)
+model WhatsAppMessageLog {
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalMessageId String?                  @unique @map("external_message_id")
+  direction         WhatsAppMessageDirection @default(OUTBOUND)
+  phone             String?
+  templateName      String?                  @map("template_name")
+  templateLanguage  String?                  @map("template_language") @db.VarChar(8)
+  deliveryStatus    WhatsAppDeliveryStatus   @default(QUEUED) @map("delivery_status")
+  recipientUserId   String?                  @map("recipient_user_id") @db.Uuid
+  notificationId    String?                  @map("notification_id") @db.Uuid
+  errorCode         String?                  @map("error_code")
+  errorMessage      String?                  @map("error_message") @db.Text
+  payload           Json                     @default("{}")
+  metadata          Json                     @default("{}")
+  sentAt            DateTime?                @map("sent_at") @db.Timestamptz
+  deliveredAt       DateTime?                @map("delivered_at") @db.Timestamptz
+  readAt            DateTime?                @map("read_at") @db.Timestamptz
+  failedAt          DateTime?                @map("failed_at") @db.Timestamptz
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                 @default(now()) @map("updated_at") @db.Timestamptz
+
+  recipientUser User? @relation(fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@index([phone])
+  @@index([deliveryStatus])
+  @@index([recipientUserId])
+  @@index([templateName])
+  @@index([createdAt])
+  @@map("whatsapp_message_logs")
+}
+
+/// Webhook idempotency — Meta/Widers status callbacks (Phase 6)
+model WidersWebhookEvent {
+  id          String   @id
+  eventType   String   @map("event_type")
+  status      String   @default("PROCESSING")
+  payload     Json     @default("{}")
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz
+
+  @@index([eventType])
+  @@index([status])
+  @@map("widers_webhook_events")
 }
 
 model User {
@@ -148,6 +232,11 @@ model User {
   lastLoginIp            String?   @map("last_login_ip")
   lastLoginDevice        String?   @map("last_login_device")
 
+  // Widers WhatsApp (Phase 4)
+  widersContactId String?   @map("widers_contact_id")
+  whatsappOptIn   Boolean   @default(true) @map("whatsapp_opt_in")
+  widersSyncedAt  DateTime? @map("widers_synced_at") @db.Timestamptz
+
   accountRecoveryRequests AccountRecoveryRequest[]
   securityLogs            SecurityLog[]
   payments                PaymentTransaction[]
@@ -169,6 +258,8 @@ model User {
   suspendReason  String?   @map("suspend_reason") @db.Text
 
   shippingWaybills ShippingWaybill[]
+
+  whatsAppMessageLogs WhatsAppMessageLog[]
 
   // Admin Permissions (RBAC - 2026)
   adminPermission         AdminPermission?  @relation("UserPermissions")
@@ -264,6 +355,7 @@ model UserSettings {
   id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId            String  @unique @map("user_id") @db.Uuid
   autoTranslateChat Boolean @default(false) @map("auto_translate_chat")
+  preferredLanguage String  @default("ar") @map("preferred_language") @db.VarChar(8)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
@@ -457,7 +549,7 @@ model Order {
   orderChats OrderChat[]
   payments   PaymentTransaction[]
   invoices   Invoice[]
-  review     Review?
+  reviews    Review[]
 
   // Active Offer Relation
   acceptedOfferId String? @unique @map("offer_id") @db.Uuid
@@ -567,6 +659,13 @@ model Offer {
   shippedFromCartAt DateTime? @map("shipped_from_cart_at") @db.Timestamptz
   cartShipmentId    String?   @map("cart_shipment_id") @db.Uuid
 
+  // Per-offer resolution lifecycle (multi-item orders, 2026)
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz
+  resolutionLocked  Boolean   @default(false) @map("resolution_locked")
+  warrantyActiveAt  DateTime? @map("warranty_active_at") @db.Timestamptz
+  warrantyEndAt     DateTime? @map("warranty_end_at") @db.Timestamptz
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
@@ -584,6 +683,7 @@ model Offer {
   payments                PaymentTransaction[]
   returns                 ReturnRequest[]
   disputes                Dispute[]
+  reviews                 Review[]
   verificationDocuments   VerificationDocument[]
   verificationTasks       VerificationTask[]
 
@@ -1055,6 +1155,7 @@ model PaymentTransaction {
   customer           User                @relation(fields: [customerId], references: [id])
   walletTransactions WalletTransaction[]
   escrow             EscrowTransaction?
+  invoices           Invoice[]
 
   @@unique([offerId]) // Prevent duplicate payments at DB level — race-condition safe
   @@index([orderId])
@@ -1099,7 +1200,7 @@ model WalletTransaction {
 model EscrowTransaction {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   paymentId        String    @unique @map("payment_id") @db.Uuid
-  orderId          String    @unique @map("order_id") @db.Uuid
+  orderId          String    @map("order_id") @db.Uuid
   merchantAmount   Decimal   @map("merchant_amount") @db.Decimal(14, 2)
   commissionAmount Decimal   @map("commission_amount") @db.Decimal(14, 2)
   shippingAmount   Decimal   @map("shipping_amount") @db.Decimal(14, 2)
@@ -1147,11 +1248,13 @@ model Invoice {
 
   issuedAt DateTime @default(now()) @map("issued_at") @db.Timestamptz
 
-  order    Order @relation(fields: [orderId], references: [id])
-  customer User  @relation(fields: [customerId], references: [id])
+  order    Order              @relation(fields: [orderId], references: [id])
+  customer User               @relation(fields: [customerId], references: [id])
+  payment  PaymentTransaction @relation(fields: [paymentId], references: [id])
 
   @@index([orderId])
   @@index([customerId])
+  @@index([paymentId])
   @@map("invoices")
 }
 
@@ -1388,24 +1491,28 @@ model ShipmentStatusLog {
 // -----------------------------------------------------
 
 model Review {
-  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId     String @unique @map("order_id") @db.Uuid
-  customerId  String @map("customer_id") @db.Uuid
-  storeId     String @map("store_id") @db.Uuid
-  rating      Int    @db.SmallInt
-  comment     String @db.Text
-  adminStatus String @default("PENDING") @map("admin_status") // PENDING, PUBLISHED, REJECTED
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String  @map("order_id") @db.Uuid
+  offerId     String? @map("offer_id") @db.Uuid
+  customerId  String  @map("customer_id") @db.Uuid
+  storeId     String  @map("store_id") @db.Uuid
+  rating      Int     @db.SmallInt
+  comment     String  @db.Text
+  adminStatus String  @default("PENDING") @map("admin_status") // PENDING, PUBLISHED, REJECTED
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  customer User  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  store    Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  offer    Offer? @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  customer User   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store    Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
+  @@unique([orderId, offerId])
   @@index([storeId])
   @@index([customerId])
   @@index([adminStatus])
+  @@index([offerId])
   @@map("reviews")
 }
 

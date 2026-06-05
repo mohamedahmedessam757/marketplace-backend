@@ -872,14 +872,25 @@ export class UsersService {
     return settings ?? { userId, autoTranslateChat: false };
   }
 
-  async updateUserSettings(userId: string, data: { autoTranslateChat?: boolean }) {
+  async updateUserSettings(
+    userId: string,
+    data: { autoTranslateChat?: boolean; preferredLanguage?: 'ar' | 'en' },
+  ) {
+    const preferredLanguage =
+      data.preferredLanguage === 'en' ? 'en' : data.preferredLanguage === 'ar' ? 'ar' : undefined;
+
     return this.prisma.userSettings.upsert({
       where: { userId },
-      create: { userId, autoTranslateChat: data.autoTranslateChat ?? false },
+      create: {
+        userId,
+        autoTranslateChat: data.autoTranslateChat ?? false,
+        preferredLanguage: preferredLanguage ?? 'ar',
+      },
       update: {
         ...(data.autoTranslateChat !== undefined
           ? { autoTranslateChat: data.autoTranslateChat }
           : {}),
+        ...(preferredLanguage !== undefined ? { preferredLanguage } : {}),
         updatedAt: new Date(),
       },
     });

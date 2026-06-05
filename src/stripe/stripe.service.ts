@@ -196,17 +196,20 @@ export class StripeService {
     /**
      * Creates a destination transfer, releasing funds from Platform to Merchant.
      */
-    async createTransfer(amountStr: string, currency: string, connectedAccountId: string, transferGroup: string, metadata: any): Promise<any> {
+    async createTransfer(amountStr: string, currency: string, connectedAccountId: string, transferGroup: string, metadata: any, idempotencyKey?: string): Promise<any> {
         const amountCents = Math.round(parseFloat(amountStr) * 100);
 
         try {
-            return await this.stripe.transfers.create({
-                amount: amountCents,
-                currency,
-                destination: connectedAccountId,
-                transfer_group: transferGroup,
-                metadata: metadata
-            });
+            return await this.stripe.transfers.create(
+                {
+                    amount: amountCents,
+                    currency,
+                    destination: connectedAccountId,
+                    transfer_group: transferGroup,
+                    metadata: metadata,
+                },
+                idempotencyKey ? { idempotencyKey } : undefined,
+            );
         } catch (error: any) {
             this.logger.error(`Failed to transfer funds to ${connectedAccountId}`, error.message);
             throw new BadRequestException(`Transfer failed: ${error.message}`);

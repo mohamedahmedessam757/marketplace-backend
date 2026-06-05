@@ -51,6 +51,9 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
+  OtpChallenge: 'OtpChallenge',
+  WhatsAppMessageLog: 'WhatsAppMessageLog',
+  WidersWebhookEvent: 'WidersWebhookEvent',
   User: 'User',
   UserSettings: 'UserSettings',
   Store: 'Store',
@@ -121,6 +124,59 @@ export const TransactionIsolationLevel = runtime.makeStrictEnum({
 export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof typeof TransactionIsolationLevel]
 
 
+export const OtpChallengeScalarFieldEnum = {
+  id: 'id',
+  phone: 'phone',
+  email: 'email',
+  purpose: 'purpose',
+  role: 'role',
+  codeHash: 'codeHash',
+  expiresAt: 'expiresAt',
+  attempts: 'attempts',
+  verifiedAt: 'verifiedAt',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type OtpChallengeScalarFieldEnum = (typeof OtpChallengeScalarFieldEnum)[keyof typeof OtpChallengeScalarFieldEnum]
+
+
+export const WhatsAppMessageLogScalarFieldEnum = {
+  id: 'id',
+  externalMessageId: 'externalMessageId',
+  direction: 'direction',
+  phone: 'phone',
+  templateName: 'templateName',
+  templateLanguage: 'templateLanguage',
+  deliveryStatus: 'deliveryStatus',
+  recipientUserId: 'recipientUserId',
+  notificationId: 'notificationId',
+  errorCode: 'errorCode',
+  errorMessage: 'errorMessage',
+  payload: 'payload',
+  metadata: 'metadata',
+  sentAt: 'sentAt',
+  deliveredAt: 'deliveredAt',
+  readAt: 'readAt',
+  failedAt: 'failedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WhatsAppMessageLogScalarFieldEnum = (typeof WhatsAppMessageLogScalarFieldEnum)[keyof typeof WhatsAppMessageLogScalarFieldEnum]
+
+
+export const WidersWebhookEventScalarFieldEnum = {
+  id: 'id',
+  eventType: 'eventType',
+  status: 'status',
+  payload: 'payload',
+  processedAt: 'processedAt'
+} as const
+
+export type WidersWebhookEventScalarFieldEnum = (typeof WidersWebhookEventScalarFieldEnum)[keyof typeof WidersWebhookEventScalarFieldEnum]
+
+
 export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
@@ -141,6 +197,9 @@ export const UserScalarFieldEnum = {
   withdrawalsFrozenUntil: 'withdrawalsFrozenUntil',
   lastLoginIp: 'lastLoginIp',
   lastLoginDevice: 'lastLoginDevice',
+  widersContactId: 'widersContactId',
+  whatsappOptIn: 'whatsappOptIn',
+  widersSyncedAt: 'widersSyncedAt',
   adminNotes: 'adminNotes',
   suspendedUntil: 'suspendedUntil',
   suspendReason: 'suspendReason',
@@ -180,6 +239,7 @@ export const UserSettingsScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   autoTranslateChat: 'autoTranslateChat',
+  preferredLanguage: 'preferredLanguage',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -369,6 +429,11 @@ export const OfferScalarFieldEnum = {
   shippedFromCart: 'shippedFromCart',
   shippedFromCartAt: 'shippedFromCartAt',
   cartShipmentId: 'cartShipmentId',
+  deliveredAt: 'deliveredAt',
+  completedAt: 'completedAt',
+  resolutionLocked: 'resolutionLocked',
+  warrantyActiveAt: 'warrantyActiveAt',
+  warrantyEndAt: 'warrantyEndAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -913,6 +978,7 @@ export type ShipmentStatusLogScalarFieldEnum = (typeof ShipmentStatusLogScalarFi
 export const ReviewScalarFieldEnum = {
   id: 'id',
   orderId: 'orderId',
+  offerId: 'offerId',
   customerId: 'customerId',
   storeId: 'storeId',
   rating: 'rating',
@@ -1267,19 +1333,19 @@ export const SortOrder = {
 export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder]
 
 
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
 export const NullableJsonNullValueInput = {
   DbNull: DbNull,
   JsonNull: JsonNull
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
-
-
-export const JsonNullValueInput = {
-  JsonNull: JsonNull
-} as const
-
-export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -1290,14 +1356,6 @@ export const QueryMode = {
 export type QueryMode = (typeof QueryMode)[keyof typeof QueryMode]
 
 
-export const NullsOrder = {
-  first: 'first',
-  last: 'last'
-} as const
-
-export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
-
-
 export const JsonNullValueFilter = {
   DbNull: DbNull,
   JsonNull: JsonNull,
@@ -1305,4 +1363,12 @@ export const JsonNullValueFilter = {
 } as const
 
 export type JsonNullValueFilter = (typeof JsonNullValueFilter)[keyof typeof JsonNullValueFilter]
+
+
+export const NullsOrder = {
+  first: 'first',
+  last: 'last'
+} as const
+
+export type NullsOrder = (typeof NullsOrder)[keyof typeof NullsOrder]
 

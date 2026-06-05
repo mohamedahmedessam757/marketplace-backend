@@ -60,6 +60,7 @@ export const OrderStatus = {
   DELAYED_PREPARATION: 'DELAYED_PREPARATION',
   PARTIALLY_SHIPPED: 'PARTIALLY_SHIPPED',
   SHIPPED: 'SHIPPED',
+  PARTIALLY_DELIVERED: 'PARTIALLY_DELIVERED',
   DELIVERED: 'DELIVERED',
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
@@ -86,6 +87,7 @@ export const OfferFulfillmentStatus = {
   READY_FOR_SHIPPING: 'READY_FOR_SHIPPING',
   SHIPPED: 'SHIPPED',
   DELIVERED: 'DELIVERED',
+  COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED'
 } as const
 
@@ -122,6 +124,26 @@ export const DocType = {
 } as const
 
 export type DocType = (typeof DocType)[keyof typeof DocType]
+
+
+export const WhatsAppMessageDirection = {
+  OUTBOUND: 'OUTBOUND',
+  INBOUND: 'INBOUND'
+} as const
+
+export type WhatsAppMessageDirection = (typeof WhatsAppMessageDirection)[keyof typeof WhatsAppMessageDirection]
+
+
+export const WhatsAppDeliveryStatus = {
+  QUEUED: 'QUEUED',
+  SENT: 'SENT',
+  DELIVERED: 'DELIVERED',
+  READ: 'READ',
+  FAILED: 'FAILED',
+  UNKNOWN: 'UNKNOWN'
+} as const
+
+export type WhatsAppDeliveryStatus = (typeof WhatsAppDeliveryStatus)[keyof typeof WhatsAppDeliveryStatus]
 
 
 export const StoreLoyaltyTier = {

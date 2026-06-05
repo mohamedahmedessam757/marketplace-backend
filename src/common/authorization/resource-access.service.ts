@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isAdminRole } from '../user-sanitizer';
 
@@ -14,6 +19,10 @@ export class ResourceAccessService {
 
   async assertUserCanAccessOrder(actor: AuthActor, orderId: string): Promise<void> {
     if (isAdminRole(actor.role)) return;
+
+    if (!this.isUuid(orderId)) {
+      throw new BadRequestException('Invalid order ID');
+    }
 
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -85,5 +94,11 @@ export class ResourceAccessService {
     if (actor.id === targetUserId) return;
     if (isAdminRole(actor.role)) return;
     throw new ForbiddenException('Access denied to this user profile');
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value.trim(),
+    );
   }
 }

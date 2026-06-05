@@ -100,7 +100,7 @@ export class UsersController {
   @Patch('settings/me')
   async updateMySettings(
     @Request() req,
-    @Body() body: { autoTranslateChat?: boolean },
+    @Body() body: { autoTranslateChat?: boolean; preferredLanguage?: 'ar' | 'en' },
   ) {
     return this.usersService.updateUserSettings(req.user.id, body);
   }

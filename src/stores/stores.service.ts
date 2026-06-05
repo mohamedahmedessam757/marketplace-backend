@@ -676,7 +676,8 @@ export class StoresService {
                     messageAr: `تمت مراجعة واعتماد مستندك (${docType}) من قبل الإدارة بنجاح.`,
                     messageEn: `Your document (${docType}) has been successfully reviewed and approved by administration.`,
                     type: 'SUCCESS',
-                    link: '/dashboard/merchant/store'
+                    link: '/dashboard/merchant/store',
+                    metadata: { docType },
                 }).catch(() => {});
             } else if (isReupload || isRejected) {
                 this.notificationsService.create({
@@ -691,7 +692,8 @@ export class StoresService {
                         ? `Admin (${adminName || 'System'}) requested re-upload for (${docType}). Reason: ${reason || 'Please review'}.`
                         : `Your document (${docType}) was rejected by the administration. Reason: ${reason || 'Please review and re-upload'}.`,
                     type: isReupload ? 'ALERT' : 'SYSTEM',
-                    link: '/dashboard/merchant/store'
+                    link: '/dashboard/merchant/store',
+                    metadata: { docType },
                 }).catch(e => console.error('Failed to notify merchant of document status update', e));
             }
         }

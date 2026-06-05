@@ -36,6 +36,14 @@ export class OrdersService {
         private verificationTasks: VerificationTasksService,
     ) { }
 
+    /** Backward-compatible singular `review` field for API consumers (first review). */
+    private attachLegacyReviewField<T extends { reviews?: unknown[] | null }>(
+        order: T,
+    ): T & { review: unknown | null } {
+        const reviews = order.reviews ?? [];
+        return { ...order, review: reviews[0] ?? null };
+    }
+
     async create(customerId: string, createOrderDto: CreateOrderDto): Promise<Order> {
         // [Verified] Type safety confirmed: 'parts' relation exists in Prisma Client
         
@@ -312,7 +320,7 @@ export class OrdersService {
                 include: {
                     parts: { select: { id: true, name: true, quantity: true, description: true, images: true, notes: true } },
                     customer: { select: { id: true, name: true, email: true, avatar: true } },
-                    review: { select: { id: true, rating: true } },
+                    reviews: { select: { id: true, rating: true, offerId: true } },
                     offers: {
                         where: { status: { not: 'rejected' }, isWithdrawn: false },
                         orderBy: { createdAt: 'asc' },
@@ -352,6 +360,7 @@ export class OrdersService {
         // --- 2026 Governance: Visibility Filtering ---
         const now = new Date();
         (items as any[]).forEach(order => {
+            this.attachLegacyReviewField(order);
             // 1. Hide ALL offers from CUSTOMER if reveal time not reached AND not in selection phase
             if (user.role === 'CUSTOMER' && order.status !== OrderStatus.AWAITING_SELECTION && order.revealOffersAt && order.revealOffersAt > now) {
                 order.offers = [];
@@ -387,7 +396,7 @@ export class OrdersService {
                 parts: true,
                 customer: { select: { id: true, name: true, email: true, phone: true } },
                 acceptedOffer: { include: { store: true } },
-                review: true,
+                reviews: true,
                 shipments: { orderBy: { createdAt: 'desc' } },
                 offers: {
                     orderBy: { createdAt: 'asc' },
@@ -424,7 +433,7 @@ export class OrdersService {
             },
         });
         if (!order) throw new NotFoundException(`Order #${id} not found`);
-        return order;
+        return this.attachLegacyReviewField(order);
     }
 
     async issueWaybillsForAdmin(
@@ -1029,7 +1038,16 @@ export class OrdersService {
 
     async getOfferFulfillmentSummary(orderId: string) {
         const paidOffers = await this.offerFulfillment.getPaidAcceptedOffers(orderId);
-        return this.offerFulfillment.getFulfillmentSummary(paidOffers);
+        const enriched = await Promise.all(
+            paidOffers.map(async (o) => ({
+                ...o,
+                hasOpenCase: await this.offerFulfillment.hasOpenCaseForOffer(
+                    o.id,
+                    o.orderPartId,
+                ),
+            })),
+        );
+        return this.offerFulfillment.getFulfillmentSummary(enriched);
     }
     async rejectOffer(orderId: string, offerId: string, customerId: string, reason: string, customReason?: string) {
         // 1. Verify existence and ownership
@@ -1465,7 +1483,13 @@ export class OrdersService {
         const orders = await this.prisma.order.findMany({
             where: {
                 customerId,
-                status: OrderStatus.DELIVERED,
+                status: {
+                    in: [
+                        OrderStatus.DELIVERED,
+                        OrderStatus.PARTIALLY_DELIVERED,
+                        OrderStatus.SHIPPED,
+                    ],
+                },
                 updatedAt: { gte: thirtyDaysAgo }
             },
             include: {
@@ -1488,11 +1512,9 @@ export class OrdersService {
 
         const deliveredItems = [];
         for (const order of orders) {
-            // Re-use logic to format item, similar to assembly-cart
-            const deliveredAt = order.deliveredAt ?? order.updatedAt;
+            const isMulti = this.offerFulfillment.isMultiItemOrder(order);
+            const orderDeliveredAt = order.deliveredAt ?? order.updatedAt;
             const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
-            let returnExpiryDate = new Date(deliveredAt.getTime() + windowMs);
-            let isReturnEligible = Date.now() <= returnExpiryDate.getTime();
 
             const firstPayment = order.payments?.sort((a, b) => (a.paidAt?.getTime() || 0) - (b.paidAt?.getTime() || 0))[0];
 
@@ -1516,6 +1538,8 @@ export class OrdersService {
                 const partImages = (part?.images as string[]) || [];
                 const orderImages = (order.partImages as string[]) || [];
                 const partImage = (partImages.length > 0) ? partImages[0] : (orderImages.length > 0 ? orderImages[0] : null);
+                let returnExpiryDate = new Date(orderDeliveredAt.getTime() + windowMs);
+                let isReturnEligible = Date.now() <= returnExpiryDate.getTime();
 
                 deliveredItems.push({
                     id: order.id,
@@ -1530,7 +1554,7 @@ export class OrdersService {
                     condition: 'N/A',
                     partType: 'N/A',
                     partImage: partImage,
-                    deliveredAt: deliveredAt,
+                    deliveredAt: orderDeliveredAt,
                     returnExpiryDate: returnExpiryDate,
                     isReturnEligible: isReturnEligible,
                     storeName: order.store?.name || 'Verified Seller',
@@ -1550,10 +1574,40 @@ export class OrdersService {
 
             for (const offer of acceptedOffers) {
                 const part = order.parts.find(p => p.id === offer.orderPartId) || order.parts[0];
+                const offerDeliveredAt =
+                    (offer as { deliveredAt?: Date | null }).deliveredAt ??
+                    (isMulti ? null : orderDeliveredAt);
+
+                if (
+                    isMulti &&
+                    offer.fulfillmentStatus !== OfferFulfillmentStatus.DELIVERED &&
+                    offer.fulfillmentStatus !== OfferFulfillmentStatus.COMPLETED
+                ) {
+                    continue;
+                }
+                if (isMulti && !offerDeliveredAt && offer.fulfillmentStatus !== OfferFulfillmentStatus.COMPLETED) {
+                    continue;
+                }
+
                 const partName = part?.name || order.partName || 'Multi-Part Order';
                 const partImages = (part?.images as string[]) || [];
                 const orderImages = (order.partImages as string[]) || [];
                 const partImage = (partImages.length > 0) ? partImages[0] : (orderImages.length > 0 ? orderImages[0] : null);
+
+                const itemDeliveredAt = offerDeliveredAt ?? orderDeliveredAt;
+                const returnExpiryDate = offerDeliveredAt
+                    ? new Date(offerDeliveredAt.getTime() + windowMs)
+                    : new Date(orderDeliveredAt.getTime() + windowMs);
+                const isOfferCompleted =
+                    offer.fulfillmentStatus === OfferFulfillmentStatus.COMPLETED ||
+                    !!(offer as { resolutionLocked?: boolean }).resolutionLocked;
+                const isReturnEligible =
+                    !isOfferCompleted &&
+                    offerDeliveredAt != null &&
+                    Date.now() <= returnExpiryDate.getTime() &&
+                    offer.fulfillmentStatus === OfferFulfillmentStatus.DELIVERED;
+
+                const offerPayment = order.payments?.find((p) => p.offerId === offer.id);
 
                 deliveredItems.push({
                     id: order.id,
@@ -1568,7 +1622,7 @@ export class OrdersService {
                     condition: offer.condition,
                     partType: offer.partType,
                     partImage: partImage,
-                    deliveredAt: deliveredAt,
+                    deliveredAt: itemDeliveredAt,
                     returnExpiryDate: returnExpiryDate,
                     isReturnEligible: isReturnEligible,
                     storeName: offer.store?.name || order.store?.name || 'Verified Seller',
@@ -1580,8 +1634,12 @@ export class OrdersService {
                     shippingType: order.shippingType || null,
                     shippingAddress: shippingAddress,
                     partsCount: order.parts.length || 1,
-                    totalPaid: firstPayment?.totalAmount ? Number(firstPayment.totalAmount) : Number(offer.unitPrice) + Number(offer.shippingCost),
-                    status: order.status
+                    totalPaid: offerPayment?.totalAmount
+                        ? Number(offerPayment.totalAmount)
+                        : Number(offer.unitPrice) + Number(offer.shippingCost),
+                    status: order.status,
+                    fulfillmentStatus: offer.fulfillmentStatus,
+                    resolutionLocked: !!(offer as { resolutionLocked?: boolean }).resolutionLocked,
                 });
             }
         }
@@ -2247,9 +2305,36 @@ export class OrdersService {
         for (const s of shipments) {
             if (s.status !== deliveredStatus) continue;
             await this.prisma.offer.updateMany({
-                where: { cartShipmentId: s.id },
-                data: { fulfillmentStatus: OfferFulfillmentStatus.DELIVERED },
+                where: {
+                    cartShipmentId: s.id,
+                    deliveredAt: null,
+                },
+                data: {
+                    fulfillmentStatus: OfferFulfillmentStatus.DELIVERED,
+                    deliveredAt: now,
+                },
             });
+            // Legacy/single-shipment: offers without cartShipmentId on one-shipment orders
+            if (shipments.length === 1) {
+                await this.prisma.offer.updateMany({
+                    where: {
+                        orderId,
+                        status: { in: ['accepted', 'ACCEPTED'] },
+                        cartShipmentId: null,
+                        deliveredAt: null,
+                        fulfillmentStatus: {
+                            in: [
+                                OfferFulfillmentStatus.SHIPPED,
+                                OfferFulfillmentStatus.READY_FOR_SHIPPING,
+                            ],
+                        },
+                    },
+                    data: {
+                        fulfillmentStatus: OfferFulfillmentStatus.DELIVERED,
+                        deliveredAt: now,
+                    },
+                });
+            }
             if (!s.actualDelivery) {
                 await this.prisma.shipment.update({
                     where: { id: s.id },
@@ -2266,7 +2351,15 @@ export class OrdersService {
 
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
-            select: { id: true, status: true, orderNumber: true, deliveredAt: true },
+            select: {
+                id: true,
+                status: true,
+                orderNumber: true,
+                deliveredAt: true,
+                requestType: true,
+                customerId: true,
+                parts: { select: { id: true, name: true } },
+            },
         });
         if (!order) return;
 
@@ -2276,6 +2369,8 @@ export class OrdersService {
             OrderStatus.WARRANTY_EXPIRED,
             OrderStatus.CANCELLED,
         ];
+
+        const isMulti = this.offerFulfillment.isMultiItemOrder(order);
 
         if (allDelivered) {
             if (
@@ -2293,6 +2388,8 @@ export class OrdersService {
                     `All ${shipments.length} shipment batch(es) delivered to customer`,
                     { deliveredBatchCount: shipments.length },
                 );
+            } else if (isMulti) {
+                await this.offerFulfillment.recomputeOrderStatus(orderId);
             }
             return;
         }
@@ -2321,7 +2418,34 @@ export class OrdersService {
                     },
                 });
             }
-            await this.offerFulfillment.recomputeOrderStatus(orderId);
+            const nextStatus = await this.offerFulfillment.recomputeOrderStatus(orderId);
+
+            if (isMulti && nextStatus === OrderStatus.PARTIALLY_DELIVERED) {
+                const deliveredOffers = await this.prisma.offer.findMany({
+                    where: {
+                        orderId,
+                        deliveredAt: { not: null },
+                        fulfillmentStatus: OfferFulfillmentStatus.DELIVERED,
+                    },
+                    include: { orderPart: true },
+                });
+                for (const offer of deliveredOffers) {
+                    if (offer.deliveredAt && offer.deliveredAt.getTime() >= now.getTime() - 60000) {
+                        const partName = offer.orderPart?.name || 'Part';
+                        await this.notifications.create({
+                            recipientId: order.customerId,
+                            recipientRole: 'CUSTOMER',
+                            titleAr: `وصلت قطعة: ${partName}`,
+                            titleEn: `Part delivered: ${partName}`,
+                            messageAr: `وصلت «${partName}» من الطلب #${order.orderNumber}. لديك ${POST_DELIVERY_RETURN_DISPUTE_HOURS} ساعة لطلب الإرجاع أو فتح نزاع على هذه القطعة.`,
+                            messageEn: `"${partName}" from order #${order.orderNumber} has arrived. You have ${POST_DELIVERY_RETURN_DISPUTE_HOURS} hours to return or dispute this item.`,
+                            type: 'ORDER',
+                            link: `/dashboard/orders/${orderId}`,
+                            metadata: { offerId: offer.id, orderPartId: offer.orderPartId },
+                        }).catch(() => {});
+                    }
+                }
+            }
         }
     }
 
@@ -2337,19 +2461,35 @@ export class OrdersService {
 
         if (!order) throw new NotFoundException('Order not found');
         if (order.customerId !== customerUserId) throw new ForbiddenException('Not your order');
-        if (order.status !== OrderStatus.SHIPPED) {
-            throw new BadRequestException('Order must be in Shipped state to confirm receipt.');
+
+        if (this.offerFulfillment.isMultiItemOrder(order)) {
+            throw new BadRequestException(
+                'Multi-part orders use carrier-tracked delivery per item. Each part is marked delivered automatically when its shipment arrives.',
+            );
         }
 
-        if (order.shipments.length > 0) {
-            const allDelivered = order.shipments.every(
-                (s) => s.status === ShipmentStatus.DELIVERED_TO_CUSTOMER,
+        if (
+            order.status !== OrderStatus.SHIPPED &&
+            order.status !== OrderStatus.PARTIALLY_DELIVERED
+        ) {
+            throw new BadRequestException(
+                'Order must be in Shipped or Partially Delivered state to confirm receipt.',
             );
-            if (!allDelivered) {
-                throw new BadRequestException(
-                    'All shipment batches must be delivered before you can confirm receipt for this order.',
-                );
-            }
+        }
+
+        if (order.shipments.length === 0) {
+            throw new BadRequestException(
+                'Delivery must be confirmed via shipment tracking. No shipment record found for this order.',
+            );
+        }
+
+        const allDelivered = order.shipments.every(
+            (s) => s.status === ShipmentStatus.DELIVERED_TO_CUSTOMER,
+        );
+        if (!allDelivered) {
+            throw new BadRequestException(
+                'All shipment batches must be delivered before you can confirm receipt for this order.',
+            );
         }
 
         // Transition to DELIVERED

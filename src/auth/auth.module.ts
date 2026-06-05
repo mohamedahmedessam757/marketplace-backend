@@ -10,6 +10,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 import { jwtModuleAsyncOptions } from './jwt-module.config';
+import { OtpService } from './otp.service';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { jwtModuleAsyncOptions } from './jwt-module.config';
     jwtModuleAsyncOptions,
   ],
   controllers: [AuthController, RecoveryController],
-  providers: [AuthService, RecoveryService, JwtStrategy],
-  exports: [AuthService, RecoveryService],
+  providers: [AuthService, RecoveryService, OtpService, JwtStrategy],
+  exports: [AuthService, RecoveryService, OtpService],
 })
 export class AuthModule { }

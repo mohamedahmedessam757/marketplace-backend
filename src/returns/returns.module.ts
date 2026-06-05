@@ -9,9 +9,10 @@ import { UsersModule } from '../users/users.module';
 import { ReturnsCronService } from './returns.cron';
 import { PaymentsModule } from '../payments/payments.module';
 import { ViolationsModule } from '../violations/violations.module';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
-    imports: [UploadsModule, NotificationsModule, AuditLogsModule, UsersModule, PaymentsModule, ViolationsModule],
+    imports: [UploadsModule, NotificationsModule, AuditLogsModule, UsersModule, PaymentsModule, ViolationsModule, OrdersModule],
     controllers: [ReturnsController],
     providers: [ReturnsService, ReturnsCronService],
 })

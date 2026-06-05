@@ -115,28 +115,35 @@ export class EscrowService {
     /**
      * 2. Release Funds (after delivery confirmation or 48H auto-release)
      */
-    async releaseFunds(orderId: string, releaseCondition: 'CUSTOMER_CONFIRM' | 'AUTO_48H' | 'ADMIN_RELEASE', adminId?: string): Promise<void> {
-        const escrow = await this.prisma.escrowTransaction.findFirst({
-            where: { orderId, status: 'HELD' }
-        });
+    async releaseFunds(orderId: string, releaseCondition: 'CUSTOMER_CONFIRM' | 'AUTO_48H' | 'ADMIN_RELEASE', adminId?: string, paymentId?: string): Promise<void> {
+        const escrow = paymentId
+            ? await this.prisma.escrowTransaction.findFirst({
+                  where: { paymentId, status: { in: ['HELD', 'RELEASING'] } },
+              })
+            : await this.prisma.escrowTransaction.findFirst({
+                  where: { orderId, status: { in: ['HELD', 'RELEASING'] } },
+              });
 
         if (!escrow) throw new NotFoundException('No HELD escrow transaction found for this order');
 
         const payment = await this.prisma.paymentTransaction.findFirst({
             where: { id: escrow.paymentId },
-            include: { offer: { include: { store: true } } }
+            include: { offer: { include: { store: true } } },
         });
         if (!payment || !payment.offer) throw new BadRequestException('Payment or Offer missing for escrow');
 
+        if (payment.stripeTransferId && escrow.status === 'RELEASED') {
+            this.logger.log(`Payment ${payment.id} already transferred; skipping duplicate release`);
+            return;
+        }
+
         const order = await this.prisma.order.findUnique({
-             where: { id: orderId }
+             where: { id: orderId },
         });
         if (!order) throw new BadRequestException(`Order missing for ID: ${orderId}`);
 
-        // 2026 Resilient Lookup: Use Store from the Offer (Multi-part support)
         const store = payment.offer.store;
         if (!store) {
-            this.logger.error(`Offer #${payment.offer.offerNumber} has no associated store. Cannot release escrow.`);
             throw new BadRequestException(`Store missing for offer`);
         }
 
@@ -144,52 +151,61 @@ export class EscrowService {
             throw new BadRequestException('Store has no connected Stripe account. Cannot release funds to Stripe.');
         }
 
-        // --- Execute Stripe Transfer ---
-        // We transfer merchantAmount. Shipping usually goes to the merchant if self-shipping or platform if platform-shipping.
-        // Assuming here merchant handles shipping based on existing flow, so they get both.
-        const transferAmount = Number(escrow.merchantAmount) + Number(escrow.shippingAmount);
-        
-        const transferResponse = await this.stripeService.createTransfer(
-            transferAmount.toString(),
-            'AED',
-            store.stripeAccountId,
-            orderId, // transfer_group
-            { orderId, type: releaseCondition }
-        );
+        await this.prisma.escrowTransaction.update({
+            where: { id: escrow.id },
+            data: { status: 'RELEASING' },
+        });
 
-        // --- Database Transaction ---
+        const transferAmount = Number(escrow.merchantAmount) + Number(escrow.shippingAmount);
+        let transferResponse: { id: string };
+
+        try {
+            if (payment.stripeTransferId) {
+                transferResponse = { id: payment.stripeTransferId };
+            } else {
+                transferResponse = await this.stripeService.createTransfer(
+                    transferAmount.toString(),
+                    'AED',
+                    store.stripeAccountId,
+                    orderId,
+                    { orderId, paymentId: payment.id, type: releaseCondition },
+                    `escrow_release_${payment.id}`,
+                );
+            }
+        } catch (err) {
+            await this.prisma.escrowTransaction.update({
+                where: { id: escrow.id },
+                data: { status: 'HELD' },
+            });
+            throw err;
+        }
+
         await this.prisma.$transaction(async (tx) => {
-            // 1. Update Escrow status
             await tx.escrowTransaction.update({
                 where: { id: escrow.id },
                 data: {
                     status: 'RELEASED',
                     releaseCondition,
-                    releasedAt: new Date()
-                }
+                    releasedAt: new Date(),
+                },
             });
 
-            // 2. Move Merchant pending to available
             await tx.store.update({
                 where: { id: store.id },
                 data: {
                     pendingBalance: { decrement: Number(escrow.merchantAmount) },
-                    balance: { increment: Number(escrow.merchantAmount) } // This is their actual available balance
-                }
+                    balance: { increment: Number(escrow.merchantAmount) },
+                },
             });
 
-            // 3. Platform commission/fees were accrued at escrow hold (payment time).
-
-            // 4. Update Payment Transaction
             await tx.paymentTransaction.update({
                 where: { id: payment.id },
                 data: {
                     stripeTransferId: transferResponse.id,
-                    escrowStatus: 'RELEASED'
-                }
+                    escrowStatus: 'RELEASED',
+                },
             });
             
-            // 5. Merchant Wallet Transaction Log
             const currentStore = await tx.store.findUnique({ where: { id: store.id } });
             const newBalance = Number(currentStore?.balance || 0);
 
@@ -202,11 +218,10 @@ export class EscrowService {
                    amount: Number(escrow.merchantAmount),
                    balanceAfter: newBalance, 
                    escrowId: escrow.id,
-                   description: `Escrow released for Order #${order.orderNumber}`
-                }
+                   description: `Escrow released for Order #${order.orderNumber}`,
+                },
             });
 
-            // 6. Notify Merchant
             await this.notifications.create({
                 recipientId: store.ownerId,
                 recipientRole: 'VENDOR',
@@ -216,33 +231,9 @@ export class EscrowService {
                 messageAr: `تم تحرير مبلغ ${escrow.merchantAmount} درهم للطلب #${order.orderNumber} وإضافته إلى رصيدك المتاح.`,
                 messageEn: `Amount of AED ${escrow.merchantAmount} for Order #${order.orderNumber} has been released to your available balance.`,
                 link: 'wallet',
-                metadata: { orderId, amount: escrow.merchantAmount }
+                metadata: { orderId, amount: escrow.merchantAmount },
             });
 
-            // 7. Notify Admin
-            await this.notifications.notifyAdmins({
-                titleAr: 'تحرير رصيد من الضمان 🔓',
-                titleEn: 'Escrow Funds Released 🔓',
-                messageAr: `تم تحرير مبلغ ${escrow.merchantAmount} درهم للطلب #${order.orderNumber}. الشرط: ${releaseCondition}`,
-                messageEn: `AED ${escrow.merchantAmount} released for Order #${order.orderNumber}. Condition: ${releaseCondition}`,
-                type: 'PAYMENT',
-                link: `/admin/orders/${orderId}`,
-                metadata: { orderId, amount: escrow.merchantAmount, condition: releaseCondition }
-            });
-
-            // 8. Notify Customer (Transparency)
-            await this.notifications.create({
-                recipientId: order.customerId,
-                recipientRole: 'CUSTOMER',
-                titleAr: 'تحديث الضمان: تم تحرير المبلغ 🔓',
-                titleEn: 'Escrow Update: Funds Released 🔓',
-                messageAr: `تم تحرير مبلغ الضمان الخاص بطلبك #${order.orderNumber} للتاجر بعد اكتمال الطلب.`,
-                messageEn: `The escrow funds for your order #${order.orderNumber} have been released to the merchant.`,
-                type: 'ORDER',
-                link: `/dashboard/orders/${orderId}`
-            });
-
-            // Audit Log (2026 Escrow Release)
             await this.auditLogs.logAction({
                 orderId,
                 action: 'ESCROW_RELEASED',
@@ -252,8 +243,9 @@ export class EscrowService {
                 metadata: {
                     releaseCondition,
                     amount: escrow.merchantAmount,
-                    stripeTransferId: transferResponse.id
-                }
+                    stripeTransferId: transferResponse.id,
+                    paymentId: payment.id,
+                },
             });
         });
     }
@@ -338,10 +330,124 @@ export class EscrowService {
         });
     }
 
+    async freezeFundsForPayment(paymentId: string, reason: string): Promise<void> {
+        const escrow = await this.prisma.escrowTransaction.findFirst({
+            where: { paymentId, status: 'HELD' },
+            include: {
+                payment: {
+                    include: { offer: { include: { store: true } }, order: true },
+                },
+            },
+        });
+
+        if (!escrow) {
+            throw new BadRequestException('Only HELD escrow for this payment can be frozen');
+        }
+
+        const payment = escrow.payment;
+        const order = payment?.order;
+        const store = payment?.offer?.store;
+        if (!order || !store) {
+            throw new BadRequestException('Payment/order/store missing for escrow freeze');
+        }
+
+        await this.prisma.$transaction(async (tx) => {
+            await tx.escrowTransaction.update({
+                where: { id: escrow.id },
+                data: { status: 'FROZEN', frozenReason: reason },
+            });
+
+            await tx.store.update({
+                where: { id: store.id },
+                data: {
+                    pendingBalance: { decrement: Number(escrow.merchantAmount) },
+                    frozenBalance: { increment: Number(escrow.merchantAmount) },
+                },
+            });
+
+            await this.notifications.create({
+                recipientId: store.ownerId,
+                recipientRole: 'VENDOR',
+                type: 'system',
+                titleAr: 'تجميد رصيد قطعة ❄️',
+                titleEn: 'Item funds frozen ❄️',
+                messageAr: `تم تجميد مبلغ (${escrow.merchantAmount}) درهم لقطعة في الطلب #${order.orderNumber} بسبب نزاع/إرجاع.`,
+                messageEn: `AED ${escrow.merchantAmount} for an item in order #${order.orderNumber} was frozen due to a case.`,
+                link: `marketplace/orders/${order.id}`,
+                metadata: { orderId: order.id, paymentId, amount: escrow.merchantAmount },
+            });
+
+            await this.auditLogs.logAction({
+                orderId: order.id,
+                action: 'ESCROW_FROZEN',
+                entity: 'EscrowTransaction',
+                actorType: ActorType.SYSTEM,
+                actorId: 'DISPUTE_ENGINE',
+                reason,
+                metadata: { paymentId, amount: escrow.merchantAmount },
+            });
+        });
+    }
+
+    async unfreezeFundsForPayment(paymentId: string, reason: string): Promise<void> {
+        const escrow = await this.prisma.escrowTransaction.findFirst({
+            where: { paymentId, status: 'FROZEN' },
+            include: {
+                payment: { include: { offer: { include: { store: true } }, order: true } },
+            },
+        });
+        if (!escrow) return;
+
+        const store = escrow.payment?.offer?.store;
+        const order = escrow.payment?.order;
+        if (!store || !order) return;
+
+        await this.prisma.$transaction(async (tx) => {
+            await tx.escrowTransaction.update({
+                where: { id: escrow.id },
+                data: { status: 'HELD', frozenReason: null },
+            });
+            await tx.store.update({
+                where: { id: store.id },
+                data: {
+                    frozenBalance: { decrement: Number(escrow.merchantAmount) },
+                    pendingBalance: { increment: Number(escrow.merchantAmount) },
+                },
+            });
+            await this.auditLogs.logAction({
+                orderId: order.id,
+                action: 'ESCROW_UNFROZEN',
+                entity: 'EscrowTransaction',
+                actorType: ActorType.SYSTEM,
+                actorId: 'CASE_CANCEL',
+                reason,
+                metadata: { paymentId, amount: escrow.merchantAmount },
+            });
+        });
+    }
+
+    async releaseFundsForPayment(
+        paymentId: string,
+        releaseCondition: 'CUSTOMER_CONFIRM' | 'AUTO_48H' | 'ADMIN_RELEASE',
+        adminId?: string,
+    ): Promise<void> {
+        const escrow = await this.prisma.escrowTransaction.findFirst({
+            where: { paymentId, status: 'HELD' },
+        });
+        if (!escrow) {
+            this.logger.debug(`No HELD escrow for payment ${paymentId}; skip release`);
+            return;
+        }
+        await this.releaseFunds(escrow.orderId, releaseCondition, adminId, paymentId);
+    }
+
     /**
-     * Resolve escrow + payment for refunds (HELD first, then RELEASED/REFUNDED, then latest payment).
+     * Resolve escrow + payment for refunds (scoped to offer payment when paymentId given).
      */
-    async resolvePaymentForRefund(orderId: string): Promise<{
+    async resolvePaymentForRefund(
+        orderId: string,
+        paymentId?: string,
+    ): Promise<{
         escrow: {
             id: string;
             status: string;
@@ -356,6 +462,35 @@ export class EscrowService {
             customerId: string;
         } | null;
     }> {
+        if (paymentId) {
+            const payment = await this.prisma.paymentTransaction.findUnique({
+                where: { id: paymentId },
+            });
+            let escrow = await this.prisma.escrowTransaction.findFirst({
+                where: { paymentId },
+                orderBy: { createdAt: 'desc' },
+            });
+            return {
+                escrow: escrow
+                    ? {
+                          id: escrow.id,
+                          status: escrow.status,
+                          merchantAmount: Number(escrow.merchantAmount),
+                          paymentId: escrow.paymentId,
+                      }
+                    : null,
+                payment: payment
+                    ? {
+                          id: payment.id,
+                          stripePaymentId: payment.stripePaymentId,
+                          totalAmount: Number(payment.totalAmount),
+                          refundedAmount: Number(payment.refundedAmount || 0),
+                          customerId: payment.customerId,
+                      }
+                    : null,
+            };
+        }
+
         let escrow = await this.prisma.escrowTransaction.findFirst({
             where: { orderId, status: { in: ['HELD', 'FROZEN'] } },
             orderBy: { createdAt: 'desc' },
@@ -415,6 +550,72 @@ export class EscrowService {
                   }
                 : null,
         };
+    }
+
+    async resolveOfferPaymentBase(
+        offerId: string,
+        txClient?: Prisma.TransactionClient,
+    ): Promise<{
+        paidTotal: number;
+        alreadyRefunded: number;
+        maxRefundableDb: number;
+        stripePaymentId: string | null;
+        paymentId: string | null;
+        orderId: string | null;
+    }> {
+        const prisma = txClient || this.prisma;
+        const payment = await prisma.paymentTransaction.findFirst({
+            where: { offerId, status: { in: ['SUCCESS', 'REFUNDED'] } },
+            orderBy: { paidAt: 'desc' },
+        });
+        if (!payment) {
+            return {
+                paidTotal: 0,
+                alreadyRefunded: 0,
+                maxRefundableDb: 0,
+                stripePaymentId: null,
+                paymentId: null,
+                orderId: null,
+            };
+        }
+        const paidTotal = Number(payment.totalAmount);
+        const alreadyRefunded = Number(payment.refundedAmount || 0);
+        return {
+            paidTotal,
+            alreadyRefunded,
+            maxRefundableDb: Math.max(0, paidTotal - alreadyRefunded),
+            stripePaymentId: payment.stripePaymentId,
+            paymentId: payment.id,
+            orderId: payment.orderId,
+        };
+    }
+
+    async resolveMaxRefundableAmountForPayment(
+        paymentId: string,
+        txClient?: Prisma.TransactionClient,
+    ): Promise<number> {
+        const prisma = txClient || this.prisma;
+        const payment = await prisma.paymentTransaction.findUnique({
+            where: { id: paymentId },
+        });
+        if (!payment) return 0;
+        const maxRefundableDb = Math.max(
+            0,
+            Number(payment.totalAmount) - Number(payment.refundedAmount || 0),
+        );
+        if (maxRefundableDb <= 0) return 0;
+        if (!payment.stripePaymentId) return maxRefundableDb;
+        try {
+            const stripeMax = await this.stripeService.getMaxRefundableAmountAed(
+                payment.stripePaymentId,
+            );
+            return Math.min(maxRefundableDb, stripeMax);
+        } catch (err: any) {
+            this.logger.warn(
+                `Stripe refundable lookup failed for payment ${paymentId}: ${err?.message}`,
+            );
+            return maxRefundableDb;
+        }
     }
 
     /**
@@ -499,8 +700,9 @@ export class EscrowService {
         refundAmount: number,
         reason: string,
         faultParty: 'MERCHANT' | 'CUSTOMER' | 'LOGISTICS',
+        paymentId?: string,
     ): Promise<StripeRefundContext> {
-        const resolved = await this.resolvePaymentForRefund(orderId);
+        const resolved = await this.resolvePaymentForRefund(orderId, paymentId);
         const payment = resolved.payment;
         const escrow = resolved.escrow;
 
@@ -518,7 +720,9 @@ export class EscrowService {
             );
         }
 
-        const maxRefundable = await this.resolveMaxRefundableAmount(orderId);
+        const maxRefundable = paymentId
+            ? await this.resolveMaxRefundableAmountForPayment(payment.id)
+            : await this.resolveMaxRefundableAmount(orderId);
         const requested = Math.max(0, Number(refundAmount));
         const stripeAlreadyRefunded =
             Number(payment.refundedAmount || 0) === 0 && maxRefundable <= 0;

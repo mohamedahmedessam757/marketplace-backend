@@ -33,8 +33,13 @@ export class EscrowCronService {
                 });
 
                 if (order?.status === 'COMPLETED' && order.updatedAt <= timeframe) {
-                    this.logger.log(`Auto-releasing funds for completed order ${escrow.orderId}...`);
-                    await this.escrowService.releaseFunds(escrow.orderId, 'AUTO_48H');
+                    this.logger.log(`Auto-releasing funds for completed order ${escrow.orderId} (payment ${escrow.paymentId})...`);
+                    await this.escrowService.releaseFunds(
+                        escrow.orderId,
+                        'AUTO_48H',
+                        undefined,
+                        escrow.paymentId,
+                    );
                 }
             }
         } catch (error: any) {

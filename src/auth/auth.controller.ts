@@ -5,6 +5,11 @@ import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Will create this next
 import { UserRole } from '@prisma/client';
+import {
+    RegisterResendOtpDto,
+    RegisterVerifyOtpDto,
+    MobileLoginResendOtpDto,
+} from './dto/otp.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -64,8 +69,51 @@ export class AuthController {
 
     @Post('register-init')
     @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    async initRegistration(@Body() body: { email: string, phone: string }) {
-        return this.authService.initRegistration(body.email, body.phone);
+    async initRegistration(
+        @Body() body: { email: string; phone: string; name?: string; role?: 'customer' | 'vendor' },
+    ) {
+        const audience = body.role === 'vendor' ? 'vendor' : 'customer';
+        return this.authService.initRegistration(body.email, body.phone, body.name, audience);
+    }
+
+    @Post('register-verify-otp')
+    @Throttle({ default: { limit: 10, ttl: 60_000 } })
+    async verifyRegistrationOtp(@Body() body: RegisterVerifyOtpDto) {
+        return this.authService.verifyRegistrationOtp(body.email, body.phone, body.code);
+    }
+
+    @Post('register-resend-otp')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
+    async resendRegistrationOtp(
+        @Body() body: RegisterResendOtpDto & { role?: 'customer' | 'vendor' },
+    ) {
+        const audience = body.role === 'vendor' ? 'vendor' : 'customer';
+        return this.authService.resendRegistrationOtp(body.email, body.phone, body.name, audience);
+    }
+
+    @Post('mobile-login-resend')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
+    async resendMobileLoginOtp(@Body() body: MobileLoginResendOtpDto) {
+        return this.authService.resendMobileLoginOtp(body.phone);
+    }
+
+    /** Staff 2FA — Admin / Super Admin / Support / Verification Officer */
+    @Post('otp/send')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
+    async sendStaffOtp(@Body() body: { email: string }) {
+        return this.authService.sendStaffOtp(body.email);
+    }
+
+    @Post('otp/verify')
+    @Throttle({ default: { limit: 10, ttl: 60_000 } })
+    async verifyStaffOtp(@Body() body: { email: string; code: string }) {
+        return this.authService.verifyStaffOtp(body.email, body.code);
+    }
+
+    @Post('otp/resend')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
+    async resendStaffOtp(@Body() body: { email: string }) {
+        return this.authService.resendStaffOtp(body.email);
     }
 
     @Post('register/customer')

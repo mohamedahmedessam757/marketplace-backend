@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { OrderStatus, ActorType, ViolationTargetType } from '@prisma/client';
 import { ViolationsService } from '../violations/violations.service';
+import { OpenRouterService } from '../llm/openrouter.service';
 
 @Injectable()
 export class ChatService {
@@ -16,6 +17,7 @@ export class ChatService {
         private notificationsService: NotificationsService,
         private auditLogsService: AuditLogsService,
         private violationsService: ViolationsService,
+        private openRouterService: OpenRouterService,
     ) { }
 
     async createOrGetChat(orderId: string, vendorId: string, customerId: string) {
@@ -299,23 +301,14 @@ export class ChatService {
             }
 
             // 2. AI Pass if Regex is clean (Smart)
-            if (!isViolation && process.env.GEMINI_API_KEY) {
+            if (!isViolation && this.openRouterService.isConfigured()) {
                 try {
-                    const { GoogleGenerativeAI } = require("@google/generative-ai");
-                    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-                    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-                    
-                    const prompt = `You are a strict chat filter. Your task is to detect if the user is trying to share contact information (phone numbers, emails, website links, or WhatsApp) to bypass the system. 
-Check this text: "${text}"
-If it contains or attempts to share any contact info (even if obfuscated like 'zero five' or 'my number is'), reply exactly with "VIOLATION". Otherwise, reply exactly with "CLEAN". Do not explain.`;
-                    
-                    const result = await model.generateContent(prompt);
-                    const verdict = result.response.text().trim().toUpperCase();
-                    if (verdict.includes("VIOLATION")) {
+                    const verdict = await this.openRouterService.classifyContactSharing(text);
+                    if (verdict === 'VIOLATION') {
                         isViolation = true;
                     }
                 } catch (e: any) {
-                    console.error("AI chat filter failed:", e.message);
+                    console.error('AI chat filter failed:', e?.message || e);
                 }
             }
 
@@ -406,12 +399,21 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
             (chat.adminTranslationEnabledAt && chat.adminTranslationEnabledAt <= messageCreatedAt)
         );
 
+        let translatedText: string | null = null;
+        if (shouldTranslate && text?.trim() && this.openRouterService.isConfigured()) {
+            try {
+                translatedText = await this.openRouterService.translateMarketplaceMessage(text);
+            } catch (e: any) {
+                console.error('Inline translation failed:', e?.message || e);
+            }
+        }
+
         const message = await this.prisma.orderChatMessage.create({
             data: {
                 chatId,
                 senderId: senderId || undefined,
                 text: text || '',
-                translatedText: null,
+                translatedText,
                 mediaUrl,
                 mediaType,
                 mediaName,
@@ -422,7 +424,6 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
             } as any
         });
 
-        // Broadcast immediately — do not wait for translation
         try {
             this.chatGateway.broadcastNewMessage(chatId, message);
             this.chatGateway.broadcastChatUpdate(chatId, chat.type as any);
@@ -430,8 +431,7 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
             console.error('WebSocket dispatch failed', e);
         }
 
-        // Translate in background so message delivery stays instant
-        if (shouldTranslate && text) {
+        if (shouldTranslate && text && !translatedText) {
             this.translateMessageInBackground(message.id, chatId, text).catch((e) => {
                 console.error('Background translation failed:', e?.message || e);
             });
@@ -448,35 +448,13 @@ If it contains or attempts to share any contact info (even if obfuscated like 'z
     }
 
     private async translateMessageInBackground(messageId: string, chatId: string, text: string) {
-        if (!process.env.GEMINI_API_KEY) return;
-
-        const fallbackModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-flash-latest'];
-        const prompt = `You are a universal translator for an auto parts marketplace. 
-                If the following text is in Arabic, translate it to English. 
-                If it is in English, translate it to Arabic. 
-                Respond ONLY with the translated text, nothing else. 
-                Text: "${text}"`;
+        if (!this.openRouterService.isConfigured()) return;
 
         let translatedText: string | null = null;
         try {
-            const { GoogleGenerativeAI } = require('@google/generative-ai');
-            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-            for (const modelName of fallbackModels) {
-                try {
-                    const model = genAI.getGenerativeModel({ model: modelName });
-                    const result = await model.generateContent(prompt);
-                    translatedText = result.response.text().trim();
-                    break;
-                } catch (modelError: any) {
-                    if (modelError?.status === 404 || modelError?.message?.includes('404')) {
-                        continue;
-                    }
-                    console.error(`Gemini Error on ${modelName}:`, modelError.message);
-                }
-            }
-        } catch (error) {
-            console.error('Gemini Translation Setup Error:', error);
+            translatedText = await this.openRouterService.translateMarketplaceMessage(text);
+        } catch (error: any) {
+            console.error('Translation failed:', { messageId, chatId, error: error?.message || error });
             return;
         }
 

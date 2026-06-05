@@ -34,10 +34,12 @@ import { VerificationTasksModule } from './verification-tasks/verification-tasks
 import { APP_GUARD } from '@nestjs/core';
 import { MaintenanceGuard } from './platform-settings/maintenance.guard';
 import { AuthorizationModule } from './common/authorization/authorization.module';
+import { WidersModule } from './widers/widers.module';
 
 @Module({
     imports: [
         AuthorizationModule,
+        WidersModule,
         ThrottlerModule.forRoot([
             { name: 'short', ttl: 60_000, limit: 150 },
         ]),

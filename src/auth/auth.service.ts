@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    UnauthorizedException,
+    ConflictException,
+    BadRequestException,
+} from '@nestjs/common';
 import { ActorType } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,16 +16,61 @@ import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { OtpService } from './otp.service';
+import { OtpPurpose } from './otp-purpose';
+import { WidersContactSyncService } from '../widers/widers-contact-sync.service';
+import { resolveJwtExpiresIn } from './jwt-expiry.util';
 
 @Injectable()
 export class AuthService {
+    private readonly logger = new Logger(AuthService.name);
+
     constructor(
         private usersService: UsersService,
         private jwtService: JwtService,
         private prisma: PrismaService,
         private auditLogs: AuditLogsService,
         private platformSettings: PlatformSettingsService,
+        private otpService: OtpService,
+        private contactSync: WidersContactSyncService,
     ) { }
+
+    private scheduleWidersContactSync(user: {
+        id: string;
+        phone: string | null;
+        role: string;
+        whatsappOptIn?: boolean;
+        widersContactId?: string | null;
+    }): void {
+        void this.contactSync
+            .syncOnLoginIfMissing({
+                id: user.id,
+                phone: user.phone,
+                role: user.role as any,
+                whatsappOptIn: user.whatsappOptIn ?? true,
+                widersContactId: user.widersContactId ?? null,
+            })
+            .catch((err) =>
+                this.logger.warn(
+                    `Widers contact sync on login failed for ${user.id}: ${err instanceof Error ? err.message : err}`,
+                ),
+            );
+    }
+
+    private static readonly STAFF_ROLES = new Set([
+        'ADMIN',
+        'SUPER_ADMIN',
+        'SUPPORT',
+        'VERIFICATION_OFFICER',
+    ]);
+
+    private audienceForRole(role: string): 'customer' | 'vendor' {
+        return role === 'VENDOR' ? 'vendor' : 'customer';
+    }
+
+    private isStaffRole(role: string): boolean {
+        return AuthService.STAFF_ROLES.has(role);
+    }
 
     async validateUser(email: string, pass: string): Promise<any> {
         const user = await this.usersService.findByEmail(email);
@@ -32,7 +83,9 @@ export class AuthService {
 
     async login(user: any, ip?: string, userAgent?: string, fingerprint?: string) {
         const payload = { email: user.email, sub: user.id, role: user.role };
-        const token = this.jwtService.sign(payload);
+        const token = this.jwtService.sign(payload, {
+            expiresIn: resolveJwtExpiresIn(user.role) as `${number}${'s' | 'm' | 'h' | 'd'}`,
+        });
 
         // Enrich Session Data using 2026 Best Practices
         const parser = new UAParser(userAgent);
@@ -81,6 +134,8 @@ export class AuthService {
                         where: { userId: user.id }
                     });
                 }
+
+                this.scheduleWidersContactSync(user);
 
                 return {
                     access_token: token,
@@ -161,6 +216,8 @@ export class AuthService {
             });
         }
 
+        this.scheduleWidersContactSync(user);
+
         return {
             access_token: token,
             user: user,
@@ -169,99 +226,273 @@ export class AuthService {
     }
 
     async register(createUserDto: CreateUserDto) {
-        return this.usersService.create(createUserDto);
+        if (createUserDto.phone) {
+            await this.otpService.assertRegisterVerified(
+                createUserDto.phone,
+                createUserDto.email,
+            );
+        }
+        const user = await this.usersService.create(createUserDto);
+        void this.contactSync.syncRegisteredUser(user.id).catch((err) =>
+            this.logger.warn(
+                `Widers contact sync after register failed for ${user.id}: ${err instanceof Error ? err.message : err}`,
+            ),
+        );
+        return user;
     }
 
-    async initRegistration(email: string, phone: string) {
-        // 1. Check for Duplicate Email
+    async initRegistration(
+        email: string,
+        phone: string,
+        name?: string,
+        audience: 'customer' | 'vendor' = 'customer',
+    ) {
         const existingEmail = await this.usersService.findByEmail(email);
         if (existingEmail) {
             throw new ConflictException('Email already exists');
         }
 
-        // 2. Check for Duplicate Phone
         const existingPhone = await this.usersService.findByPhone(phone);
         if (existingPhone) {
             throw new ConflictException('Phone number already exists');
         }
 
-        // 3. Return success (In production, dispatch actual OTPs here)
+        await this.otpService.issueAndSend({
+            phone,
+            email,
+            purpose: OtpPurpose.REGISTER,
+            audience,
+            name,
+        });
+
+        void this.contactSync
+            .syncLead({ phone, email, name, audience })
+            .catch((err) =>
+                this.logger.warn(
+                    `Widers lead sync failed for ${email}: ${err instanceof Error ? err.message : err}`,
+                ),
+            );
+
         return {
             success: true,
-            message: 'Verification codes sent',
-            mockCode: '123456'
+            message: 'Verification code sent via WhatsApp',
+            channel: 'whatsapp',
+        };
+    }
+
+    async verifyRegistrationOtp(email: string, phone: string, code: string) {
+        await this.otpService.verify({
+            phone,
+            email,
+            purpose: OtpPurpose.REGISTER,
+            code,
+        });
+
+        return {
+            success: true,
+            message: 'Phone verified. You may complete registration.',
+        };
+    }
+
+    async resendRegistrationOtp(
+        email: string,
+        phone: string,
+        name?: string,
+        audience: 'customer' | 'vendor' = 'customer',
+    ) {
+        const existingEmail = await this.usersService.findByEmail(email);
+        if (existingEmail) {
+            throw new ConflictException('Email already exists');
+        }
+
+        const existingPhone = await this.usersService.findByPhone(phone);
+        if (existingPhone) {
+            throw new ConflictException('Phone number already exists');
+        }
+
+        await this.otpService.resend({
+            phone,
+            email,
+            purpose: OtpPurpose.REGISTER,
+            audience,
+            name,
+        });
+
+        return {
+            success: true,
+            message: 'Verification code resent via WhatsApp',
+            channel: 'whatsapp',
         };
     }
 
     async initiateMobileLogin(phone: string) {
         const user = await this.usersService.findByPhone(phone);
-        
+
         if (!user) {
-            return null; // Controller will handle 404/Unauthorized
+            return null;
         }
 
-        // Return public user info needed for OTP selection
+        if (!user.phone) {
+            throw new BadRequestException('Account has no phone number on file');
+        }
+
+        await this.otpService.issueAndSend({
+            phone: user.phone,
+            purpose: OtpPurpose.LOGIN,
+            audience: this.audienceForRole(user.role),
+            name: user.name ?? undefined,
+            email: user.email,
+        });
+
         return {
             exists: true,
+            otpSent: true,
+            channel: 'whatsapp',
             user: {
                 id: user.id,
                 name: user.name,
                 email: user.email,
                 phone: user.phone,
-                role: user.role
-            }
+                role: user.role,
+            },
         };
     }
 
     async initiateEmailLogin(email: string) {
         const user = await this.usersService.findByEmail(email);
-        
+
         if (!user) {
             return null;
         }
 
+        if (!user.phone) {
+            throw new BadRequestException(
+                'No phone on file. Please use mobile login or update your profile.',
+            );
+        }
+
+        await this.otpService.issueAndSend({
+            phone: user.phone,
+            purpose: OtpPurpose.LOGIN,
+            audience: this.audienceForRole(user.role),
+            name: user.name ?? undefined,
+            email: user.email,
+        });
+
         return {
             exists: true,
+            otpSent: true,
+            channel: 'whatsapp',
+            maskedPhone: user.phone.replace(/.(?=.{4})/g, '*'),
             user: {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                phone: user.phone || '',
-                role: user.role
-            }
+                phone: user.phone,
+                role: user.role,
+            },
         };
     }
 
-    async verifyEmailLogin(email: string, code: string, ip?: string, userAgent?: string, fingerprint?: string) {
-        // 1. Verify OTP (Mock for now)
-        if (code !== '123456') { 
-            throw new UnauthorizedException('Invalid verification code');
+    async resendMobileLoginOtp(phone: string) {
+        const user = await this.usersService.findByPhone(phone);
+        if (!user?.phone) {
+            throw new UnauthorizedException('Account not found');
         }
 
-        // 2. Find User
+        await this.otpService.resend({
+            phone: user.phone,
+            purpose: OtpPurpose.LOGIN,
+            audience: this.audienceForRole(user.role),
+            name: user.name ?? undefined,
+            email: user.email,
+        });
+
+        return { success: true, message: 'Verification code resent via WhatsApp' };
+    }
+
+    async verifyEmailLogin(email: string, code: string, ip?: string, userAgent?: string, fingerprint?: string) {
         const user = await this.usersService.findByEmail(email);
-        if (!user) {
+        if (!user?.phone) {
             throw new UnauthorizedException('User not found');
         }
 
-        // 3. Generate Token
-        return this.login(user, ip, userAgent, fingerprint); 
+        await this.otpService.verify({
+            phone: user.phone,
+            email: user.email,
+            purpose: OtpPurpose.LOGIN,
+            code,
+        });
+
+        return this.login(user, ip, userAgent, fingerprint);
     }
 
     async verifyMobileLogin(phone: string, code: string, ip?: string, userAgent?: string, fingerprint?: string) {
-        // 1. Verify OTP (Mock for now)
-        if (code !== '123456') { 
-            throw new UnauthorizedException('Invalid verification code');
-        }
-
-        // 2. Find User
         const user = await this.usersService.findByPhone(phone);
         if (!user) {
             throw new UnauthorizedException('User not found');
         }
 
-        // 3. Generate Token with full enrichment
-        return this.login(user, ip, userAgent, fingerprint); 
+        await this.otpService.verify({
+            phone,
+            purpose: OtpPurpose.LOGIN,
+            code,
+        });
+
+        return this.login(user, ip, userAgent, fingerprint);
+    }
+
+    /**
+     * Staff 2FA — send WhatsApp OTP after password step (Admin / Support / etc.).
+     */
+    async sendStaffOtp(email: string) {
+        const user = await this.usersService.findByEmail(email);
+        if (!user || !this.isStaffRole(user.role)) {
+            throw new UnauthorizedException('Staff account not found');
+        }
+        if (!user.phone) {
+            throw new BadRequestException(
+                'Admin account has no phone on file. Add a phone number to enable WhatsApp OTP.',
+            );
+        }
+
+        await this.otpService.issueAndSend({
+            phone: user.phone,
+            email: user.email,
+            purpose: OtpPurpose.LOGIN,
+            audience: 'customer',
+            name: user.name ?? undefined,
+            role: user.role,
+        });
+
+        return {
+            success: true,
+            channel: 'whatsapp',
+            maskedPhone: user.phone.replace(/.(?=.{4})/g, '*'),
+        };
+    }
+
+    async verifyStaffOtp(email: string, code: string) {
+        const user = await this.usersService.findByEmail(email);
+        if (!user || !this.isStaffRole(user.role)) {
+            throw new UnauthorizedException('Staff account not found');
+        }
+        if (!user.phone) {
+            throw new BadRequestException('Admin account has no phone on file');
+        }
+
+        await this.otpService.verify({
+            phone: user.phone,
+            email: user.email,
+            purpose: OtpPurpose.LOGIN,
+            code,
+        });
+
+        return { verified: true, success: true };
+    }
+
+    async resendStaffOtp(email: string) {
+        return this.sendStaffOtp(email);
     }
 
     async getUserProfile(userId: string) {

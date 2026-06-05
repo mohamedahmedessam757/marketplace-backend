@@ -123,8 +123,11 @@ export class PaymentsController {
     @Post('admin/release-escrow')
     @UseGuards(PermissionsGuard)
     @Permissions('billing', 'edit')
-    releaseEscrow(@Body() body: { orderId: string }, @Request() req) {
-        return this.paymentsService.releaseEscrowManually(req.user.id, body.orderId);
+    releaseEscrow(
+        @Body() body: { orderId?: string; paymentId?: string; offerId?: string },
+        @Request() req,
+    ) {
+        return this.paymentsService.releaseEscrowManually(req.user.id, body);
     }
 
     // --- Withdrawal & Stripe Connect Endpoints ---

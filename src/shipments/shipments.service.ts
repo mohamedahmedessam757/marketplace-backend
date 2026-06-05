@@ -666,8 +666,9 @@ export class ShipmentsService {
             titleEn: 'Your shipment update 🚚',
             messageAr: bodies.customer.ar,
             messageEn: bodies.customer.en,
-            type: 'ORDER_UPDATE',
+            type: 'SHIPMENT_UPDATE',
             link: `/customer/orders/${order.id}`,
+            metadata: { orderId: order.id, orderNumber: order.orderNumber },
         });
 
         const acceptedOffer = await this.prisma.offer.findFirst({
@@ -686,6 +687,7 @@ export class ShipmentsService {
                 messageEn: bodies.merchant.en,
                 type: 'SHIPMENT_UPDATE',
                 link: `/merchant/orders/${order.id}`,
+                metadata: { orderId: order.id, orderNumber: order.orderNumber },
             });
         }
 

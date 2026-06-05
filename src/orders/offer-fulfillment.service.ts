@@ -15,6 +15,9 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OrderStateMachine } from './fsm/order-state-machine.service';
 
+import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from './order-time.constants';
+import { aggregateMultiItemDeliveryStatus } from './offer-resolution.helpers';
+
 const FULFILLMENT_RANK: Record<OfferFulfillmentStatus, number> = {
     [OfferFulfillmentStatus.AWAITING_PAYMENT]: 0,
     [OfferFulfillmentStatus.IN_PREPARATION]: 10,
@@ -24,6 +27,7 @@ const FULFILLMENT_RANK: Record<OfferFulfillmentStatus, number> = {
     [OfferFulfillmentStatus.READY_FOR_SHIPPING]: 50,
     [OfferFulfillmentStatus.SHIPPED]: 60,
     [OfferFulfillmentStatus.DELIVERED]: 70,
+    [OfferFulfillmentStatus.COMPLETED]: 80,
     [OfferFulfillmentStatus.CANCELLED]: -1,
 };
 
@@ -82,14 +86,17 @@ export class OfferFulfillmentService {
             (o) =>
                 o.shippedFromCart ||
                 o.fulfillmentStatus === OfferFulfillmentStatus.SHIPPED ||
-                o.fulfillmentStatus === OfferFulfillmentStatus.DELIVERED,
+                o.fulfillmentStatus === OfferFulfillmentStatus.DELIVERED ||
+                o.fulfillmentStatus === OfferFulfillmentStatus.COMPLETED,
         ).length;
 
         if (shippedCount > 0 && shippedCount < paidOffers.length) {
             return OrderStatus.PARTIALLY_SHIPPED;
         }
         if (shippedCount === paidOffers.length && shippedCount > 0) {
-            return OrderStatus.SHIPPED;
+            return aggregateMultiItemDeliveryStatus(
+                paidOffers.map((o) => o.fulfillmentStatus),
+            );
         }
 
         const minRank = Math.min(
@@ -177,7 +184,9 @@ export class OfferFulfillmentService {
                 OfferFulfillmentStatus.READY_FOR_SHIPPING,
             [OrderStatus.PARTIALLY_SHIPPED]: OfferFulfillmentStatus.READY_FOR_SHIPPING,
             [OrderStatus.SHIPPED]: OfferFulfillmentStatus.SHIPPED,
+            [OrderStatus.PARTIALLY_DELIVERED]: OfferFulfillmentStatus.DELIVERED,
             [OrderStatus.DELIVERED]: OfferFulfillmentStatus.DELIVERED,
+            [OrderStatus.COMPLETED]: OfferFulfillmentStatus.COMPLETED,
         };
         return map[status] ?? OfferFulfillmentStatus.AWAITING_PAYMENT;
     }
@@ -545,6 +554,11 @@ export class OfferFulfillmentService {
             orderPartId?: string | null;
             orderPart?: { name: string } | null;
             shippedFromCart?: boolean;
+            deliveredAt?: Date | null;
+            completedAt?: Date | null;
+            resolutionLocked?: boolean;
+            hasOpenCase?: boolean;
+            warrantyEndAt?: Date | null;
         }>,
     ) {
         const total = paidOffers.length;
@@ -599,11 +613,13 @@ export class OfferFulfillmentService {
             minRank,
             parts: paidOffers.map((o) => ({
                 offerId: o.id,
+                orderPartId: o.orderPartId ?? null,
                 partName: o.orderPart?.name || 'Part',
                 fulfillmentStatus: o.fulfillmentStatus,
                 canSelectForShipping:
                     o.fulfillmentStatus === OfferFulfillmentStatus.READY_FOR_SHIPPING &&
                     !o.shippedFromCart,
+                ...this.buildOfferResolutionMeta(o, !!o.hasOpenCase),
             })),
         };
     }
@@ -612,6 +628,16 @@ export class OfferFulfillmentService {
         status: OfferFulfillmentStatus,
     ): { ar: string; en: string } {
         switch (status) {
+            case OfferFulfillmentStatus.COMPLETED:
+                return {
+                    ar: 'انتهت مهلة الإرجاع — القطعة مكتملة',
+                    en: 'Return window closed — item completed',
+                };
+            case OfferFulfillmentStatus.DELIVERED:
+                return {
+                    ar: 'وصلت — مهلة الإرجاع/النزاع نشطة',
+                    en: 'Delivered — return/dispute window active',
+                };
             case OfferFulfillmentStatus.IN_PREPARATION:
             case OfferFulfillmentStatus.AWAITING_PAYMENT:
                 return {
@@ -639,5 +665,230 @@ export class OfferFulfillmentService {
                     en: 'Not ready for shipping yet',
                 };
         }
+    }
+
+    isMultiItemOrder(order: { requestType?: string | null; parts?: unknown[] | null }) {
+        return (
+            String(order.requestType || '').toLowerCase() === 'multiple' ||
+            (order.parts?.length ?? 0) > 1
+        );
+    }
+
+    getOfferReturnWindowEndsAt(offer: { deliveredAt?: Date | null }) {
+        if (!offer.deliveredAt) return null;
+        const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
+        return new Date(offer.deliveredAt.getTime() + windowMs);
+    }
+
+    isOfferReturnEligible(offer: {
+        fulfillmentStatus: OfferFulfillmentStatus;
+        deliveredAt?: Date | null;
+        resolutionLocked?: boolean;
+    }) {
+        if (offer.resolutionLocked) return false;
+        if (offer.fulfillmentStatus === OfferFulfillmentStatus.COMPLETED) return false;
+        if (offer.fulfillmentStatus !== OfferFulfillmentStatus.DELIVERED) return false;
+        if (!offer.deliveredAt) return false;
+        const endsAt = this.getOfferReturnWindowEndsAt(offer);
+        return endsAt != null && Date.now() <= endsAt.getTime();
+    }
+
+    async hasOpenCaseForOffer(
+        offerId: string,
+        orderPartId?: string | null,
+        tx?: Prisma.TransactionClient,
+    ) {
+        const db = tx || this.prisma;
+        const [openReturn, openDispute] = await Promise.all([
+            db.returnRequest.findFirst({
+                where: {
+                    offerId,
+                    status: { notIn: ['CANCELLED', 'REJECTED', 'REFUNDED', 'RESOLVED'] },
+                },
+            }),
+            db.dispute.findFirst({
+                where: {
+                    offerId,
+                    status: { notIn: ['CLOSED', 'RESOLVED'] },
+                },
+            }),
+        ]);
+        if (openReturn || openDispute) return true;
+        if (orderPartId) {
+            const [partReturn, partDispute] = await Promise.all([
+                db.returnRequest.findFirst({
+                    where: {
+                        orderPartId,
+                        status: { notIn: ['CANCELLED', 'REJECTED', 'REFUNDED', 'RESOLVED'] },
+                    },
+                }),
+                db.dispute.findFirst({
+                    where: {
+                        orderPartId,
+                        status: { notIn: ['CLOSED', 'RESOLVED'] },
+                    },
+                }),
+            ]);
+            return !!(partReturn || partDispute);
+        }
+        return false;
+    }
+
+    assertOfferReturnWindow(offer: {
+        id: string;
+        fulfillmentStatus: OfferFulfillmentStatus;
+        deliveredAt?: Date | null;
+        resolutionLocked?: boolean;
+        orderPart?: { name: string } | null;
+    }) {
+        const partName = offer.orderPart?.name || 'this item';
+        if (offer.resolutionLocked || offer.fulfillmentStatus === OfferFulfillmentStatus.COMPLETED) {
+            throw new BadRequestException(
+                `Return/dispute window has closed for "${partName}" (item completed).`,
+            );
+        }
+        if (offer.fulfillmentStatus !== OfferFulfillmentStatus.DELIVERED) {
+            throw new BadRequestException(
+                `"${partName}" must be delivered before requesting return or dispute.`,
+            );
+        }
+        if (!offer.deliveredAt) {
+            throw new BadRequestException(
+                `Delivery timestamp missing for "${partName}". Please contact support.`,
+            );
+        }
+        const endsAt = this.getOfferReturnWindowEndsAt(offer);
+        if (!endsAt || Date.now() > endsAt.getTime()) {
+            throw new BadRequestException(
+                `Return/dispute window (${POST_DELIVERY_RETURN_DISPUTE_HOURS} hours) has expired for "${partName}".`,
+            );
+        }
+    }
+
+    async completeOfferAfterWindow(
+        offerId: string,
+        reason = 'System: Auto-completed after return/dispute window expired',
+    ) {
+        const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
+        const windowEnd = new Date(Date.now() - windowMs);
+
+        const txnResult = await this.prisma.$transaction(async (tx) => {
+            await tx.$executeRaw`SELECT id FROM offers WHERE id = ${offerId}::uuid FOR UPDATE`;
+
+            const offer = await tx.offer.findUnique({
+                where: { id: offerId },
+                include: { orderPart: true, order: true },
+            });
+            if (!offer) return null;
+            if (
+                offer.fulfillmentStatus !== OfferFulfillmentStatus.DELIVERED ||
+                offer.resolutionLocked ||
+                !offer.deliveredAt ||
+                offer.deliveredAt > windowEnd
+            ) {
+                return null;
+            }
+
+            const hasCase = await this.hasOpenCaseForOffer(
+                offer.id,
+                offer.orderPartId,
+                tx,
+            );
+            if (hasCase) return null;
+
+            const now = new Date();
+            const warrantyData =
+                offer.hasWarranty && offer.warrantyDuration
+                    ? {
+                          warrantyActiveAt: now,
+                          warrantyEndAt: this.calculateWarrantyEndDate(
+                              now,
+                              offer.warrantyDuration,
+                          ),
+                      }
+                    : {};
+
+            const updated = await tx.offer.updateMany({
+                where: {
+                    id: offerId,
+                    fulfillmentStatus: OfferFulfillmentStatus.DELIVERED,
+                    resolutionLocked: false,
+                    deliveredAt: { lte: windowEnd },
+                },
+                data: {
+                    fulfillmentStatus: OfferFulfillmentStatus.COMPLETED,
+                    completedAt: now,
+                    resolutionLocked: true,
+                    ...warrantyData,
+                },
+            });
+
+            if (updated.count === 0) return null;
+            return { offer, orderId: offer.orderId };
+        });
+
+        if (!txnResult) return null;
+
+        await this.auditLogs.logAction({
+            orderId: txnResult.orderId,
+            action: 'OFFER_AUTO_COMPLETED',
+            entity: 'Offer',
+            actorType: ActorType.SYSTEM,
+            actorId: 'OFFER_RESOLUTION_CRON',
+            actorName: 'Offer Resolution',
+            previousState: OfferFulfillmentStatus.DELIVERED,
+            newState: OfferFulfillmentStatus.COMPLETED,
+            reason,
+            metadata: { offerId, partName: txnResult.offer.orderPart?.name },
+        });
+
+        const nextStatus = await this.recomputeOrderStatus(txnResult.orderId);
+        return { offer: txnResult.offer, orderStatus: nextStatus };
+    }
+
+    buildOfferResolutionMeta(
+        offer: {
+            id: string;
+            fulfillmentStatus: OfferFulfillmentStatus;
+            deliveredAt?: Date | null;
+            completedAt?: Date | null;
+            resolutionLocked?: boolean;
+            orderPartId?: string | null;
+            warrantyEndAt?: Date | null;
+        },
+        hasOpenCase = false,
+    ) {
+        const endsAt = this.getOfferReturnWindowEndsAt(offer);
+        const isReturnEligible =
+            !hasOpenCase && this.isOfferReturnEligible(offer);
+        return {
+            deliveredAt: offer.deliveredAt?.toISOString() ?? null,
+            completedAt: offer.completedAt?.toISOString() ?? null,
+            returnWindowEndsAt: endsAt?.toISOString() ?? null,
+            isReturnEligible,
+            resolutionLocked: !!offer.resolutionLocked,
+            hasOpenCase,
+            warrantyEndAt: offer.warrantyEndAt?.toISOString() ?? null,
+        };
+    }
+
+    private calculateWarrantyEndDate(startDate: Date, duration: string): Date {
+        const date = new Date(startDate);
+        const d = duration.toLowerCase();
+
+        if (d.includes('day')) {
+            const num = parseInt(d.match(/\d+/)?.[0] || '0', 10);
+            date.setDate(date.getDate() + num);
+        } else if (d.includes('month')) {
+            const num = parseInt(d.match(/\d+/)?.[0] || '1', 10);
+            date.setMonth(date.getMonth() + num);
+        } else if (d.includes('year')) {
+            const num = parseInt(d.match(/\d+/)?.[0] || '1', 10);
+            date.setFullYear(date.getFullYear() + num);
+        } else {
+            date.setDate(date.getDate() + 15);
+        }
+
+        return date;
     }
 }

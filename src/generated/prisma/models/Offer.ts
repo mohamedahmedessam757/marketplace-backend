@@ -68,6 +68,11 @@ export type OfferMinAggregateOutputType = {
   shippedFromCart: boolean | null
   shippedFromCartAt: Date | null
   cartShipmentId: string | null
+  deliveredAt: Date | null
+  completedAt: Date | null
+  resolutionLocked: boolean | null
+  warrantyActiveAt: Date | null
+  warrantyEndAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -100,6 +105,11 @@ export type OfferMaxAggregateOutputType = {
   shippedFromCart: boolean | null
   shippedFromCartAt: Date | null
   cartShipmentId: string | null
+  deliveredAt: Date | null
+  completedAt: Date | null
+  resolutionLocked: boolean | null
+  warrantyActiveAt: Date | null
+  warrantyEndAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -132,6 +142,11 @@ export type OfferCountAggregateOutputType = {
   shippedFromCart: number
   shippedFromCartAt: number
   cartShipmentId: number
+  deliveredAt: number
+  completedAt: number
+  resolutionLocked: number
+  warrantyActiveAt: number
+  warrantyEndAt: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -180,6 +195,11 @@ export type OfferMinAggregateInputType = {
   shippedFromCart?: true
   shippedFromCartAt?: true
   cartShipmentId?: true
+  deliveredAt?: true
+  completedAt?: true
+  resolutionLocked?: true
+  warrantyActiveAt?: true
+  warrantyEndAt?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -212,6 +232,11 @@ export type OfferMaxAggregateInputType = {
   shippedFromCart?: true
   shippedFromCartAt?: true
   cartShipmentId?: true
+  deliveredAt?: true
+  completedAt?: true
+  resolutionLocked?: true
+  warrantyActiveAt?: true
+  warrantyEndAt?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -244,6 +269,11 @@ export type OfferCountAggregateInputType = {
   shippedFromCart?: true
   shippedFromCartAt?: true
   cartShipmentId?: true
+  deliveredAt?: true
+  completedAt?: true
+  resolutionLocked?: true
+  warrantyActiveAt?: true
+  warrantyEndAt?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -363,6 +393,11 @@ export type OfferGroupByOutputType = {
   shippedFromCart: boolean
   shippedFromCartAt: Date | null
   cartShipmentId: string | null
+  deliveredAt: Date | null
+  completedAt: Date | null
+  resolutionLocked: boolean
+  warrantyActiveAt: Date | null
+  warrantyEndAt: Date | null
   createdAt: Date
   updatedAt: Date
   _count: OfferCountAggregateOutputType | null
@@ -418,6 +453,11 @@ export type OfferWhereInput = {
   shippedFromCart?: Prisma.BoolFilter<"Offer"> | boolean
   shippedFromCartAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
   cartShipmentId?: Prisma.UuidNullableFilter<"Offer"> | string | null
+  deliveredAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  completedAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  resolutionLocked?: Prisma.BoolFilter<"Offer"> | boolean
+  warrantyActiveAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  warrantyEndAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Offer"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Offer"> | Date | string
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
@@ -429,6 +469,7 @@ export type OfferWhereInput = {
   payments?: Prisma.PaymentTransactionListRelationFilter
   returns?: Prisma.ReturnRequestListRelationFilter
   disputes?: Prisma.DisputeListRelationFilter
+  reviews?: Prisma.ReviewListRelationFilter
   verificationDocuments?: Prisma.VerificationDocumentListRelationFilter
   verificationTasks?: Prisma.VerificationTaskListRelationFilter
 }
@@ -461,6 +502,11 @@ export type OfferOrderByWithRelationInput = {
   shippedFromCart?: Prisma.SortOrder
   shippedFromCartAt?: Prisma.SortOrderInput | Prisma.SortOrder
   cartShipmentId?: Prisma.SortOrderInput | Prisma.SortOrder
+  deliveredAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolutionLocked?: Prisma.SortOrder
+  warrantyActiveAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  warrantyEndAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   order?: Prisma.OrderOrderByWithRelationInput
@@ -472,6 +518,7 @@ export type OfferOrderByWithRelationInput = {
   payments?: Prisma.PaymentTransactionOrderByRelationAggregateInput
   returns?: Prisma.ReturnRequestOrderByRelationAggregateInput
   disputes?: Prisma.DisputeOrderByRelationAggregateInput
+  reviews?: Prisma.ReviewOrderByRelationAggregateInput
   verificationDocuments?: Prisma.VerificationDocumentOrderByRelationAggregateInput
   verificationTasks?: Prisma.VerificationTaskOrderByRelationAggregateInput
 }
@@ -507,6 +554,11 @@ export type OfferWhereUniqueInput = Prisma.AtLeast<{
   shippedFromCart?: Prisma.BoolFilter<"Offer"> | boolean
   shippedFromCartAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
   cartShipmentId?: Prisma.UuidNullableFilter<"Offer"> | string | null
+  deliveredAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  completedAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  resolutionLocked?: Prisma.BoolFilter<"Offer"> | boolean
+  warrantyActiveAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  warrantyEndAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Offer"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Offer"> | Date | string
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
@@ -518,6 +570,7 @@ export type OfferWhereUniqueInput = Prisma.AtLeast<{
   payments?: Prisma.PaymentTransactionListRelationFilter
   returns?: Prisma.ReturnRequestListRelationFilter
   disputes?: Prisma.DisputeListRelationFilter
+  reviews?: Prisma.ReviewListRelationFilter
   verificationDocuments?: Prisma.VerificationDocumentListRelationFilter
   verificationTasks?: Prisma.VerificationTaskListRelationFilter
 }, "id" | "offerNumber">
@@ -550,6 +603,11 @@ export type OfferOrderByWithAggregationInput = {
   shippedFromCart?: Prisma.SortOrder
   shippedFromCartAt?: Prisma.SortOrderInput | Prisma.SortOrder
   cartShipmentId?: Prisma.SortOrderInput | Prisma.SortOrder
+  deliveredAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolutionLocked?: Prisma.SortOrder
+  warrantyActiveAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  warrantyEndAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.OfferCountOrderByAggregateInput
@@ -590,6 +648,11 @@ export type OfferScalarWhereWithAggregatesInput = {
   shippedFromCart?: Prisma.BoolWithAggregatesFilter<"Offer"> | boolean
   shippedFromCartAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Offer"> | Date | string | null
   cartShipmentId?: Prisma.UuidNullableWithAggregatesFilter<"Offer"> | string | null
+  deliveredAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Offer"> | Date | string | null
+  completedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Offer"> | Date | string | null
+  resolutionLocked?: Prisma.BoolWithAggregatesFilter<"Offer"> | boolean
+  warrantyActiveAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Offer"> | Date | string | null
+  warrantyEndAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Offer"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Offer"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Offer"> | Date | string
 }
@@ -618,6 +681,11 @@ export type OfferCreateInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -629,6 +697,7 @@ export type OfferCreateInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -661,6 +730,11 @@ export type OfferUncheckedCreateInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
@@ -668,6 +742,7 @@ export type OfferUncheckedCreateInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -696,6 +771,11 @@ export type OfferUpdateInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -707,6 +787,7 @@ export type OfferUpdateInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -739,6 +820,11 @@ export type OfferUncheckedUpdateInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
@@ -746,6 +832,7 @@ export type OfferUncheckedUpdateInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -778,6 +865,11 @@ export type OfferCreateManyInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -806,6 +898,11 @@ export type OfferUpdateManyMutationInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -838,6 +935,11 @@ export type OfferUncheckedUpdateManyInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -885,6 +987,11 @@ export type OfferCountOrderByAggregateInput = {
   shippedFromCart?: Prisma.SortOrder
   shippedFromCartAt?: Prisma.SortOrder
   cartShipmentId?: Prisma.SortOrder
+  deliveredAt?: Prisma.SortOrder
+  completedAt?: Prisma.SortOrder
+  resolutionLocked?: Prisma.SortOrder
+  warrantyActiveAt?: Prisma.SortOrder
+  warrantyEndAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -924,6 +1031,11 @@ export type OfferMaxOrderByAggregateInput = {
   shippedFromCart?: Prisma.SortOrder
   shippedFromCartAt?: Prisma.SortOrder
   cartShipmentId?: Prisma.SortOrder
+  deliveredAt?: Prisma.SortOrder
+  completedAt?: Prisma.SortOrder
+  resolutionLocked?: Prisma.SortOrder
+  warrantyActiveAt?: Prisma.SortOrder
+  warrantyEndAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -956,6 +1068,11 @@ export type OfferMinOrderByAggregateInput = {
   shippedFromCart?: Prisma.SortOrder
   shippedFromCartAt?: Prisma.SortOrder
   cartShipmentId?: Prisma.SortOrder
+  deliveredAt?: Prisma.SortOrder
+  completedAt?: Prisma.SortOrder
+  resolutionLocked?: Prisma.SortOrder
+  warrantyActiveAt?: Prisma.SortOrder
+  warrantyEndAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -1244,6 +1361,22 @@ export type OfferUncheckedUpdateManyWithoutCartShipmentNestedInput = {
   deleteMany?: Prisma.OfferScalarWhereInput | Prisma.OfferScalarWhereInput[]
 }
 
+export type OfferCreateNestedOneWithoutReviewsInput = {
+  create?: Prisma.XOR<Prisma.OfferCreateWithoutReviewsInput, Prisma.OfferUncheckedCreateWithoutReviewsInput>
+  connectOrCreate?: Prisma.OfferCreateOrConnectWithoutReviewsInput
+  connect?: Prisma.OfferWhereUniqueInput
+}
+
+export type OfferUpdateOneWithoutReviewsNestedInput = {
+  create?: Prisma.XOR<Prisma.OfferCreateWithoutReviewsInput, Prisma.OfferUncheckedCreateWithoutReviewsInput>
+  connectOrCreate?: Prisma.OfferCreateOrConnectWithoutReviewsInput
+  upsert?: Prisma.OfferUpsertWithoutReviewsInput
+  disconnect?: Prisma.OfferWhereInput | boolean
+  delete?: Prisma.OfferWhereInput | boolean
+  connect?: Prisma.OfferWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OfferUpdateToOneWithWhereWithoutReviewsInput, Prisma.OfferUpdateWithoutReviewsInput>, Prisma.OfferUncheckedUpdateWithoutReviewsInput>
+}
+
 export type OfferCreateNestedOneWithoutVerificationTasksInput = {
   create?: Prisma.XOR<Prisma.OfferCreateWithoutVerificationTasksInput, Prisma.OfferUncheckedCreateWithoutVerificationTasksInput>
   connectOrCreate?: Prisma.OfferCreateOrConnectWithoutVerificationTasksInput
@@ -1284,6 +1417,11 @@ export type OfferCreateWithoutStoreInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -1294,6 +1432,7 @@ export type OfferCreateWithoutStoreInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -1325,6 +1464,11 @@ export type OfferUncheckedCreateWithoutStoreInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
@@ -1332,6 +1476,7 @@ export type OfferUncheckedCreateWithoutStoreInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -1393,6 +1538,11 @@ export type OfferScalarWhereInput = {
   shippedFromCart?: Prisma.BoolFilter<"Offer"> | boolean
   shippedFromCartAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
   cartShipmentId?: Prisma.UuidNullableFilter<"Offer"> | string | null
+  deliveredAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  completedAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  resolutionLocked?: Prisma.BoolFilter<"Offer"> | boolean
+  warrantyActiveAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
+  warrantyEndAt?: Prisma.DateTimeNullableFilter<"Offer"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Offer"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Offer"> | Date | string
 }
@@ -1421,6 +1571,11 @@ export type OfferCreateWithoutOrderInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   orderPart?: Prisma.OrderPartCreateNestedOneWithoutOffersInput
@@ -1431,6 +1586,7 @@ export type OfferCreateWithoutOrderInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -1462,6 +1618,11 @@ export type OfferUncheckedCreateWithoutOrderInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
@@ -1469,6 +1630,7 @@ export type OfferUncheckedCreateWithoutOrderInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -1507,6 +1669,11 @@ export type OfferCreateWithoutAcceptedByOrderInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -1517,6 +1684,7 @@ export type OfferCreateWithoutAcceptedByOrderInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -1549,12 +1717,18 @@ export type OfferUncheckedCreateWithoutAcceptedByOrderInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   rejection?: Prisma.OfferRejectionUncheckedCreateNestedOneWithoutOfferInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -1615,6 +1789,11 @@ export type OfferUpdateWithoutAcceptedByOrderInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -1625,6 +1804,7 @@ export type OfferUpdateWithoutAcceptedByOrderInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -1657,12 +1837,18 @@ export type OfferUncheckedUpdateWithoutAcceptedByOrderInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   rejection?: Prisma.OfferRejectionUncheckedUpdateOneWithoutOfferNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -1691,6 +1877,11 @@ export type OfferCreateWithoutVerificationDocumentsInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -1702,6 +1893,7 @@ export type OfferCreateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
 
@@ -1733,6 +1925,11 @@ export type OfferUncheckedCreateWithoutVerificationDocumentsInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
@@ -1740,6 +1937,7 @@ export type OfferUncheckedCreateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
 
@@ -1783,6 +1981,11 @@ export type OfferUpdateWithoutVerificationDocumentsInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -1794,6 +1997,7 @@ export type OfferUpdateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
 
@@ -1825,6 +2029,11 @@ export type OfferUncheckedUpdateWithoutVerificationDocumentsInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
@@ -1832,6 +2041,7 @@ export type OfferUncheckedUpdateWithoutVerificationDocumentsInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
 
@@ -1859,6 +2069,11 @@ export type OfferCreateWithoutRejectionInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -1869,6 +2084,7 @@ export type OfferCreateWithoutRejectionInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -1901,12 +2117,18 @@ export type OfferUncheckedCreateWithoutRejectionInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -1951,6 +2173,11 @@ export type OfferUpdateWithoutRejectionInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -1961,6 +2188,7 @@ export type OfferUpdateWithoutRejectionInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -1993,12 +2221,18 @@ export type OfferUncheckedUpdateWithoutRejectionInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -2027,6 +2261,11 @@ export type OfferCreateWithoutOrderPartInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -2037,6 +2276,7 @@ export type OfferCreateWithoutOrderPartInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -2068,6 +2308,11 @@ export type OfferUncheckedCreateWithoutOrderPartInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
@@ -2075,6 +2320,7 @@ export type OfferUncheckedCreateWithoutOrderPartInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -2129,6 +2375,11 @@ export type OfferCreateWithoutReturnsInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -2139,6 +2390,7 @@ export type OfferCreateWithoutReturnsInput = {
   rejection?: Prisma.OfferRejectionCreateNestedOneWithoutOfferInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -2171,12 +2423,18 @@ export type OfferUncheckedCreateWithoutReturnsInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
   rejection?: Prisma.OfferRejectionUncheckedCreateNestedOneWithoutOfferInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -2221,6 +2479,11 @@ export type OfferUpdateWithoutReturnsInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -2231,6 +2494,7 @@ export type OfferUpdateWithoutReturnsInput = {
   rejection?: Prisma.OfferRejectionUpdateOneWithoutOfferNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -2263,12 +2527,18 @@ export type OfferUncheckedUpdateWithoutReturnsInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
   rejection?: Prisma.OfferRejectionUncheckedUpdateOneWithoutOfferNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -2297,6 +2567,11 @@ export type OfferCreateWithoutDisputesInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -2307,6 +2582,7 @@ export type OfferCreateWithoutDisputesInput = {
   rejection?: Prisma.OfferRejectionCreateNestedOneWithoutOfferInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -2339,12 +2615,18 @@ export type OfferUncheckedCreateWithoutDisputesInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
   rejection?: Prisma.OfferRejectionUncheckedCreateNestedOneWithoutOfferInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -2389,6 +2671,11 @@ export type OfferUpdateWithoutDisputesInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -2399,6 +2686,7 @@ export type OfferUpdateWithoutDisputesInput = {
   rejection?: Prisma.OfferRejectionUpdateOneWithoutOfferNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -2431,12 +2719,18 @@ export type OfferUncheckedUpdateWithoutDisputesInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
   rejection?: Prisma.OfferRejectionUncheckedUpdateOneWithoutOfferNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -2465,6 +2759,11 @@ export type OfferCreateWithoutPaymentsInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -2475,6 +2774,7 @@ export type OfferCreateWithoutPaymentsInput = {
   rejection?: Prisma.OfferRejectionCreateNestedOneWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -2507,12 +2807,18 @@ export type OfferUncheckedCreateWithoutPaymentsInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
   rejection?: Prisma.OfferRejectionUncheckedCreateNestedOneWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -2557,6 +2863,11 @@ export type OfferUpdateWithoutPaymentsInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -2567,6 +2878,7 @@ export type OfferUpdateWithoutPaymentsInput = {
   rejection?: Prisma.OfferRejectionUpdateOneWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -2599,12 +2911,18 @@ export type OfferUncheckedUpdateWithoutPaymentsInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
   rejection?: Prisma.OfferRejectionUncheckedUpdateOneWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -2633,6 +2951,11 @@ export type OfferCreateWithoutCartShipmentInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -2643,6 +2966,7 @@ export type OfferCreateWithoutCartShipmentInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
 }
@@ -2674,6 +2998,11 @@ export type OfferUncheckedCreateWithoutCartShipmentInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
@@ -2681,6 +3010,7 @@ export type OfferUncheckedCreateWithoutCartShipmentInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
 }
@@ -2711,6 +3041,198 @@ export type OfferUpdateManyWithWhereWithoutCartShipmentInput = {
   data: Prisma.XOR<Prisma.OfferUpdateManyMutationInput, Prisma.OfferUncheckedUpdateManyWithoutCartShipmentInput>
 }
 
+export type OfferCreateWithoutReviewsInput = {
+  id?: string
+  offerNumber: string
+  unitPrice: runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg: runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: boolean
+  warrantyDuration?: string | null
+  deliveryDays?: string | null
+  condition?: string | null
+  partType?: string | null
+  notes?: string | null
+  offerImage?: string | null
+  cylinders?: number | null
+  status?: string
+  fulfillmentStatus?: $Enums.OfferFulfillmentStatus
+  preparedAt?: Date | string | null
+  verificationSubmittedAt?: Date | string | null
+  readyForShippingAt?: Date | string | null
+  canEditUntil?: Date | string | null
+  isWithdrawn?: boolean
+  withdrawalType?: string | null
+  shippedFromCart?: boolean
+  shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  order: Prisma.OrderCreateNestedOneWithoutOffersInput
+  orderPart?: Prisma.OrderPartCreateNestedOneWithoutOffersInput
+  store: Prisma.StoreCreateNestedOneWithoutOffersInput
+  acceptedByOrder?: Prisma.OrderCreateNestedOneWithoutAcceptedOfferInput
+  cartShipment?: Prisma.ShipmentCreateNestedOneWithoutCartOffersInput
+  rejection?: Prisma.OfferRejectionCreateNestedOneWithoutOfferInput
+  payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
+  returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
+  disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOfferInput
+}
+
+export type OfferUncheckedCreateWithoutReviewsInput = {
+  id?: string
+  offerNumber: string
+  orderId: string
+  orderPartId?: string | null
+  storeId: string
+  unitPrice: runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg: runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: boolean
+  warrantyDuration?: string | null
+  deliveryDays?: string | null
+  condition?: string | null
+  partType?: string | null
+  notes?: string | null
+  offerImage?: string | null
+  cylinders?: number | null
+  status?: string
+  fulfillmentStatus?: $Enums.OfferFulfillmentStatus
+  preparedAt?: Date | string | null
+  verificationSubmittedAt?: Date | string | null
+  readyForShippingAt?: Date | string | null
+  canEditUntil?: Date | string | null
+  isWithdrawn?: boolean
+  withdrawalType?: string | null
+  shippedFromCart?: boolean
+  shippedFromCartAt?: Date | string | null
+  cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
+  rejection?: Prisma.OfferRejectionUncheckedCreateNestedOneWithoutOfferInput
+  payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
+  returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
+  disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfferInput
+}
+
+export type OfferCreateOrConnectWithoutReviewsInput = {
+  where: Prisma.OfferWhereUniqueInput
+  create: Prisma.XOR<Prisma.OfferCreateWithoutReviewsInput, Prisma.OfferUncheckedCreateWithoutReviewsInput>
+}
+
+export type OfferUpsertWithoutReviewsInput = {
+  update: Prisma.XOR<Prisma.OfferUpdateWithoutReviewsInput, Prisma.OfferUncheckedUpdateWithoutReviewsInput>
+  create: Prisma.XOR<Prisma.OfferCreateWithoutReviewsInput, Prisma.OfferUncheckedCreateWithoutReviewsInput>
+  where?: Prisma.OfferWhereInput
+}
+
+export type OfferUpdateToOneWithWhereWithoutReviewsInput = {
+  where?: Prisma.OfferWhereInput
+  data: Prisma.XOR<Prisma.OfferUpdateWithoutReviewsInput, Prisma.OfferUncheckedUpdateWithoutReviewsInput>
+}
+
+export type OfferUpdateWithoutReviewsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  offerNumber?: Prisma.StringFieldUpdateOperationsInput | string
+  unitPrice?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyDuration?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveryDays?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  condition?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  partType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  offerImage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cylinders?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  fulfillmentStatus?: Prisma.EnumOfferFulfillmentStatusFieldUpdateOperationsInput | $Enums.OfferFulfillmentStatus
+  preparedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  verificationSubmittedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  readyForShippingAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  canEditUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isWithdrawn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
+  orderPart?: Prisma.OrderPartUpdateOneWithoutOffersNestedInput
+  store?: Prisma.StoreUpdateOneRequiredWithoutOffersNestedInput
+  acceptedByOrder?: Prisma.OrderUpdateOneWithoutAcceptedOfferNestedInput
+  cartShipment?: Prisma.ShipmentUpdateOneWithoutCartOffersNestedInput
+  rejection?: Prisma.OfferRejectionUpdateOneWithoutOfferNestedInput
+  payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
+  returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
+  disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
+}
+
+export type OfferUncheckedUpdateWithoutReviewsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  offerNumber?: Prisma.StringFieldUpdateOperationsInput | string
+  orderId?: Prisma.StringFieldUpdateOperationsInput | string
+  orderPartId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  storeId?: Prisma.StringFieldUpdateOperationsInput | string
+  unitPrice?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  weightKg?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  shippingCost?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  hasWarranty?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyDuration?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveryDays?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  condition?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  partType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  offerImage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  cylinders?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  status?: Prisma.StringFieldUpdateOperationsInput | string
+  fulfillmentStatus?: Prisma.EnumOfferFulfillmentStatusFieldUpdateOperationsInput | $Enums.OfferFulfillmentStatus
+  preparedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  verificationSubmittedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  readyForShippingAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  canEditUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isWithdrawn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
+  rejection?: Prisma.OfferRejectionUncheckedUpdateOneWithoutOfferNestedInput
+  payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
+  returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
+  disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
+  verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
+}
+
 export type OfferCreateWithoutVerificationTasksInput = {
   id?: string
   offerNumber: string
@@ -2735,6 +3257,11 @@ export type OfferCreateWithoutVerificationTasksInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   order: Prisma.OrderCreateNestedOneWithoutOffersInput
@@ -2746,6 +3273,7 @@ export type OfferCreateWithoutVerificationTasksInput = {
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOfferInput
 }
 
@@ -2777,6 +3305,11 @@ export type OfferUncheckedCreateWithoutVerificationTasksInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   acceptedByOrder?: Prisma.OrderUncheckedCreateNestedOneWithoutAcceptedOfferInput
@@ -2784,6 +3317,7 @@ export type OfferUncheckedCreateWithoutVerificationTasksInput = {
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOfferInput
   returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutOfferInput
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOfferInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOfferInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOfferInput
 }
 
@@ -2827,6 +3361,11 @@ export type OfferUpdateWithoutVerificationTasksInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -2838,6 +3377,7 @@ export type OfferUpdateWithoutVerificationTasksInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
 }
 
@@ -2869,6 +3409,11 @@ export type OfferUncheckedUpdateWithoutVerificationTasksInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
@@ -2876,6 +3421,7 @@ export type OfferUncheckedUpdateWithoutVerificationTasksInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
 }
 
@@ -2906,6 +3452,11 @@ export type OfferCreateManyStoreInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -2934,6 +3485,11 @@ export type OfferUpdateWithoutStoreInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -2944,6 +3500,7 @@ export type OfferUpdateWithoutStoreInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -2975,6 +3532,11 @@ export type OfferUncheckedUpdateWithoutStoreInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
@@ -2982,6 +3544,7 @@ export type OfferUncheckedUpdateWithoutStoreInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -3013,6 +3576,11 @@ export type OfferUncheckedUpdateManyWithoutStoreInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -3044,6 +3612,11 @@ export type OfferCreateManyOrderInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -3072,6 +3645,11 @@ export type OfferUpdateWithoutOrderInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   orderPart?: Prisma.OrderPartUpdateOneWithoutOffersNestedInput
@@ -3082,6 +3660,7 @@ export type OfferUpdateWithoutOrderInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -3113,6 +3692,11 @@ export type OfferUncheckedUpdateWithoutOrderInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
@@ -3120,6 +3704,7 @@ export type OfferUncheckedUpdateWithoutOrderInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -3151,6 +3736,11 @@ export type OfferUncheckedUpdateManyWithoutOrderInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -3182,6 +3772,11 @@ export type OfferCreateManyOrderPartInput = {
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
   cartShipmentId?: string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -3210,6 +3805,11 @@ export type OfferUpdateWithoutOrderPartInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -3220,6 +3820,7 @@ export type OfferUpdateWithoutOrderPartInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -3251,6 +3852,11 @@ export type OfferUncheckedUpdateWithoutOrderPartInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
@@ -3258,6 +3864,7 @@ export type OfferUncheckedUpdateWithoutOrderPartInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -3289,6 +3896,11 @@ export type OfferUncheckedUpdateManyWithoutOrderPartInput = {
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   cartShipmentId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -3320,6 +3932,11 @@ export type OfferCreateManyCartShipmentInput = {
   withdrawalType?: string | null
   shippedFromCart?: boolean
   shippedFromCartAt?: Date | string | null
+  deliveredAt?: Date | string | null
+  completedAt?: Date | string | null
+  resolutionLocked?: boolean
+  warrantyActiveAt?: Date | string | null
+  warrantyEndAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -3348,6 +3965,11 @@ export type OfferUpdateWithoutCartShipmentInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   order?: Prisma.OrderUpdateOneRequiredWithoutOffersNestedInput
@@ -3358,6 +3980,7 @@ export type OfferUpdateWithoutCartShipmentInput = {
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOfferNestedInput
 }
@@ -3389,6 +4012,11 @@ export type OfferUncheckedUpdateWithoutCartShipmentInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   acceptedByOrder?: Prisma.OrderUncheckedUpdateOneWithoutAcceptedOfferNestedInput
@@ -3396,6 +4024,7 @@ export type OfferUncheckedUpdateWithoutCartShipmentInput = {
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOfferNestedInput
   returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutOfferNestedInput
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOfferNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOfferNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOfferNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfferNestedInput
 }
@@ -3427,6 +4056,11 @@ export type OfferUncheckedUpdateManyWithoutCartShipmentInput = {
   withdrawalType?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   shippedFromCart?: Prisma.BoolFieldUpdateOperationsInput | boolean
   shippedFromCartAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deliveredAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  resolutionLocked?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  warrantyActiveAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  warrantyEndAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -3440,6 +4074,7 @@ export type OfferCountOutputType = {
   payments: number
   returns: number
   disputes: number
+  reviews: number
   verificationDocuments: number
   verificationTasks: number
 }
@@ -3448,6 +4083,7 @@ export type OfferCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.
   payments?: boolean | OfferCountOutputTypeCountPaymentsArgs
   returns?: boolean | OfferCountOutputTypeCountReturnsArgs
   disputes?: boolean | OfferCountOutputTypeCountDisputesArgs
+  reviews?: boolean | OfferCountOutputTypeCountReviewsArgs
   verificationDocuments?: boolean | OfferCountOutputTypeCountVerificationDocumentsArgs
   verificationTasks?: boolean | OfferCountOutputTypeCountVerificationTasksArgs
 }
@@ -3481,6 +4117,13 @@ export type OfferCountOutputTypeCountReturnsArgs<ExtArgs extends runtime.Types.E
  */
 export type OfferCountOutputTypeCountDisputesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.DisputeWhereInput
+}
+
+/**
+ * OfferCountOutputType without action
+ */
+export type OfferCountOutputTypeCountReviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ReviewWhereInput
 }
 
 /**
@@ -3526,6 +4169,11 @@ export type OfferSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   shippedFromCart?: boolean
   shippedFromCartAt?: boolean
   cartShipmentId?: boolean
+  deliveredAt?: boolean
+  completedAt?: boolean
+  resolutionLocked?: boolean
+  warrantyActiveAt?: boolean
+  warrantyEndAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
@@ -3537,6 +4185,7 @@ export type OfferSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   payments?: boolean | Prisma.Offer$paymentsArgs<ExtArgs>
   returns?: boolean | Prisma.Offer$returnsArgs<ExtArgs>
   disputes?: boolean | Prisma.Offer$disputesArgs<ExtArgs>
+  reviews?: boolean | Prisma.Offer$reviewsArgs<ExtArgs>
   verificationDocuments?: boolean | Prisma.Offer$verificationDocumentsArgs<ExtArgs>
   verificationTasks?: boolean | Prisma.Offer$verificationTasksArgs<ExtArgs>
   _count?: boolean | Prisma.OfferCountOutputTypeDefaultArgs<ExtArgs>
@@ -3570,6 +4219,11 @@ export type OfferSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   shippedFromCart?: boolean
   shippedFromCartAt?: boolean
   cartShipmentId?: boolean
+  deliveredAt?: boolean
+  completedAt?: boolean
+  resolutionLocked?: boolean
+  warrantyActiveAt?: boolean
+  warrantyEndAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
@@ -3606,6 +4260,11 @@ export type OfferSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   shippedFromCart?: boolean
   shippedFromCartAt?: boolean
   cartShipmentId?: boolean
+  deliveredAt?: boolean
+  completedAt?: boolean
+  resolutionLocked?: boolean
+  warrantyActiveAt?: boolean
+  warrantyEndAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
@@ -3642,11 +4301,16 @@ export type OfferSelectScalar = {
   shippedFromCart?: boolean
   shippedFromCartAt?: boolean
   cartShipmentId?: boolean
+  deliveredAt?: boolean
+  completedAt?: boolean
+  resolutionLocked?: boolean
+  warrantyActiveAt?: boolean
+  warrantyEndAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type OfferOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "offerNumber" | "orderId" | "orderPartId" | "storeId" | "unitPrice" | "weightKg" | "shippingCost" | "hasWarranty" | "warrantyDuration" | "deliveryDays" | "condition" | "partType" | "notes" | "offerImage" | "cylinders" | "status" | "fulfillmentStatus" | "preparedAt" | "verificationSubmittedAt" | "readyForShippingAt" | "canEditUntil" | "isWithdrawn" | "withdrawalType" | "shippedFromCart" | "shippedFromCartAt" | "cartShipmentId" | "createdAt" | "updatedAt", ExtArgs["result"]["offer"]>
+export type OfferOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "offerNumber" | "orderId" | "orderPartId" | "storeId" | "unitPrice" | "weightKg" | "shippingCost" | "hasWarranty" | "warrantyDuration" | "deliveryDays" | "condition" | "partType" | "notes" | "offerImage" | "cylinders" | "status" | "fulfillmentStatus" | "preparedAt" | "verificationSubmittedAt" | "readyForShippingAt" | "canEditUntil" | "isWithdrawn" | "withdrawalType" | "shippedFromCart" | "shippedFromCartAt" | "cartShipmentId" | "deliveredAt" | "completedAt" | "resolutionLocked" | "warrantyActiveAt" | "warrantyEndAt" | "createdAt" | "updatedAt", ExtArgs["result"]["offer"]>
 export type OfferInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
   orderPart?: boolean | Prisma.Offer$orderPartArgs<ExtArgs>
@@ -3657,6 +4321,7 @@ export type OfferInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   payments?: boolean | Prisma.Offer$paymentsArgs<ExtArgs>
   returns?: boolean | Prisma.Offer$returnsArgs<ExtArgs>
   disputes?: boolean | Prisma.Offer$disputesArgs<ExtArgs>
+  reviews?: boolean | Prisma.Offer$reviewsArgs<ExtArgs>
   verificationDocuments?: boolean | Prisma.Offer$verificationDocumentsArgs<ExtArgs>
   verificationTasks?: boolean | Prisma.Offer$verificationTasksArgs<ExtArgs>
   _count?: boolean | Prisma.OfferCountOutputTypeDefaultArgs<ExtArgs>
@@ -3686,6 +4351,7 @@ export type $OfferPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     payments: Prisma.$PaymentTransactionPayload<ExtArgs>[]
     returns: Prisma.$ReturnRequestPayload<ExtArgs>[]
     disputes: Prisma.$DisputePayload<ExtArgs>[]
+    reviews: Prisma.$ReviewPayload<ExtArgs>[]
     verificationDocuments: Prisma.$VerificationDocumentPayload<ExtArgs>[]
     verificationTasks: Prisma.$VerificationTaskPayload<ExtArgs>[]
   }
@@ -3717,6 +4383,11 @@ export type $OfferPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     shippedFromCart: boolean
     shippedFromCartAt: Date | null
     cartShipmentId: string | null
+    deliveredAt: Date | null
+    completedAt: Date | null
+    resolutionLocked: boolean
+    warrantyActiveAt: Date | null
+    warrantyEndAt: Date | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["offer"]>
@@ -4122,6 +4793,7 @@ export interface Prisma__OfferClient<T, Null = never, ExtArgs extends runtime.Ty
   payments<T extends Prisma.Offer$paymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$paymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PaymentTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   returns<T extends Prisma.Offer$returnsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$returnsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ReturnRequestPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   disputes<T extends Prisma.Offer$disputesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$disputesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DisputePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  reviews<T extends Prisma.Offer$reviewsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$reviewsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ReviewPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   verificationDocuments<T extends Prisma.Offer$verificationDocumentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$verificationDocumentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VerificationDocumentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   verificationTasks<T extends Prisma.Offer$verificationTasksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Offer$verificationTasksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VerificationTaskPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
@@ -4180,6 +4852,11 @@ export interface OfferFieldRefs {
   readonly shippedFromCart: Prisma.FieldRef<"Offer", 'Boolean'>
   readonly shippedFromCartAt: Prisma.FieldRef<"Offer", 'DateTime'>
   readonly cartShipmentId: Prisma.FieldRef<"Offer", 'String'>
+  readonly deliveredAt: Prisma.FieldRef<"Offer", 'DateTime'>
+  readonly completedAt: Prisma.FieldRef<"Offer", 'DateTime'>
+  readonly resolutionLocked: Prisma.FieldRef<"Offer", 'Boolean'>
+  readonly warrantyActiveAt: Prisma.FieldRef<"Offer", 'DateTime'>
+  readonly warrantyEndAt: Prisma.FieldRef<"Offer", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Offer", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Offer", 'DateTime'>
 }
@@ -4728,6 +5405,30 @@ export type Offer$disputesArgs<ExtArgs extends runtime.Types.Extensions.Internal
   take?: number
   skip?: number
   distinct?: Prisma.DisputeScalarFieldEnum | Prisma.DisputeScalarFieldEnum[]
+}
+
+/**
+ * Offer.reviews
+ */
+export type Offer$reviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Review
+   */
+  select?: Prisma.ReviewSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Review
+   */
+  omit?: Prisma.ReviewOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ReviewInclude<ExtArgs> | null
+  where?: Prisma.ReviewWhereInput
+  orderBy?: Prisma.ReviewOrderByWithRelationInput | Prisma.ReviewOrderByWithRelationInput[]
+  cursor?: Prisma.ReviewWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ReviewScalarFieldEnum | Prisma.ReviewScalarFieldEnum[]
 }
 
 /**

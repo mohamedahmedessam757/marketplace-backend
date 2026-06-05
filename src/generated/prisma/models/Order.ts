@@ -470,7 +470,7 @@ export type OrderWhereInput = {
   orderChats?: Prisma.OrderChatListRelationFilter
   payments?: Prisma.PaymentTransactionListRelationFilter
   invoices?: Prisma.InvoiceListRelationFilter
-  review?: Prisma.XOR<Prisma.ReviewNullableScalarRelationFilter, Prisma.ReviewWhereInput> | null
+  reviews?: Prisma.ReviewListRelationFilter
   acceptedOffer?: Prisma.XOR<Prisma.OfferNullableScalarRelationFilter, Prisma.OfferWhereInput> | null
   shippingAddresses?: Prisma.OrderShippingAddressListRelationFilter
   verificationTasks?: Prisma.VerificationTaskListRelationFilter
@@ -527,7 +527,7 @@ export type OrderOrderByWithRelationInput = {
   orderChats?: Prisma.OrderChatOrderByRelationAggregateInput
   payments?: Prisma.PaymentTransactionOrderByRelationAggregateInput
   invoices?: Prisma.InvoiceOrderByRelationAggregateInput
-  review?: Prisma.ReviewOrderByWithRelationInput
+  reviews?: Prisma.ReviewOrderByRelationAggregateInput
   acceptedOffer?: Prisma.OfferOrderByWithRelationInput
   shippingAddresses?: Prisma.OrderShippingAddressOrderByRelationAggregateInput
   verificationTasks?: Prisma.VerificationTaskOrderByRelationAggregateInput
@@ -587,7 +587,7 @@ export type OrderWhereUniqueInput = Prisma.AtLeast<{
   orderChats?: Prisma.OrderChatListRelationFilter
   payments?: Prisma.PaymentTransactionListRelationFilter
   invoices?: Prisma.InvoiceListRelationFilter
-  review?: Prisma.XOR<Prisma.ReviewNullableScalarRelationFilter, Prisma.ReviewWhereInput> | null
+  reviews?: Prisma.ReviewListRelationFilter
   acceptedOffer?: Prisma.XOR<Prisma.OfferNullableScalarRelationFilter, Prisma.OfferWhereInput> | null
   shippingAddresses?: Prisma.OrderShippingAddressListRelationFilter
   verificationTasks?: Prisma.VerificationTaskListRelationFilter
@@ -725,7 +725,7 @@ export type OrderCreateInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -780,7 +780,7 @@ export type OrderUncheckedCreateInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -833,7 +833,7 @@ export type OrderUpdateInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -888,7 +888,7 @@ export type OrderUncheckedUpdateInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -1463,18 +1463,18 @@ export type OrderUpdateOneRequiredWithoutShipmentsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrderUpdateToOneWithWhereWithoutShipmentsInput, Prisma.OrderUpdateWithoutShipmentsInput>, Prisma.OrderUncheckedUpdateWithoutShipmentsInput>
 }
 
-export type OrderCreateNestedOneWithoutReviewInput = {
-  create?: Prisma.XOR<Prisma.OrderCreateWithoutReviewInput, Prisma.OrderUncheckedCreateWithoutReviewInput>
-  connectOrCreate?: Prisma.OrderCreateOrConnectWithoutReviewInput
+export type OrderCreateNestedOneWithoutReviewsInput = {
+  create?: Prisma.XOR<Prisma.OrderCreateWithoutReviewsInput, Prisma.OrderUncheckedCreateWithoutReviewsInput>
+  connectOrCreate?: Prisma.OrderCreateOrConnectWithoutReviewsInput
   connect?: Prisma.OrderWhereUniqueInput
 }
 
-export type OrderUpdateOneRequiredWithoutReviewNestedInput = {
-  create?: Prisma.XOR<Prisma.OrderCreateWithoutReviewInput, Prisma.OrderUncheckedCreateWithoutReviewInput>
-  connectOrCreate?: Prisma.OrderCreateOrConnectWithoutReviewInput
-  upsert?: Prisma.OrderUpsertWithoutReviewInput
+export type OrderUpdateOneRequiredWithoutReviewsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrderCreateWithoutReviewsInput, Prisma.OrderUncheckedCreateWithoutReviewsInput>
+  connectOrCreate?: Prisma.OrderCreateOrConnectWithoutReviewsInput
+  upsert?: Prisma.OrderUpsertWithoutReviewsInput
   connect?: Prisma.OrderWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.OrderUpdateToOneWithWhereWithoutReviewInput, Prisma.OrderUpdateWithoutReviewInput>, Prisma.OrderUncheckedUpdateWithoutReviewInput>
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrderUpdateToOneWithWhereWithoutReviewsInput, Prisma.OrderUpdateWithoutReviewsInput>, Prisma.OrderUncheckedUpdateWithoutReviewsInput>
 }
 
 export type OrderCreateNestedOneWithoutViolationsInput = {
@@ -1549,7 +1549,7 @@ export type OrderCreateWithoutCustomerInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -1603,7 +1603,7 @@ export type OrderUncheckedCreateWithoutCustomerInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -1722,7 +1722,7 @@ export type OrderCreateWithoutStoreInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -1776,7 +1776,7 @@ export type OrderUncheckedCreateWithoutStoreInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -1855,7 +1855,7 @@ export type OrderCreateWithoutVerificationDocumentsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -1909,7 +1909,7 @@ export type OrderUncheckedCreateWithoutVerificationDocumentsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutOrderInput
@@ -1977,7 +1977,7 @@ export type OrderUpdateWithoutVerificationDocumentsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -2031,7 +2031,7 @@ export type OrderUncheckedUpdateWithoutVerificationDocumentsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutOrderNestedInput
@@ -2082,7 +2082,7 @@ export type OrderCreateWithoutOffersInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -2136,7 +2136,7 @@ export type OrderUncheckedCreateWithoutOffersInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -2194,7 +2194,7 @@ export type OrderCreateWithoutAcceptedOfferInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOrderInput
@@ -2247,7 +2247,7 @@ export type OrderUncheckedCreateWithoutAcceptedOfferInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -2315,7 +2315,7 @@ export type OrderUpdateWithoutOffersInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -2369,7 +2369,7 @@ export type OrderUncheckedUpdateWithoutOffersInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -2433,7 +2433,7 @@ export type OrderUpdateWithoutAcceptedOfferInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOrderNestedInput
@@ -2486,7 +2486,7 @@ export type OrderUncheckedUpdateWithoutAcceptedOfferInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -2538,7 +2538,7 @@ export type OrderCreateWithoutAuditLogsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -2592,7 +2592,7 @@ export type OrderUncheckedCreateWithoutAuditLogsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -2660,7 +2660,7 @@ export type OrderUpdateWithoutAuditLogsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -2714,7 +2714,7 @@ export type OrderUncheckedUpdateWithoutAuditLogsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -2766,7 +2766,7 @@ export type OrderCreateWithoutPartsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -2820,7 +2820,7 @@ export type OrderUncheckedCreateWithoutPartsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -2888,7 +2888,7 @@ export type OrderUpdateWithoutPartsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -2942,7 +2942,7 @@ export type OrderUncheckedUpdateWithoutPartsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -2994,7 +2994,7 @@ export type OrderCreateWithoutReturnsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -3048,7 +3048,7 @@ export type OrderUncheckedCreateWithoutReturnsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -3116,7 +3116,7 @@ export type OrderUpdateWithoutReturnsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -3170,7 +3170,7 @@ export type OrderUncheckedUpdateWithoutReturnsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -3222,7 +3222,7 @@ export type OrderCreateWithoutDisputesInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -3276,7 +3276,7 @@ export type OrderUncheckedCreateWithoutDisputesInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -3344,7 +3344,7 @@ export type OrderUpdateWithoutDisputesInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -3398,7 +3398,7 @@ export type OrderUncheckedUpdateWithoutDisputesInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -3450,7 +3450,7 @@ export type OrderCreateWithoutOrderChatsInput = {
   disputes?: Prisma.DisputeCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -3504,7 +3504,7 @@ export type OrderUncheckedCreateWithoutOrderChatsInput = {
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -3572,7 +3572,7 @@ export type OrderUpdateWithoutOrderChatsInput = {
   disputes?: Prisma.DisputeUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -3626,7 +3626,7 @@ export type OrderUncheckedUpdateWithoutOrderChatsInput = {
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -3679,7 +3679,7 @@ export type OrderCreateWithoutShippingAddressesInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOrderInput
@@ -3733,7 +3733,7 @@ export type OrderUncheckedCreateWithoutShippingAddressesInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutOrderInput
@@ -3801,7 +3801,7 @@ export type OrderUpdateWithoutShippingAddressesInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOrderNestedInput
@@ -3855,7 +3855,7 @@ export type OrderUncheckedUpdateWithoutShippingAddressesInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutOrderNestedInput
@@ -3906,7 +3906,7 @@ export type OrderCreateWithoutPaymentsInput = {
   disputes?: Prisma.DisputeCreateNestedManyWithoutOrderInput
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -3960,7 +3960,7 @@ export type OrderUncheckedCreateWithoutPaymentsInput = {
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOrderInput
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -4028,7 +4028,7 @@ export type OrderUpdateWithoutPaymentsInput = {
   disputes?: Prisma.DisputeUpdateManyWithoutOrderNestedInput
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -4082,7 +4082,7 @@ export type OrderUncheckedUpdateWithoutPaymentsInput = {
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOrderNestedInput
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -4135,7 +4135,7 @@ export type OrderCreateWithoutEscrowTransactionsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -4189,7 +4189,7 @@ export type OrderUncheckedCreateWithoutEscrowTransactionsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -4257,7 +4257,7 @@ export type OrderUpdateWithoutEscrowTransactionsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -4311,7 +4311,7 @@ export type OrderUncheckedUpdateWithoutEscrowTransactionsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -4362,7 +4362,7 @@ export type OrderCreateWithoutInvoicesInput = {
   disputes?: Prisma.DisputeCreateNestedManyWithoutOrderInput
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -4416,7 +4416,7 @@ export type OrderUncheckedCreateWithoutInvoicesInput = {
   disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutOrderInput
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -4484,7 +4484,7 @@ export type OrderUpdateWithoutInvoicesInput = {
   disputes?: Prisma.DisputeUpdateManyWithoutOrderNestedInput
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -4538,7 +4538,7 @@ export type OrderUncheckedUpdateWithoutInvoicesInput = {
   disputes?: Prisma.DisputeUncheckedUpdateManyWithoutOrderNestedInput
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -4591,7 +4591,7 @@ export type OrderCreateWithoutShippingWaybillsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -4645,7 +4645,7 @@ export type OrderUncheckedCreateWithoutShippingWaybillsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -4713,7 +4713,7 @@ export type OrderUpdateWithoutShippingWaybillsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -4767,7 +4767,7 @@ export type OrderUncheckedUpdateWithoutShippingWaybillsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -4819,7 +4819,7 @@ export type OrderCreateWithoutShipmentsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -4873,7 +4873,7 @@ export type OrderUncheckedCreateWithoutShipmentsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -4941,7 +4941,7 @@ export type OrderUpdateWithoutShipmentsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -4995,7 +4995,7 @@ export type OrderUncheckedUpdateWithoutShipmentsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -5004,7 +5004,7 @@ export type OrderUncheckedUpdateWithoutShipmentsInput = {
   violations?: Prisma.ViolationUncheckedUpdateManyWithoutOrderNestedInput
 }
 
-export type OrderCreateWithoutReviewInput = {
+export type OrderCreateWithoutReviewsInput = {
   id?: string
   orderNumber: string
   status?: $Enums.OrderStatus
@@ -5057,7 +5057,7 @@ export type OrderCreateWithoutReviewInput = {
   violations?: Prisma.ViolationCreateNestedManyWithoutOrderInput
 }
 
-export type OrderUncheckedCreateWithoutReviewInput = {
+export type OrderUncheckedCreateWithoutReviewsInput = {
   id?: string
   orderNumber: string
   customerId: string
@@ -5110,23 +5110,23 @@ export type OrderUncheckedCreateWithoutReviewInput = {
   violations?: Prisma.ViolationUncheckedCreateNestedManyWithoutOrderInput
 }
 
-export type OrderCreateOrConnectWithoutReviewInput = {
+export type OrderCreateOrConnectWithoutReviewsInput = {
   where: Prisma.OrderWhereUniqueInput
-  create: Prisma.XOR<Prisma.OrderCreateWithoutReviewInput, Prisma.OrderUncheckedCreateWithoutReviewInput>
+  create: Prisma.XOR<Prisma.OrderCreateWithoutReviewsInput, Prisma.OrderUncheckedCreateWithoutReviewsInput>
 }
 
-export type OrderUpsertWithoutReviewInput = {
-  update: Prisma.XOR<Prisma.OrderUpdateWithoutReviewInput, Prisma.OrderUncheckedUpdateWithoutReviewInput>
-  create: Prisma.XOR<Prisma.OrderCreateWithoutReviewInput, Prisma.OrderUncheckedCreateWithoutReviewInput>
+export type OrderUpsertWithoutReviewsInput = {
+  update: Prisma.XOR<Prisma.OrderUpdateWithoutReviewsInput, Prisma.OrderUncheckedUpdateWithoutReviewsInput>
+  create: Prisma.XOR<Prisma.OrderCreateWithoutReviewsInput, Prisma.OrderUncheckedCreateWithoutReviewsInput>
   where?: Prisma.OrderWhereInput
 }
 
-export type OrderUpdateToOneWithWhereWithoutReviewInput = {
+export type OrderUpdateToOneWithWhereWithoutReviewsInput = {
   where?: Prisma.OrderWhereInput
-  data: Prisma.XOR<Prisma.OrderUpdateWithoutReviewInput, Prisma.OrderUncheckedUpdateWithoutReviewInput>
+  data: Prisma.XOR<Prisma.OrderUpdateWithoutReviewsInput, Prisma.OrderUncheckedUpdateWithoutReviewsInput>
 }
 
-export type OrderUpdateWithoutReviewInput = {
+export type OrderUpdateWithoutReviewsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderNumber?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
@@ -5179,7 +5179,7 @@ export type OrderUpdateWithoutReviewInput = {
   violations?: Prisma.ViolationUpdateManyWithoutOrderNestedInput
 }
 
-export type OrderUncheckedUpdateWithoutReviewInput = {
+export type OrderUncheckedUpdateWithoutReviewsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   orderNumber?: Prisma.StringFieldUpdateOperationsInput | string
   customerId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -5275,7 +5275,7 @@ export type OrderCreateWithoutViolationsInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskCreateNestedManyWithoutOrderInput
@@ -5329,7 +5329,7 @@ export type OrderUncheckedCreateWithoutViolationsInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationTasks?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
@@ -5397,7 +5397,7 @@ export type OrderUpdateWithoutViolationsInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -5451,7 +5451,7 @@ export type OrderUncheckedUpdateWithoutViolationsInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -5503,7 +5503,7 @@ export type OrderCreateWithoutVerificationTasksInput = {
   orderChats?: Prisma.OrderChatCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewCreateNestedManyWithoutOrderInput
   acceptedOffer?: Prisma.OfferCreateNestedOneWithoutAcceptedByOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentCreateNestedManyWithoutOrderInput
@@ -5557,7 +5557,7 @@ export type OrderUncheckedCreateWithoutVerificationTasksInput = {
   orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutOrderInput
   payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutOrderInput
   invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutOrderInput
-  review?: Prisma.ReviewUncheckedCreateNestedOneWithoutOrderInput
+  reviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutOrderInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedCreateNestedManyWithoutOrderInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutOrderInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutOrderInput
@@ -5625,7 +5625,7 @@ export type OrderUpdateWithoutVerificationTasksInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUpdateManyWithoutOrderNestedInput
@@ -5679,7 +5679,7 @@ export type OrderUncheckedUpdateWithoutVerificationTasksInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutOrderNestedInput
@@ -5767,7 +5767,7 @@ export type OrderUpdateWithoutCustomerInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -5821,7 +5821,7 @@ export type OrderUncheckedUpdateWithoutCustomerInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -5947,7 +5947,7 @@ export type OrderUpdateWithoutStoreInput = {
   orderChats?: Prisma.OrderChatUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUpdateManyWithoutOrderNestedInput
   acceptedOffer?: Prisma.OfferUpdateOneWithoutAcceptedByOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUpdateManyWithoutOrderNestedInput
@@ -6001,7 +6001,7 @@ export type OrderUncheckedUpdateWithoutStoreInput = {
   orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutOrderNestedInput
   payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutOrderNestedInput
   invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutOrderNestedInput
-  review?: Prisma.ReviewUncheckedUpdateOneWithoutOrderNestedInput
+  reviews?: Prisma.ReviewUncheckedUpdateManyWithoutOrderNestedInput
   shippingAddresses?: Prisma.OrderShippingAddressUncheckedUpdateManyWithoutOrderNestedInput
   verificationTasks?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOrderNestedInput
   verificationDocuments?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutOrderNestedInput
@@ -6062,6 +6062,7 @@ export type OrderCountOutputType = {
   orderChats: number
   payments: number
   invoices: number
+  reviews: number
   shippingAddresses: number
   verificationTasks: number
   verificationDocuments: number
@@ -6080,6 +6081,7 @@ export type OrderCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.
   orderChats?: boolean | OrderCountOutputTypeCountOrderChatsArgs
   payments?: boolean | OrderCountOutputTypeCountPaymentsArgs
   invoices?: boolean | OrderCountOutputTypeCountInvoicesArgs
+  reviews?: boolean | OrderCountOutputTypeCountReviewsArgs
   shippingAddresses?: boolean | OrderCountOutputTypeCountShippingAddressesArgs
   verificationTasks?: boolean | OrderCountOutputTypeCountVerificationTasksArgs
   verificationDocuments?: boolean | OrderCountOutputTypeCountVerificationDocumentsArgs
@@ -6153,6 +6155,13 @@ export type OrderCountOutputTypeCountPaymentsArgs<ExtArgs extends runtime.Types.
  */
 export type OrderCountOutputTypeCountInvoicesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.InvoiceWhereInput
+}
+
+/**
+ * OrderCountOutputType without action
+ */
+export type OrderCountOutputTypeCountReviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ReviewWhereInput
 }
 
 /**
@@ -6251,7 +6260,7 @@ export type OrderSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   orderChats?: boolean | Prisma.Order$orderChatsArgs<ExtArgs>
   payments?: boolean | Prisma.Order$paymentsArgs<ExtArgs>
   invoices?: boolean | Prisma.Order$invoicesArgs<ExtArgs>
-  review?: boolean | Prisma.Order$reviewArgs<ExtArgs>
+  reviews?: boolean | Prisma.Order$reviewsArgs<ExtArgs>
   acceptedOffer?: boolean | Prisma.Order$acceptedOfferArgs<ExtArgs>
   shippingAddresses?: boolean | Prisma.Order$shippingAddressesArgs<ExtArgs>
   verificationTasks?: boolean | Prisma.Order$verificationTasksArgs<ExtArgs>
@@ -6395,7 +6404,7 @@ export type OrderInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   orderChats?: boolean | Prisma.Order$orderChatsArgs<ExtArgs>
   payments?: boolean | Prisma.Order$paymentsArgs<ExtArgs>
   invoices?: boolean | Prisma.Order$invoicesArgs<ExtArgs>
-  review?: boolean | Prisma.Order$reviewArgs<ExtArgs>
+  reviews?: boolean | Prisma.Order$reviewsArgs<ExtArgs>
   acceptedOffer?: boolean | Prisma.Order$acceptedOfferArgs<ExtArgs>
   shippingAddresses?: boolean | Prisma.Order$shippingAddressesArgs<ExtArgs>
   verificationTasks?: boolean | Prisma.Order$verificationTasksArgs<ExtArgs>
@@ -6430,7 +6439,7 @@ export type $OrderPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     orderChats: Prisma.$OrderChatPayload<ExtArgs>[]
     payments: Prisma.$PaymentTransactionPayload<ExtArgs>[]
     invoices: Prisma.$InvoicePayload<ExtArgs>[]
-    review: Prisma.$ReviewPayload<ExtArgs> | null
+    reviews: Prisma.$ReviewPayload<ExtArgs>[]
     acceptedOffer: Prisma.$OfferPayload<ExtArgs> | null
     shippingAddresses: Prisma.$OrderShippingAddressPayload<ExtArgs>[]
     verificationTasks: Prisma.$VerificationTaskPayload<ExtArgs>[]
@@ -6883,7 +6892,7 @@ export interface Prisma__OrderClient<T, Null = never, ExtArgs extends runtime.Ty
   orderChats<T extends Prisma.Order$orderChatsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$orderChatsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrderChatPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   payments<T extends Prisma.Order$paymentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$paymentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PaymentTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   invoices<T extends Prisma.Order$invoicesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$invoicesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InvoicePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
-  review<T extends Prisma.Order$reviewArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$reviewArgs<ExtArgs>>): Prisma.Prisma__ReviewClient<runtime.Types.Result.GetResult<Prisma.$ReviewPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  reviews<T extends Prisma.Order$reviewsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$reviewsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ReviewPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   acceptedOffer<T extends Prisma.Order$acceptedOfferArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$acceptedOfferArgs<ExtArgs>>): Prisma.Prisma__OfferClient<runtime.Types.Result.GetResult<Prisma.$OfferPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   shippingAddresses<T extends Prisma.Order$shippingAddressesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$shippingAddressesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrderShippingAddressPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   verificationTasks<T extends Prisma.Order$verificationTasksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Order$verificationTasksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VerificationTaskPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -7568,9 +7577,9 @@ export type Order$invoicesArgs<ExtArgs extends runtime.Types.Extensions.Internal
 }
 
 /**
- * Order.review
+ * Order.reviews
  */
-export type Order$reviewArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+export type Order$reviewsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   /**
    * Select specific fields to fetch from the Review
    */
@@ -7584,6 +7593,11 @@ export type Order$reviewArgs<ExtArgs extends runtime.Types.Extensions.InternalAr
    */
   include?: Prisma.ReviewInclude<ExtArgs> | null
   where?: Prisma.ReviewWhereInput
+  orderBy?: Prisma.ReviewOrderByWithRelationInput | Prisma.ReviewOrderByWithRelationInput[]
+  cursor?: Prisma.ReviewWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ReviewScalarFieldEnum | Prisma.ReviewScalarFieldEnum[]
 }
 
 /**

@@ -18,6 +18,21 @@ export { Prisma }
 export * as $Enums from './enums'
 export * from './enums';
 /**
+ * Model OtpChallenge
+ * Short-lived WhatsApp OTP challenges (register, login, recovery)
+ */
+export type OtpChallenge = Prisma.OtpChallengeModel
+/**
+ * Model WhatsAppMessageLog
+ * Outbound sends + inbound webhook events (Phase 6 Widers)
+ */
+export type WhatsAppMessageLog = Prisma.WhatsAppMessageLogModel
+/**
+ * Model WidersWebhookEvent
+ * Webhook idempotency — Meta/Widers status callbacks (Phase 6)
+ */
+export type WidersWebhookEvent = Prisma.WidersWebhookEventModel
+/**
  * Model User
  * 
  */

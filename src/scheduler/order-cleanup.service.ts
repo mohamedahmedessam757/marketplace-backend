@@ -7,6 +7,9 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OrderStatus, ActorType, ViolationTargetType } from '@prisma/client';
 import { ViolationsService } from '../violations/violations.service';
 import { POST_DELIVERY_RETURN_DISPUTE_HOURS } from '../orders/order-time.constants';
+import { OfferFulfillmentService } from '../orders/offer-fulfillment.service';
+import { OfferFulfillmentStatus } from '@prisma/client';
+import { EscrowService } from '../payments/escrow.service';
 
 @Injectable()
 export class OrderCleanupService {
@@ -18,6 +21,8 @@ export class OrderCleanupService {
         private readonly ordersService: OrdersService,
         private readonly notificationsService: NotificationsService,
         private readonly violationsService: ViolationsService,
+        private readonly offerFulfillment: OfferFulfillmentService,
+        private readonly escrowService: EscrowService,
     ) { }
 
     // Run every 1 minute to check for expired orders for near real-time expirations
@@ -37,11 +42,132 @@ export class OrderCleanupService {
         await this.handleCorrectionPeriodExpiry();
     }
 
-    // Run every hour to check DELIVERED items and auto-complete after 3 days
+    // Run every hour to auto-complete offers after return window (multi-item) and single-item orders
     @Cron(CronExpression.EVERY_HOUR)
     async handleDeliveredReturnsAutoCompletion() {
         this.logger.debug('Running Delivered Orders Auto-Completion Job...');
+        await this.handleOfferAutoCompletion();
+        await this.handleSingleItemOrderAutoCompletion();
+    }
 
+    /** Remind customers 2 hours before per-offer return window expires */
+    @Cron(CronExpression.EVERY_30_MINUTES)
+    async handleOfferReturnWindowReminder() {
+        if (!(await this.prisma.ensureConnected())) return;
+
+        const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
+        const reminderLeadMs = 2 * 60 * 60 * 1000;
+        const now = Date.now();
+        const reminderStart = new Date(now + reminderLeadMs - 15 * 60 * 1000);
+        const reminderEnd = new Date(now + reminderLeadMs + 15 * 60 * 1000);
+
+        const offers = await this.prisma.offer.findMany({
+            where: {
+                fulfillmentStatus: OfferFulfillmentStatus.DELIVERED,
+                deliveredAt: { not: null },
+                resolutionLocked: false,
+            },
+            include: {
+                orderPart: true,
+                order: { select: { id: true, orderNumber: true, customerId: true } },
+            },
+        });
+
+        for (const offer of offers) {
+            if (!offer.deliveredAt) continue;
+            const windowEndsAt = new Date(offer.deliveredAt.getTime() + windowMs);
+            if (windowEndsAt < reminderStart || windowEndsAt > reminderEnd) continue;
+
+            const hasCase = await this.offerFulfillment.hasOpenCaseForOffer(
+                offer.id,
+                offer.orderPartId,
+            );
+            if (hasCase) continue;
+
+            const dedupeKey = `offer_return_reminder_${offer.id}`;
+            const existing = await this.prisma.notification.findFirst({
+                where: {
+                    recipientId: offer.order.customerId,
+                    link: { contains: dedupeKey },
+                },
+                select: { id: true },
+            });
+            if (existing) continue;
+
+            const partName = offer.orderPart?.name || 'Part';
+            await this.notificationsService.create({
+                recipientId: offer.order.customerId,
+                recipientRole: 'CUSTOMER',
+                titleAr: 'تذكير: مهلة الإرجاع/النزاع تنتهي قريباً',
+                titleEn: 'Reminder: return/dispute window ending soon',
+                messageAr: `تبقى ساعتان على انتهاء مهلة الإرجاع/النزاع للقطعة «${partName}» في الطلب #${offer.order.orderNumber}.`,
+                messageEn: `2 hours left to request a return or dispute for "${partName}" in order #${offer.order.orderNumber}.`,
+                type: 'system_alert',
+                link: `/dashboard/orders/${offer.orderId}?${dedupeKey}=1`,
+            });
+        }
+    }
+
+    /** Per-offer 24h window expiry for multi-item / partial delivery orders */
+    private async handleOfferAutoCompletion() {
+        const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
+        const windowEnd = new Date(Date.now() - windowMs);
+
+        const eligibleOffers = await this.prisma.offer.findMany({
+            where: {
+                fulfillmentStatus: OfferFulfillmentStatus.DELIVERED,
+                deliveredAt: { lt: windowEnd },
+                resolutionLocked: false,
+            },
+            include: {
+                orderPart: true,
+                order: { select: { id: true, orderNumber: true, customerId: true, requestType: true, parts: true } },
+            },
+        });
+
+        for (const offer of eligibleOffers) {
+            try {
+                const hasCase = await this.offerFulfillment.hasOpenCaseForOffer(
+                    offer.id,
+                    offer.orderPartId,
+                );
+                if (hasCase) continue;
+
+                const result = await this.offerFulfillment.completeOfferAfterWindow(offer.id);
+                if (!result) continue;
+
+                const partName = offer.orderPart?.name || 'Part';
+                const payment = await this.prisma.paymentTransaction.findFirst({
+                    where: { offerId: offer.id, status: 'SUCCESS' },
+                });
+                if (payment) {
+                    await this.escrowService
+                        .releaseFundsForPayment(payment.id, 'AUTO_48H')
+                        .catch((e) =>
+                            this.logger.warn(
+                                `Escrow release skipped for offer ${offer.id}: ${e?.message}`,
+                            ),
+                        );
+                }
+
+                await this.notificationsService.create({
+                    recipientId: offer.order.customerId,
+                    recipientRole: 'CUSTOMER',
+                    titleAr: 'انتهت مهلة الإرجاع للقطعة',
+                    titleEn: 'Item return window expired',
+                    messageAr: `انتهت مهلة الإرجاع/النزاع (${POST_DELIVERY_RETURN_DISPUTE_HOURS} ساعة) للقطعة «${partName}» في الطلب #${offer.order.orderNumber}.`,
+                    messageEn: `The ${POST_DELIVERY_RETURN_DISPUTE_HOURS}-hour return/dispute window for "${partName}" in order #${offer.order.orderNumber} has expired.`,
+                    type: 'system_alert',
+                    link: `/dashboard/orders/${offer.orderId}`,
+                });
+            } catch (err) {
+                this.logger.error(`Failed to auto-complete offer ${offer.id}:`, err);
+            }
+        }
+    }
+
+    /** Legacy single-item path: complete whole order after order.deliveredAt + 24h */
+    private async handleSingleItemOrderAutoCompletion() {
         const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
         const windowEnd = new Date(Date.now() - windowMs);
 
@@ -49,11 +175,16 @@ export class OrderCleanupService {
             where: {
                 status: OrderStatus.DELIVERED,
                 deliveredAt: { lt: windowEnd },
+                OR: [
+                    { requestType: { not: 'multiple' } },
+                    { requestType: null },
+                ],
             },
-            select: { id: true, orderNumber: true, customerId: true, storeId: true },
+            select: { id: true, orderNumber: true, customerId: true, storeId: true, requestType: true, parts: { select: { id: true } } },
         });
 
         for (const order of deliveredOrders) {
+            if (this.offerFulfillment.isMultiItemOrder(order)) continue;
             try {
                 // Re-verify status to avoid race conditions or duplicates
                 const currentOrder = await this.prisma.order.findUnique({

@@ -11,6 +11,9 @@ export class InvoicesService {
         return this.prisma.invoice.findMany({
             where: { customerId: userId },
             include: {
+                payment: {
+                    select: { offerId: true },
+                },
                 order: {
                     include: {
                         customer: {
@@ -44,6 +47,9 @@ export class InvoicesService {
         const invoice = await this.prisma.invoice.findFirst({
             where: { id, customerId: userId },
             include: {
+                payment: {
+                    select: { offerId: true },
+                },
                 order: {
                     include: {
                         customer: {
@@ -105,6 +111,9 @@ export class InvoicesService {
                 paymentId: { in: paymentIds }
             },
             include: {
+                payment: {
+                    select: { offerId: true },
+                },
                 order: {
                     include: {
                         customer: {
@@ -142,6 +151,9 @@ export class InvoicesService {
         const invoices = await this.prisma.invoice.findMany({
             where: { orderId },
             include: {
+                payment: {
+                    select: { offerId: true },
+                },
                 order: {
                     include: {
                         customer: {

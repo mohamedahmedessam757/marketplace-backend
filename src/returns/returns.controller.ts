@@ -63,6 +63,12 @@ export class ReturnsController {
         return this.returnsService.getUserReturns(req.user.id);
     }
 
+    @Post(':id/cancel')
+    @UseGuards(JwtAuthGuard)
+    async cancelReturn(@Request() req, @Param('id') id: string) {
+        return this.returnsService.cancelReturn(req.user.id, id);
+    }
+
     @Patch(':id/escalate')
     @UseGuards(JwtAuthGuard)
     async escalateCase(@Request() req, @Param('id') id: string) {

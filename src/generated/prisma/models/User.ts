@@ -72,6 +72,9 @@ export type UserMinAggregateOutputType = {
   withdrawalsFrozenUntil: Date | null
   lastLoginIp: string | null
   lastLoginDevice: string | null
+  widersContactId: string | null
+  whatsappOptIn: boolean | null
+  widersSyncedAt: Date | null
   adminNotes: string | null
   suspendedUntil: Date | null
   suspendReason: string | null
@@ -124,6 +127,9 @@ export type UserMaxAggregateOutputType = {
   withdrawalsFrozenUntil: Date | null
   lastLoginIp: string | null
   lastLoginDevice: string | null
+  widersContactId: string | null
+  whatsappOptIn: boolean | null
+  widersSyncedAt: Date | null
   adminNotes: string | null
   suspendedUntil: Date | null
   suspendReason: string | null
@@ -176,6 +182,9 @@ export type UserCountAggregateOutputType = {
   withdrawalsFrozenUntil: number
   lastLoginIp: number
   lastLoginDevice: number
+  widersContactId: number
+  whatsappOptIn: number
+  widersSyncedAt: number
   adminNotes: number
   suspendedUntil: number
   suspendReason: number
@@ -256,6 +265,9 @@ export type UserMinAggregateInputType = {
   withdrawalsFrozenUntil?: true
   lastLoginIp?: true
   lastLoginDevice?: true
+  widersContactId?: true
+  whatsappOptIn?: true
+  widersSyncedAt?: true
   adminNotes?: true
   suspendedUntil?: true
   suspendReason?: true
@@ -308,6 +320,9 @@ export type UserMaxAggregateInputType = {
   withdrawalsFrozenUntil?: true
   lastLoginIp?: true
   lastLoginDevice?: true
+  widersContactId?: true
+  whatsappOptIn?: true
+  widersSyncedAt?: true
   adminNotes?: true
   suspendedUntil?: true
   suspendReason?: true
@@ -360,6 +375,9 @@ export type UserCountAggregateInputType = {
   withdrawalsFrozenUntil?: true
   lastLoginIp?: true
   lastLoginDevice?: true
+  widersContactId?: true
+  whatsappOptIn?: true
+  widersSyncedAt?: true
   adminNotes?: true
   suspendedUntil?: true
   suspendReason?: true
@@ -499,6 +517,9 @@ export type UserGroupByOutputType = {
   withdrawalsFrozenUntil: Date | null
   lastLoginIp: string | null
   lastLoginDevice: string | null
+  widersContactId: string | null
+  whatsappOptIn: boolean
+  widersSyncedAt: Date | null
   adminNotes: string | null
   suspendedUntil: Date | null
   suspendReason: string | null
@@ -574,6 +595,9 @@ export type UserWhereInput = {
   withdrawalsFrozenUntil?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   lastLoginIp?: Prisma.StringNullableFilter<"User"> | string | null
   lastLoginDevice?: Prisma.StringNullableFilter<"User"> | string | null
+  widersContactId?: Prisma.StringNullableFilter<"User"> | string | null
+  whatsappOptIn?: Prisma.BoolFilter<"User"> | boolean
+  widersSyncedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   adminNotes?: Prisma.StringNullableFilter<"User"> | string | null
   suspendedUntil?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   suspendReason?: Prisma.StringNullableFilter<"User"> | string | null
@@ -625,6 +649,7 @@ export type UserWhereInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogListRelationFilter
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoListRelationFilter
   shippingWaybills?: Prisma.ShippingWaybillListRelationFilter
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogListRelationFilter
   adminPermission?: Prisma.XOR<Prisma.AdminPermissionNullableScalarRelationFilter, Prisma.AdminPermissionWhereInput> | null
   createdAdminPermissions?: Prisma.AdminPermissionListRelationFilter
   updatedAdminPermissions?: Prisma.AdminPermissionListRelationFilter
@@ -671,6 +696,9 @@ export type UserOrderByWithRelationInput = {
   withdrawalsFrozenUntil?: Prisma.SortOrderInput | Prisma.SortOrder
   lastLoginIp?: Prisma.SortOrderInput | Prisma.SortOrder
   lastLoginDevice?: Prisma.SortOrderInput | Prisma.SortOrder
+  widersContactId?: Prisma.SortOrderInput | Prisma.SortOrder
+  whatsappOptIn?: Prisma.SortOrder
+  widersSyncedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   adminNotes?: Prisma.SortOrderInput | Prisma.SortOrder
   suspendedUntil?: Prisma.SortOrderInput | Prisma.SortOrder
   suspendReason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -722,6 +750,7 @@ export type UserOrderByWithRelationInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogOrderByRelationAggregateInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoOrderByRelationAggregateInput
   shippingWaybills?: Prisma.ShippingWaybillOrderByRelationAggregateInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogOrderByRelationAggregateInput
   adminPermission?: Prisma.AdminPermissionOrderByWithRelationInput
   createdAdminPermissions?: Prisma.AdminPermissionOrderByRelationAggregateInput
   updatedAdminPermissions?: Prisma.AdminPermissionOrderByRelationAggregateInput
@@ -772,6 +801,9 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   withdrawalsFrozenUntil?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   lastLoginIp?: Prisma.StringNullableFilter<"User"> | string | null
   lastLoginDevice?: Prisma.StringNullableFilter<"User"> | string | null
+  widersContactId?: Prisma.StringNullableFilter<"User"> | string | null
+  whatsappOptIn?: Prisma.BoolFilter<"User"> | boolean
+  widersSyncedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   adminNotes?: Prisma.StringNullableFilter<"User"> | string | null
   suspendedUntil?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   suspendReason?: Prisma.StringNullableFilter<"User"> | string | null
@@ -822,6 +854,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   verificationActivityLogs?: Prisma.VerificationActivityLogListRelationFilter
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoListRelationFilter
   shippingWaybills?: Prisma.ShippingWaybillListRelationFilter
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogListRelationFilter
   adminPermission?: Prisma.XOR<Prisma.AdminPermissionNullableScalarRelationFilter, Prisma.AdminPermissionWhereInput> | null
   createdAdminPermissions?: Prisma.AdminPermissionListRelationFilter
   updatedAdminPermissions?: Prisma.AdminPermissionListRelationFilter
@@ -868,6 +901,9 @@ export type UserOrderByWithAggregationInput = {
   withdrawalsFrozenUntil?: Prisma.SortOrderInput | Prisma.SortOrder
   lastLoginIp?: Prisma.SortOrderInput | Prisma.SortOrder
   lastLoginDevice?: Prisma.SortOrderInput | Prisma.SortOrder
+  widersContactId?: Prisma.SortOrderInput | Prisma.SortOrder
+  whatsappOptIn?: Prisma.SortOrder
+  widersSyncedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   adminNotes?: Prisma.SortOrderInput | Prisma.SortOrder
   suspendedUntil?: Prisma.SortOrderInput | Prisma.SortOrder
   suspendReason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -928,6 +964,9 @@ export type UserScalarWhereWithAggregatesInput = {
   withdrawalsFrozenUntil?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   lastLoginIp?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   lastLoginDevice?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  widersContactId?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  whatsappOptIn?: Prisma.BoolWithAggregatesFilter<"User"> | boolean
+  widersSyncedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   adminNotes?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   suspendedUntil?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   suspendReason?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
@@ -980,6 +1019,9 @@ export type UserCreateInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -1030,6 +1072,7 @@ export type UserCreateInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -1076,6 +1119,9 @@ export type UserUncheckedCreateInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -1127,6 +1173,7 @@ export type UserUncheckedCreateInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -1172,6 +1219,9 @@ export type UserUpdateInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1222,6 +1272,7 @@ export type UserUpdateInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -1268,6 +1319,9 @@ export type UserUncheckedUpdateInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1319,6 +1373,7 @@ export type UserUncheckedUpdateInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -1364,6 +1419,9 @@ export type UserCreateManyInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -1416,6 +1474,9 @@ export type UserUpdateManyMutationInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1467,6 +1528,9 @@ export type UserUncheckedUpdateManyInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1534,6 +1598,9 @@ export type UserCountOrderByAggregateInput = {
   withdrawalsFrozenUntil?: Prisma.SortOrder
   lastLoginIp?: Prisma.SortOrder
   lastLoginDevice?: Prisma.SortOrder
+  widersContactId?: Prisma.SortOrder
+  whatsappOptIn?: Prisma.SortOrder
+  widersSyncedAt?: Prisma.SortOrder
   adminNotes?: Prisma.SortOrder
   suspendedUntil?: Prisma.SortOrder
   suspendReason?: Prisma.SortOrder
@@ -1599,6 +1666,9 @@ export type UserMaxOrderByAggregateInput = {
   withdrawalsFrozenUntil?: Prisma.SortOrder
   lastLoginIp?: Prisma.SortOrder
   lastLoginDevice?: Prisma.SortOrder
+  widersContactId?: Prisma.SortOrder
+  whatsappOptIn?: Prisma.SortOrder
+  widersSyncedAt?: Prisma.SortOrder
   adminNotes?: Prisma.SortOrder
   suspendedUntil?: Prisma.SortOrder
   suspendReason?: Prisma.SortOrder
@@ -1651,6 +1721,9 @@ export type UserMinOrderByAggregateInput = {
   withdrawalsFrozenUntil?: Prisma.SortOrder
   lastLoginIp?: Prisma.SortOrder
   lastLoginDevice?: Prisma.SortOrder
+  widersContactId?: Prisma.SortOrder
+  whatsappOptIn?: Prisma.SortOrder
+  widersSyncedAt?: Prisma.SortOrder
   adminNotes?: Prisma.SortOrder
   suspendedUntil?: Prisma.SortOrder
   suspendReason?: Prisma.SortOrder
@@ -1701,6 +1774,22 @@ export type UserScalarRelationFilter = {
   isNot?: Prisma.UserWhereInput
 }
 
+export type UserCreateNestedOneWithoutWhatsAppMessageLogsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutWhatsAppMessageLogsInput, Prisma.UserUncheckedCreateWithoutWhatsAppMessageLogsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutWhatsAppMessageLogsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneWithoutWhatsAppMessageLogsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutWhatsAppMessageLogsInput, Prisma.UserUncheckedCreateWithoutWhatsAppMessageLogsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutWhatsAppMessageLogsInput
+  upsert?: Prisma.UserUpsertWithoutWhatsAppMessageLogsInput
+  disconnect?: Prisma.UserWhereInput | boolean
+  delete?: Prisma.UserWhereInput | boolean
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutWhatsAppMessageLogsInput, Prisma.UserUpdateWithoutWhatsAppMessageLogsInput>, Prisma.UserUncheckedUpdateWithoutWhatsAppMessageLogsInput>
+}
+
 export type UserCreateNestedOneWithoutReferredUsersInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutReferredUsersInput, Prisma.UserUncheckedCreateWithoutReferredUsersInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutReferredUsersInput
@@ -1721,28 +1810,12 @@ export type UserUncheckedCreateNestedManyWithoutReferredByInput = {
   connect?: Prisma.UserWhereUniqueInput | Prisma.UserWhereUniqueInput[]
 }
 
-export type StringFieldUpdateOperationsInput = {
-  set?: string
-}
-
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
-}
-
 export type EnumUserRoleFieldUpdateOperationsInput = {
   set?: $Enums.UserRole
 }
 
 export type EnumUserStatusFieldUpdateOperationsInput = {
   set?: $Enums.UserStatus
-}
-
-export type NullableDateTimeFieldUpdateOperationsInput = {
-  set?: Date | string | null
-}
-
-export type DateTimeFieldUpdateOperationsInput = {
-  set?: Date | string
 }
 
 export type BoolFieldUpdateOperationsInput = {
@@ -1759,14 +1832,6 @@ export type DecimalFieldUpdateOperationsInput = {
 
 export type EnumLoyaltyTierFieldUpdateOperationsInput = {
   set?: $Enums.LoyaltyTier
-}
-
-export type IntFieldUpdateOperationsInput = {
-  set?: number
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
 }
 
 export type UserUpdateOneWithoutReferredUsersNestedInput = {
@@ -2453,7 +2518,7 @@ export type UserUpdateOneWithoutVerificationActivityLogsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutVerificationActivityLogsInput, Prisma.UserUpdateWithoutVerificationActivityLogsInput>, Prisma.UserUncheckedUpdateWithoutVerificationActivityLogsInput>
 }
 
-export type UserCreateWithoutReferredUsersInput = {
+export type UserCreateWithoutWhatsAppMessageLogsInput = {
   id?: string
   email: string
   phone?: string | null
@@ -2473,6 +2538,9 @@ export type UserCreateWithoutReferredUsersInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -2527,6 +2595,7 @@ export type UserCreateWithoutReferredUsersInput = {
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
   referredBy?: Prisma.UserCreateNestedOneWithoutReferredUsersInput
+  referredUsers?: Prisma.UserCreateNestedManyWithoutReferredByInput
   withdrawalRequests?: Prisma.WithdrawalRequestCreateNestedManyWithoutUserInput
   walletTransactions?: Prisma.WalletTransactionCreateNestedManyWithoutUserInput
   submittedReviews?: Prisma.ReviewCreateNestedManyWithoutCustomerInput
@@ -2548,7 +2617,7 @@ export type UserCreateWithoutReferredUsersInput = {
   decidedLoyaltyAlerts?: Prisma.LoyaltyReviewAlertCreateNestedManyWithoutDeciderInput
 }
 
-export type UserUncheckedCreateWithoutReferredUsersInput = {
+export type UserUncheckedCreateWithoutWhatsAppMessageLogsInput = {
   id?: string
   email: string
   phone?: string | null
@@ -2568,6 +2637,9 @@ export type UserUncheckedCreateWithoutReferredUsersInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -2622,6 +2694,7 @@ export type UserUncheckedCreateWithoutReferredUsersInput = {
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
+  referredUsers?: Prisma.UserUncheckedCreateNestedManyWithoutReferredByInput
   withdrawalRequests?: Prisma.WithdrawalRequestUncheckedCreateNestedManyWithoutUserInput
   walletTransactions?: Prisma.WalletTransactionUncheckedCreateNestedManyWithoutUserInput
   submittedReviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutCustomerInput
@@ -2643,12 +2716,221 @@ export type UserUncheckedCreateWithoutReferredUsersInput = {
   decidedLoyaltyAlerts?: Prisma.LoyaltyReviewAlertUncheckedCreateNestedManyWithoutDeciderInput
 }
 
-export type UserCreateOrConnectWithoutReferredUsersInput = {
+export type UserCreateOrConnectWithoutWhatsAppMessageLogsInput = {
   where: Prisma.UserWhereUniqueInput
-  create: Prisma.XOR<Prisma.UserCreateWithoutReferredUsersInput, Prisma.UserUncheckedCreateWithoutReferredUsersInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutWhatsAppMessageLogsInput, Prisma.UserUncheckedCreateWithoutWhatsAppMessageLogsInput>
 }
 
-export type UserCreateWithoutReferredByInput = {
+export type UserUpsertWithoutWhatsAppMessageLogsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutWhatsAppMessageLogsInput, Prisma.UserUncheckedUpdateWithoutWhatsAppMessageLogsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutWhatsAppMessageLogsInput, Prisma.UserUncheckedCreateWithoutWhatsAppMessageLogsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutWhatsAppMessageLogsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutWhatsAppMessageLogsInput, Prisma.UserUncheckedUpdateWithoutWhatsAppMessageLogsInput>
+}
+
+export type UserUpdateWithoutWhatsAppMessageLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  status?: Prisma.EnumUserStatusFieldUpdateOperationsInput | $Enums.UserStatus
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  otpCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  otpExpiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recoveryStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankAccountHolder?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankIban?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankSwift?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankDetailsVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  stripeAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  stripeOnboarded?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  stripeCustomerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerBalance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyTier?: Prisma.EnumLoyaltyTierFieldUpdateOperationsInput | $Enums.LoyaltyTier
+  pointsLastResetAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  totalSpent?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
+  referralCount?: Prisma.IntFieldUpdateOperationsInput | number
+  referralCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referralStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  violationScore?: Prisma.IntFieldUpdateOperationsInput | number
+  totalDeliveredOrders?: Prisma.IntFieldUpdateOperationsInput | number
+  totalReturnDisputeOrders?: Prisma.IntFieldUpdateOperationsInput | number
+  cachedReturnRate?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  withdrawalsFrozen?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  withdrawalFreezeNote?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  withdrawalFreezeSignature?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  orderLimit?: Prisma.IntFieldUpdateOperationsInput | number
+  dailyOrderCount?: Prisma.IntFieldUpdateOperationsInput | number
+  restrictionAlertMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  store?: Prisma.StoreUpdateOneWithoutOwnerNestedInput
+  orders?: Prisma.OrderUpdateManyWithoutCustomerNestedInput
+  notifications?: Prisma.NotificationUpdateManyWithoutRecipientNestedInput
+  returns?: Prisma.ReturnRequestUpdateManyWithoutCustomerNestedInput
+  disputes?: Prisma.DisputeUpdateManyWithoutCustomerNestedInput
+  orderChats?: Prisma.OrderChatUpdateManyWithoutCustomerNestedInput
+  settings?: Prisma.UserSettingsUpdateOneWithoutUserNestedInput
+  accountRecoveryRequests?: Prisma.AccountRecoveryRequestUpdateManyWithoutUserNestedInput
+  securityLogs?: Prisma.SecurityLogUpdateManyWithoutUserNestedInput
+  payments?: Prisma.PaymentTransactionUpdateManyWithoutCustomerNestedInput
+  cards?: Prisma.UserCardUpdateManyWithoutUserNestedInput
+  Session?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  createdContracts?: Prisma.PlatformContractUpdateManyWithoutCreatorNestedInput
+  verificationReviews?: Prisma.VerificationDocumentUpdateManyWithoutAdminReviewerNestedInput
+  invoices?: Prisma.InvoiceUpdateManyWithoutCustomerNestedInput
+  verificationTasksAssigned?: Prisma.VerificationTaskUpdateManyWithoutOfficerNestedInput
+  verificationTasksCreated?: Prisma.VerificationTaskUpdateManyWithoutAssignedByNestedInput
+  verificationLinksCreated?: Prisma.VerificationLinkUpdateManyWithoutCreatedByNestedInput
+  verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
+  verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
+  shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
+  createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
+  updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
+  referredBy?: Prisma.UserUpdateOneWithoutReferredUsersNestedInput
+  referredUsers?: Prisma.UserUpdateManyWithoutReferredByNestedInput
+  withdrawalRequests?: Prisma.WithdrawalRequestUpdateManyWithoutUserNestedInput
+  walletTransactions?: Prisma.WalletTransactionUpdateManyWithoutUserNestedInput
+  submittedReviews?: Prisma.ReviewUpdateManyWithoutCustomerNestedInput
+  updatedShipments?: Prisma.ShipmentUpdateManyWithoutUpdaterNestedInput
+  changedShipmentStatuses?: Prisma.ShipmentStatusLogUpdateManyWithoutChangerNestedInput
+  violations?: Prisma.ViolationUpdateManyWithoutTargetUserNestedInput
+  issuedViolations?: Prisma.ViolationUpdateManyWithoutIssuerNestedInput
+  violationAppeals?: Prisma.ViolationAppealUpdateManyWithoutUserNestedInput
+  reviewedAppeals?: Prisma.ViolationAppealUpdateManyWithoutReviewerNestedInput
+  penaltyActions?: Prisma.PenaltyActionUpdateManyWithoutTargetUserNestedInput
+  approvedPenalties?: Prisma.PenaltyActionUpdateManyWithoutApproverNestedInput
+  scoreLogs?: Prisma.ViolationScoreLogUpdateManyWithoutTargetUserNestedInput
+  createdViolationTypes?: Prisma.ViolationTypeUpdateManyWithoutCreatorNestedInput
+  caseMessages?: Prisma.CaseMessageUpdateManyWithoutSenderNestedInput
+  adminActivityLogs?: Prisma.AdminActivityLogUpdateManyWithoutAdminNestedInput
+  riskAlerts?: Prisma.CustomerRiskAlertUpdateManyWithoutUserNestedInput
+  reviewedRiskAlerts?: Prisma.CustomerRiskAlertUpdateManyWithoutReviewerNestedInput
+  loyaltyReviewAlerts?: Prisma.LoyaltyReviewAlertUpdateManyWithoutUserNestedInput
+  decidedLoyaltyAlerts?: Prisma.LoyaltyReviewAlertUpdateManyWithoutDeciderNestedInput
+}
+
+export type UserUncheckedUpdateWithoutWhatsAppMessageLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  country?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  status?: Prisma.EnumUserStatusFieldUpdateOperationsInput | $Enums.UserStatus
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerifiedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  otpCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  otpExpiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  avatar?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  recoveryStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankAccountHolder?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankIban?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankSwift?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bankDetailsVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  stripeAccountId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  stripeOnboarded?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  stripeCustomerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  customerBalance?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyTier?: Prisma.EnumLoyaltyTierFieldUpdateOperationsInput | $Enums.LoyaltyTier
+  pointsLastResetAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  totalSpent?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
+  referralCount?: Prisma.IntFieldUpdateOperationsInput | number
+  referralCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referredById?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  referralStartsAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  violationScore?: Prisma.IntFieldUpdateOperationsInput | number
+  totalDeliveredOrders?: Prisma.IntFieldUpdateOperationsInput | number
+  totalReturnDisputeOrders?: Prisma.IntFieldUpdateOperationsInput | number
+  cachedReturnRate?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  withdrawalsFrozen?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  withdrawalFreezeNote?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  withdrawalFreezeSignature?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  orderLimit?: Prisma.IntFieldUpdateOperationsInput | number
+  dailyOrderCount?: Prisma.IntFieldUpdateOperationsInput | number
+  restrictionAlertMessage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  store?: Prisma.StoreUncheckedUpdateOneWithoutOwnerNestedInput
+  orders?: Prisma.OrderUncheckedUpdateManyWithoutCustomerNestedInput
+  notifications?: Prisma.NotificationUncheckedUpdateManyWithoutRecipientNestedInput
+  returns?: Prisma.ReturnRequestUncheckedUpdateManyWithoutCustomerNestedInput
+  disputes?: Prisma.DisputeUncheckedUpdateManyWithoutCustomerNestedInput
+  orderChats?: Prisma.OrderChatUncheckedUpdateManyWithoutCustomerNestedInput
+  settings?: Prisma.UserSettingsUncheckedUpdateOneWithoutUserNestedInput
+  accountRecoveryRequests?: Prisma.AccountRecoveryRequestUncheckedUpdateManyWithoutUserNestedInput
+  securityLogs?: Prisma.SecurityLogUncheckedUpdateManyWithoutUserNestedInput
+  payments?: Prisma.PaymentTransactionUncheckedUpdateManyWithoutCustomerNestedInput
+  cards?: Prisma.UserCardUncheckedUpdateManyWithoutUserNestedInput
+  Session?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  createdContracts?: Prisma.PlatformContractUncheckedUpdateManyWithoutCreatorNestedInput
+  verificationReviews?: Prisma.VerificationDocumentUncheckedUpdateManyWithoutAdminReviewerNestedInput
+  invoices?: Prisma.InvoiceUncheckedUpdateManyWithoutCustomerNestedInput
+  verificationTasksAssigned?: Prisma.VerificationTaskUncheckedUpdateManyWithoutOfficerNestedInput
+  verificationTasksCreated?: Prisma.VerificationTaskUncheckedUpdateManyWithoutAssignedByNestedInput
+  verificationLinksCreated?: Prisma.VerificationLinkUncheckedUpdateManyWithoutCreatedByNestedInput
+  verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
+  verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
+  shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
+  createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
+  updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
+  referredUsers?: Prisma.UserUncheckedUpdateManyWithoutReferredByNestedInput
+  withdrawalRequests?: Prisma.WithdrawalRequestUncheckedUpdateManyWithoutUserNestedInput
+  walletTransactions?: Prisma.WalletTransactionUncheckedUpdateManyWithoutUserNestedInput
+  submittedReviews?: Prisma.ReviewUncheckedUpdateManyWithoutCustomerNestedInput
+  updatedShipments?: Prisma.ShipmentUncheckedUpdateManyWithoutUpdaterNestedInput
+  changedShipmentStatuses?: Prisma.ShipmentStatusLogUncheckedUpdateManyWithoutChangerNestedInput
+  violations?: Prisma.ViolationUncheckedUpdateManyWithoutTargetUserNestedInput
+  issuedViolations?: Prisma.ViolationUncheckedUpdateManyWithoutIssuerNestedInput
+  violationAppeals?: Prisma.ViolationAppealUncheckedUpdateManyWithoutUserNestedInput
+  reviewedAppeals?: Prisma.ViolationAppealUncheckedUpdateManyWithoutReviewerNestedInput
+  penaltyActions?: Prisma.PenaltyActionUncheckedUpdateManyWithoutTargetUserNestedInput
+  approvedPenalties?: Prisma.PenaltyActionUncheckedUpdateManyWithoutApproverNestedInput
+  scoreLogs?: Prisma.ViolationScoreLogUncheckedUpdateManyWithoutTargetUserNestedInput
+  createdViolationTypes?: Prisma.ViolationTypeUncheckedUpdateManyWithoutCreatorNestedInput
+  caseMessages?: Prisma.CaseMessageUncheckedUpdateManyWithoutSenderNestedInput
+  adminActivityLogs?: Prisma.AdminActivityLogUncheckedUpdateManyWithoutAdminNestedInput
+  riskAlerts?: Prisma.CustomerRiskAlertUncheckedUpdateManyWithoutUserNestedInput
+  reviewedRiskAlerts?: Prisma.CustomerRiskAlertUncheckedUpdateManyWithoutReviewerNestedInput
+  loyaltyReviewAlerts?: Prisma.LoyaltyReviewAlertUncheckedUpdateManyWithoutUserNestedInput
+  decidedLoyaltyAlerts?: Prisma.LoyaltyReviewAlertUncheckedUpdateManyWithoutDeciderNestedInput
+}
+
+export type UserCreateWithoutReferredUsersInput = {
   id?: string
   email: string
   phone?: string | null
@@ -2668,6 +2950,9 @@ export type UserCreateWithoutReferredByInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -2718,6 +3003,210 @@ export type UserCreateWithoutReferredByInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
+  adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
+  createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
+  updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
+  referredBy?: Prisma.UserCreateNestedOneWithoutReferredUsersInput
+  withdrawalRequests?: Prisma.WithdrawalRequestCreateNestedManyWithoutUserInput
+  walletTransactions?: Prisma.WalletTransactionCreateNestedManyWithoutUserInput
+  submittedReviews?: Prisma.ReviewCreateNestedManyWithoutCustomerInput
+  updatedShipments?: Prisma.ShipmentCreateNestedManyWithoutUpdaterInput
+  changedShipmentStatuses?: Prisma.ShipmentStatusLogCreateNestedManyWithoutChangerInput
+  violations?: Prisma.ViolationCreateNestedManyWithoutTargetUserInput
+  issuedViolations?: Prisma.ViolationCreateNestedManyWithoutIssuerInput
+  violationAppeals?: Prisma.ViolationAppealCreateNestedManyWithoutUserInput
+  reviewedAppeals?: Prisma.ViolationAppealCreateNestedManyWithoutReviewerInput
+  penaltyActions?: Prisma.PenaltyActionCreateNestedManyWithoutTargetUserInput
+  approvedPenalties?: Prisma.PenaltyActionCreateNestedManyWithoutApproverInput
+  scoreLogs?: Prisma.ViolationScoreLogCreateNestedManyWithoutTargetUserInput
+  createdViolationTypes?: Prisma.ViolationTypeCreateNestedManyWithoutCreatorInput
+  caseMessages?: Prisma.CaseMessageCreateNestedManyWithoutSenderInput
+  adminActivityLogs?: Prisma.AdminActivityLogCreateNestedManyWithoutAdminInput
+  riskAlerts?: Prisma.CustomerRiskAlertCreateNestedManyWithoutUserInput
+  reviewedRiskAlerts?: Prisma.CustomerRiskAlertCreateNestedManyWithoutReviewerInput
+  loyaltyReviewAlerts?: Prisma.LoyaltyReviewAlertCreateNestedManyWithoutUserInput
+  decidedLoyaltyAlerts?: Prisma.LoyaltyReviewAlertCreateNestedManyWithoutDeciderInput
+}
+
+export type UserUncheckedCreateWithoutReferredUsersInput = {
+  id?: string
+  email: string
+  phone?: string | null
+  passwordHash: string
+  countryCode?: string | null
+  country?: string | null
+  role?: $Enums.UserRole
+  status?: $Enums.UserStatus
+  name?: string | null
+  emailVerifiedAt?: Date | string | null
+  otpCode?: string | null
+  otpExpiresAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  avatar?: string | null
+  recoveryStatus?: string | null
+  withdrawalsFrozenUntil?: Date | string | null
+  lastLoginIp?: string | null
+  lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
+  adminNotes?: string | null
+  suspendedUntil?: Date | string | null
+  suspendReason?: string | null
+  bankName?: string | null
+  bankAccountHolder?: string | null
+  bankIban?: string | null
+  bankSwift?: string | null
+  bankDetailsVerified?: boolean
+  stripeAccountId?: string | null
+  stripeOnboarded?: boolean
+  stripeCustomerId?: string | null
+  customerBalance?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyTier?: $Enums.LoyaltyTier
+  pointsLastResetAt?: Date | string | null
+  totalSpent?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyPoints?: number
+  referralCount?: number
+  referralCode?: string | null
+  referredById?: string | null
+  referralStartsAt?: Date | string | null
+  violationScore?: number
+  totalDeliveredOrders?: number
+  totalReturnDisputeOrders?: number
+  cachedReturnRate?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  withdrawalsFrozen?: boolean
+  withdrawalFreezeNote?: string | null
+  withdrawalFreezeSignature?: string | null
+  orderLimit?: number
+  dailyOrderCount?: number
+  restrictionAlertMessage?: string | null
+  store?: Prisma.StoreUncheckedCreateNestedOneWithoutOwnerInput
+  orders?: Prisma.OrderUncheckedCreateNestedManyWithoutCustomerInput
+  notifications?: Prisma.NotificationUncheckedCreateNestedManyWithoutRecipientInput
+  returns?: Prisma.ReturnRequestUncheckedCreateNestedManyWithoutCustomerInput
+  disputes?: Prisma.DisputeUncheckedCreateNestedManyWithoutCustomerInput
+  orderChats?: Prisma.OrderChatUncheckedCreateNestedManyWithoutCustomerInput
+  settings?: Prisma.UserSettingsUncheckedCreateNestedOneWithoutUserInput
+  accountRecoveryRequests?: Prisma.AccountRecoveryRequestUncheckedCreateNestedManyWithoutUserInput
+  securityLogs?: Prisma.SecurityLogUncheckedCreateNestedManyWithoutUserInput
+  payments?: Prisma.PaymentTransactionUncheckedCreateNestedManyWithoutCustomerInput
+  cards?: Prisma.UserCardUncheckedCreateNestedManyWithoutUserInput
+  Session?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  createdContracts?: Prisma.PlatformContractUncheckedCreateNestedManyWithoutCreatorInput
+  verificationReviews?: Prisma.VerificationDocumentUncheckedCreateNestedManyWithoutAdminReviewerInput
+  invoices?: Prisma.InvoiceUncheckedCreateNestedManyWithoutCustomerInput
+  verificationTasksAssigned?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutOfficerInput
+  verificationTasksCreated?: Prisma.VerificationTaskUncheckedCreateNestedManyWithoutAssignedByInput
+  verificationLinksCreated?: Prisma.VerificationLinkUncheckedCreateNestedManyWithoutCreatedByInput
+  verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
+  verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
+  shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
+  adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
+  createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
+  updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
+  withdrawalRequests?: Prisma.WithdrawalRequestUncheckedCreateNestedManyWithoutUserInput
+  walletTransactions?: Prisma.WalletTransactionUncheckedCreateNestedManyWithoutUserInput
+  submittedReviews?: Prisma.ReviewUncheckedCreateNestedManyWithoutCustomerInput
+  updatedShipments?: Prisma.ShipmentUncheckedCreateNestedManyWithoutUpdaterInput
+  changedShipmentStatuses?: Prisma.ShipmentStatusLogUncheckedCreateNestedManyWithoutChangerInput
+  violations?: Prisma.ViolationUncheckedCreateNestedManyWithoutTargetUserInput
+  issuedViolations?: Prisma.ViolationUncheckedCreateNestedManyWithoutIssuerInput
+  violationAppeals?: Prisma.ViolationAppealUncheckedCreateNestedManyWithoutUserInput
+  reviewedAppeals?: Prisma.ViolationAppealUncheckedCreateNestedManyWithoutReviewerInput
+  penaltyActions?: Prisma.PenaltyActionUncheckedCreateNestedManyWithoutTargetUserInput
+  approvedPenalties?: Prisma.PenaltyActionUncheckedCreateNestedManyWithoutApproverInput
+  scoreLogs?: Prisma.ViolationScoreLogUncheckedCreateNestedManyWithoutTargetUserInput
+  createdViolationTypes?: Prisma.ViolationTypeUncheckedCreateNestedManyWithoutCreatorInput
+  caseMessages?: Prisma.CaseMessageUncheckedCreateNestedManyWithoutSenderInput
+  adminActivityLogs?: Prisma.AdminActivityLogUncheckedCreateNestedManyWithoutAdminInput
+  riskAlerts?: Prisma.CustomerRiskAlertUncheckedCreateNestedManyWithoutUserInput
+  reviewedRiskAlerts?: Prisma.CustomerRiskAlertUncheckedCreateNestedManyWithoutReviewerInput
+  loyaltyReviewAlerts?: Prisma.LoyaltyReviewAlertUncheckedCreateNestedManyWithoutUserInput
+  decidedLoyaltyAlerts?: Prisma.LoyaltyReviewAlertUncheckedCreateNestedManyWithoutDeciderInput
+}
+
+export type UserCreateOrConnectWithoutReferredUsersInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutReferredUsersInput, Prisma.UserUncheckedCreateWithoutReferredUsersInput>
+}
+
+export type UserCreateWithoutReferredByInput = {
+  id?: string
+  email: string
+  phone?: string | null
+  passwordHash: string
+  countryCode?: string | null
+  country?: string | null
+  role?: $Enums.UserRole
+  status?: $Enums.UserStatus
+  name?: string | null
+  emailVerifiedAt?: Date | string | null
+  otpCode?: string | null
+  otpExpiresAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  avatar?: string | null
+  recoveryStatus?: string | null
+  withdrawalsFrozenUntil?: Date | string | null
+  lastLoginIp?: string | null
+  lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
+  adminNotes?: string | null
+  suspendedUntil?: Date | string | null
+  suspendReason?: string | null
+  bankName?: string | null
+  bankAccountHolder?: string | null
+  bankIban?: string | null
+  bankSwift?: string | null
+  bankDetailsVerified?: boolean
+  stripeAccountId?: string | null
+  stripeOnboarded?: boolean
+  stripeCustomerId?: string | null
+  customerBalance?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyTier?: $Enums.LoyaltyTier
+  pointsLastResetAt?: Date | string | null
+  totalSpent?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  loyaltyPoints?: number
+  referralCount?: number
+  referralCode?: string | null
+  referralStartsAt?: Date | string | null
+  violationScore?: number
+  totalDeliveredOrders?: number
+  totalReturnDisputeOrders?: number
+  cachedReturnRate?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  withdrawalsFrozen?: boolean
+  withdrawalFreezeNote?: string | null
+  withdrawalFreezeSignature?: string | null
+  orderLimit?: number
+  dailyOrderCount?: number
+  restrictionAlertMessage?: string | null
+  store?: Prisma.StoreCreateNestedOneWithoutOwnerInput
+  orders?: Prisma.OrderCreateNestedManyWithoutCustomerInput
+  notifications?: Prisma.NotificationCreateNestedManyWithoutRecipientInput
+  returns?: Prisma.ReturnRequestCreateNestedManyWithoutCustomerInput
+  disputes?: Prisma.DisputeCreateNestedManyWithoutCustomerInput
+  orderChats?: Prisma.OrderChatCreateNestedManyWithoutCustomerInput
+  settings?: Prisma.UserSettingsCreateNestedOneWithoutUserInput
+  accountRecoveryRequests?: Prisma.AccountRecoveryRequestCreateNestedManyWithoutUserInput
+  securityLogs?: Prisma.SecurityLogCreateNestedManyWithoutUserInput
+  payments?: Prisma.PaymentTransactionCreateNestedManyWithoutCustomerInput
+  cards?: Prisma.UserCardCreateNestedManyWithoutUserInput
+  Session?: Prisma.SessionCreateNestedManyWithoutUserInput
+  createdContracts?: Prisma.PlatformContractCreateNestedManyWithoutCreatorInput
+  verificationReviews?: Prisma.VerificationDocumentCreateNestedManyWithoutAdminReviewerInput
+  invoices?: Prisma.InvoiceCreateNestedManyWithoutCustomerInput
+  verificationTasksAssigned?: Prisma.VerificationTaskCreateNestedManyWithoutOfficerInput
+  verificationTasksCreated?: Prisma.VerificationTaskCreateNestedManyWithoutAssignedByInput
+  verificationLinksCreated?: Prisma.VerificationLinkCreateNestedManyWithoutCreatedByInput
+  verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
+  verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
+  shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -2763,6 +3252,9 @@ export type UserUncheckedCreateWithoutReferredByInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -2813,6 +3305,7 @@ export type UserUncheckedCreateWithoutReferredByInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -2879,6 +3372,9 @@ export type UserUpdateWithoutReferredUsersInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2929,6 +3425,7 @@ export type UserUpdateWithoutReferredUsersInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -2974,6 +3471,9 @@ export type UserUncheckedUpdateWithoutReferredUsersInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3025,6 +3525,7 @@ export type UserUncheckedUpdateWithoutReferredUsersInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -3088,6 +3589,9 @@ export type UserScalarWhereInput = {
   withdrawalsFrozenUntil?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   lastLoginIp?: Prisma.StringNullableFilter<"User"> | string | null
   lastLoginDevice?: Prisma.StringNullableFilter<"User"> | string | null
+  widersContactId?: Prisma.StringNullableFilter<"User"> | string | null
+  whatsappOptIn?: Prisma.BoolFilter<"User"> | boolean
+  widersSyncedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   adminNotes?: Prisma.StringNullableFilter<"User"> | string | null
   suspendedUntil?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   suspendReason?: Prisma.StringNullableFilter<"User"> | string | null
@@ -3140,6 +3644,9 @@ export type UserCreateWithoutSettingsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -3189,6 +3696,7 @@ export type UserCreateWithoutSettingsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -3235,6 +3743,9 @@ export type UserUncheckedCreateWithoutSettingsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -3285,6 +3796,7 @@ export type UserUncheckedCreateWithoutSettingsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -3346,6 +3858,9 @@ export type UserUpdateWithoutSettingsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3395,6 +3910,7 @@ export type UserUpdateWithoutSettingsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -3441,6 +3957,9 @@ export type UserUncheckedUpdateWithoutSettingsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3491,6 +4010,7 @@ export type UserUncheckedUpdateWithoutSettingsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -3536,6 +4056,9 @@ export type UserCreateWithoutStoreInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -3585,6 +4108,7 @@ export type UserCreateWithoutStoreInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -3631,6 +4155,9 @@ export type UserUncheckedCreateWithoutStoreInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -3681,6 +4208,7 @@ export type UserUncheckedCreateWithoutStoreInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -3742,6 +4270,9 @@ export type UserUpdateWithoutStoreInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3791,6 +4322,7 @@ export type UserUpdateWithoutStoreInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -3837,6 +4369,9 @@ export type UserUncheckedUpdateWithoutStoreInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -3887,6 +4422,7 @@ export type UserUncheckedUpdateWithoutStoreInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -3932,6 +4468,9 @@ export type UserCreateWithoutOrdersInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -3981,6 +4520,7 @@ export type UserCreateWithoutOrdersInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -4027,6 +4567,9 @@ export type UserUncheckedCreateWithoutOrdersInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -4077,6 +4620,7 @@ export type UserUncheckedCreateWithoutOrdersInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -4138,6 +4682,9 @@ export type UserUpdateWithoutOrdersInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4187,6 +4734,7 @@ export type UserUpdateWithoutOrdersInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -4233,6 +4781,9 @@ export type UserUncheckedUpdateWithoutOrdersInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4283,6 +4834,7 @@ export type UserUncheckedUpdateWithoutOrdersInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -4328,6 +4880,9 @@ export type UserCreateWithoutVerificationReviewsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -4377,6 +4932,7 @@ export type UserCreateWithoutVerificationReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -4423,6 +4979,9 @@ export type UserUncheckedCreateWithoutVerificationReviewsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -4473,6 +5032,7 @@ export type UserUncheckedCreateWithoutVerificationReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -4534,6 +5094,9 @@ export type UserUpdateWithoutVerificationReviewsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4583,6 +5146,7 @@ export type UserUpdateWithoutVerificationReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -4629,6 +5193,9 @@ export type UserUncheckedUpdateWithoutVerificationReviewsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4679,6 +5246,7 @@ export type UserUncheckedUpdateWithoutVerificationReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -4724,6 +5292,9 @@ export type UserCreateWithoutNotificationsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -4773,6 +5344,7 @@ export type UserCreateWithoutNotificationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -4819,6 +5391,9 @@ export type UserUncheckedCreateWithoutNotificationsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -4869,6 +5444,7 @@ export type UserUncheckedCreateWithoutNotificationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -4930,6 +5506,9 @@ export type UserUpdateWithoutNotificationsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -4979,6 +5558,7 @@ export type UserUpdateWithoutNotificationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -5025,6 +5605,9 @@ export type UserUncheckedUpdateWithoutNotificationsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5075,6 +5658,7 @@ export type UserUncheckedUpdateWithoutNotificationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -5120,6 +5704,9 @@ export type UserCreateWithoutReturnsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -5169,6 +5756,7 @@ export type UserCreateWithoutReturnsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -5215,6 +5803,9 @@ export type UserUncheckedCreateWithoutReturnsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -5265,6 +5856,7 @@ export type UserUncheckedCreateWithoutReturnsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -5326,6 +5918,9 @@ export type UserUpdateWithoutReturnsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5375,6 +5970,7 @@ export type UserUpdateWithoutReturnsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -5421,6 +6017,9 @@ export type UserUncheckedUpdateWithoutReturnsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5471,6 +6070,7 @@ export type UserUncheckedUpdateWithoutReturnsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -5516,6 +6116,9 @@ export type UserCreateWithoutDisputesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -5565,6 +6168,7 @@ export type UserCreateWithoutDisputesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -5611,6 +6215,9 @@ export type UserUncheckedCreateWithoutDisputesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -5661,6 +6268,7 @@ export type UserUncheckedCreateWithoutDisputesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -5722,6 +6330,9 @@ export type UserUpdateWithoutDisputesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5771,6 +6382,7 @@ export type UserUpdateWithoutDisputesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -5817,6 +6429,9 @@ export type UserUncheckedUpdateWithoutDisputesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -5867,6 +6482,7 @@ export type UserUncheckedUpdateWithoutDisputesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -5912,6 +6528,9 @@ export type UserCreateWithoutCaseMessagesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -5962,6 +6581,7 @@ export type UserCreateWithoutCaseMessagesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -6007,6 +6627,9 @@ export type UserUncheckedCreateWithoutCaseMessagesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -6058,6 +6681,7 @@ export type UserUncheckedCreateWithoutCaseMessagesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -6118,6 +6742,9 @@ export type UserUpdateWithoutCaseMessagesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -6168,6 +6795,7 @@ export type UserUpdateWithoutCaseMessagesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -6213,6 +6841,9 @@ export type UserUncheckedUpdateWithoutCaseMessagesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -6264,6 +6895,7 @@ export type UserUncheckedUpdateWithoutCaseMessagesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -6308,6 +6940,9 @@ export type UserCreateWithoutOrderChatsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -6357,6 +6992,7 @@ export type UserCreateWithoutOrderChatsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -6403,6 +7039,9 @@ export type UserUncheckedCreateWithoutOrderChatsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -6453,6 +7092,7 @@ export type UserUncheckedCreateWithoutOrderChatsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -6514,6 +7154,9 @@ export type UserUpdateWithoutOrderChatsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -6563,6 +7206,7 @@ export type UserUpdateWithoutOrderChatsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -6609,6 +7253,9 @@ export type UserUncheckedUpdateWithoutOrderChatsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -6659,6 +7306,7 @@ export type UserUncheckedUpdateWithoutOrderChatsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -6704,6 +7352,9 @@ export type UserCreateWithoutAccountRecoveryRequestsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -6753,6 +7404,7 @@ export type UserCreateWithoutAccountRecoveryRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -6799,6 +7451,9 @@ export type UserUncheckedCreateWithoutAccountRecoveryRequestsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -6849,6 +7504,7 @@ export type UserUncheckedCreateWithoutAccountRecoveryRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -6910,6 +7566,9 @@ export type UserUpdateWithoutAccountRecoveryRequestsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -6959,6 +7618,7 @@ export type UserUpdateWithoutAccountRecoveryRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -7005,6 +7665,9 @@ export type UserUncheckedUpdateWithoutAccountRecoveryRequestsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -7055,6 +7718,7 @@ export type UserUncheckedUpdateWithoutAccountRecoveryRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -7100,6 +7764,9 @@ export type UserCreateWithoutSecurityLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -7149,6 +7816,7 @@ export type UserCreateWithoutSecurityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -7195,6 +7863,9 @@ export type UserUncheckedCreateWithoutSecurityLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -7245,6 +7916,7 @@ export type UserUncheckedCreateWithoutSecurityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -7306,6 +7978,9 @@ export type UserUpdateWithoutSecurityLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -7355,6 +8030,7 @@ export type UserUpdateWithoutSecurityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -7401,6 +8077,9 @@ export type UserUncheckedUpdateWithoutSecurityLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -7451,6 +8130,7 @@ export type UserUncheckedUpdateWithoutSecurityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -7496,6 +8176,9 @@ export type UserCreateWithoutSessionInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -7545,6 +8228,7 @@ export type UserCreateWithoutSessionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -7591,6 +8275,9 @@ export type UserUncheckedCreateWithoutSessionInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -7641,6 +8328,7 @@ export type UserUncheckedCreateWithoutSessionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -7702,6 +8390,9 @@ export type UserUpdateWithoutSessionInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -7751,6 +8442,7 @@ export type UserUpdateWithoutSessionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -7797,6 +8489,9 @@ export type UserUncheckedUpdateWithoutSessionInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -7847,6 +8542,7 @@ export type UserUncheckedUpdateWithoutSessionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -7892,6 +8588,9 @@ export type UserCreateWithoutPaymentsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -7941,6 +8640,7 @@ export type UserCreateWithoutPaymentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -7987,6 +8687,9 @@ export type UserUncheckedCreateWithoutPaymentsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -8037,6 +8740,7 @@ export type UserUncheckedCreateWithoutPaymentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -8098,6 +8802,9 @@ export type UserUpdateWithoutPaymentsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -8147,6 +8854,7 @@ export type UserUpdateWithoutPaymentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -8193,6 +8901,9 @@ export type UserUncheckedUpdateWithoutPaymentsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -8243,6 +8954,7 @@ export type UserUncheckedUpdateWithoutPaymentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -8288,6 +9000,9 @@ export type UserCreateWithoutWalletTransactionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -8338,6 +9053,7 @@ export type UserCreateWithoutWalletTransactionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -8383,6 +9099,9 @@ export type UserUncheckedCreateWithoutWalletTransactionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -8434,6 +9153,7 @@ export type UserUncheckedCreateWithoutWalletTransactionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -8494,6 +9214,9 @@ export type UserUpdateWithoutWalletTransactionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -8544,6 +9267,7 @@ export type UserUpdateWithoutWalletTransactionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -8589,6 +9313,9 @@ export type UserUncheckedUpdateWithoutWalletTransactionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -8640,6 +9367,7 @@ export type UserUncheckedUpdateWithoutWalletTransactionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -8684,6 +9412,9 @@ export type UserCreateWithoutInvoicesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -8733,6 +9464,7 @@ export type UserCreateWithoutInvoicesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -8779,6 +9511,9 @@ export type UserUncheckedCreateWithoutInvoicesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -8829,6 +9564,7 @@ export type UserUncheckedCreateWithoutInvoicesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -8890,6 +9626,9 @@ export type UserUpdateWithoutInvoicesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -8939,6 +9678,7 @@ export type UserUpdateWithoutInvoicesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -8985,6 +9725,9 @@ export type UserUncheckedUpdateWithoutInvoicesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -9035,6 +9778,7 @@ export type UserUncheckedUpdateWithoutInvoicesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -9080,6 +9824,9 @@ export type UserCreateWithoutCardsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -9129,6 +9876,7 @@ export type UserCreateWithoutCardsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -9175,6 +9923,9 @@ export type UserUncheckedCreateWithoutCardsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -9225,6 +9976,7 @@ export type UserUncheckedCreateWithoutCardsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -9286,6 +10038,9 @@ export type UserUpdateWithoutCardsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -9335,6 +10090,7 @@ export type UserUpdateWithoutCardsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -9381,6 +10137,9 @@ export type UserUncheckedUpdateWithoutCardsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -9431,6 +10190,7 @@ export type UserUncheckedUpdateWithoutCardsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -9476,6 +10236,9 @@ export type UserCreateWithoutCreatedContractsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -9525,6 +10288,7 @@ export type UserCreateWithoutCreatedContractsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -9571,6 +10335,9 @@ export type UserUncheckedCreateWithoutCreatedContractsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -9621,6 +10388,7 @@ export type UserUncheckedCreateWithoutCreatedContractsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -9682,6 +10450,9 @@ export type UserUpdateWithoutCreatedContractsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -9731,6 +10502,7 @@ export type UserUpdateWithoutCreatedContractsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -9777,6 +10549,9 @@ export type UserUncheckedUpdateWithoutCreatedContractsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -9827,6 +10602,7 @@ export type UserUncheckedUpdateWithoutCreatedContractsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -9872,6 +10648,9 @@ export type UserCreateWithoutShippingWaybillsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -9921,6 +10700,7 @@ export type UserCreateWithoutShippingWaybillsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkCreateNestedManyWithoutCreatedByInput
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -9967,6 +10747,9 @@ export type UserUncheckedCreateWithoutShippingWaybillsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -10017,6 +10800,7 @@ export type UserUncheckedCreateWithoutShippingWaybillsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUncheckedCreateNestedManyWithoutCreatedByInput
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -10078,6 +10862,9 @@ export type UserUpdateWithoutShippingWaybillsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -10127,6 +10914,7 @@ export type UserUpdateWithoutShippingWaybillsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUpdateManyWithoutCreatedByNestedInput
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -10173,6 +10961,9 @@ export type UserUncheckedUpdateWithoutShippingWaybillsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -10223,6 +11014,7 @@ export type UserUncheckedUpdateWithoutShippingWaybillsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUncheckedUpdateManyWithoutCreatedByNestedInput
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -10268,6 +11060,9 @@ export type UserCreateWithoutUpdatedShipmentsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -10318,6 +11113,7 @@ export type UserCreateWithoutUpdatedShipmentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -10363,6 +11159,9 @@ export type UserUncheckedCreateWithoutUpdatedShipmentsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -10414,6 +11213,7 @@ export type UserUncheckedCreateWithoutUpdatedShipmentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -10474,6 +11274,9 @@ export type UserUpdateWithoutUpdatedShipmentsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -10524,6 +11327,7 @@ export type UserUpdateWithoutUpdatedShipmentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -10569,6 +11373,9 @@ export type UserUncheckedUpdateWithoutUpdatedShipmentsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -10620,6 +11427,7 @@ export type UserUncheckedUpdateWithoutUpdatedShipmentsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -10664,6 +11472,9 @@ export type UserCreateWithoutChangedShipmentStatusesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -10714,6 +11525,7 @@ export type UserCreateWithoutChangedShipmentStatusesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -10759,6 +11571,9 @@ export type UserUncheckedCreateWithoutChangedShipmentStatusesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -10810,6 +11625,7 @@ export type UserUncheckedCreateWithoutChangedShipmentStatusesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -10870,6 +11686,9 @@ export type UserUpdateWithoutChangedShipmentStatusesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -10920,6 +11739,7 @@ export type UserUpdateWithoutChangedShipmentStatusesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -10965,6 +11785,9 @@ export type UserUncheckedUpdateWithoutChangedShipmentStatusesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -11016,6 +11839,7 @@ export type UserUncheckedUpdateWithoutChangedShipmentStatusesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -11060,6 +11884,9 @@ export type UserCreateWithoutSubmittedReviewsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -11110,6 +11937,7 @@ export type UserCreateWithoutSubmittedReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -11155,6 +11983,9 @@ export type UserUncheckedCreateWithoutSubmittedReviewsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -11206,6 +12037,7 @@ export type UserUncheckedCreateWithoutSubmittedReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -11266,6 +12098,9 @@ export type UserUpdateWithoutSubmittedReviewsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -11316,6 +12151,7 @@ export type UserUpdateWithoutSubmittedReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -11361,6 +12197,9 @@ export type UserUncheckedUpdateWithoutSubmittedReviewsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -11412,6 +12251,7 @@ export type UserUncheckedUpdateWithoutSubmittedReviewsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -11456,6 +12296,9 @@ export type UserCreateWithoutWithdrawalRequestsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -11506,6 +12349,7 @@ export type UserCreateWithoutWithdrawalRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -11551,6 +12395,9 @@ export type UserUncheckedCreateWithoutWithdrawalRequestsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -11602,6 +12449,7 @@ export type UserUncheckedCreateWithoutWithdrawalRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -11662,6 +12510,9 @@ export type UserUpdateWithoutWithdrawalRequestsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -11712,6 +12563,7 @@ export type UserUpdateWithoutWithdrawalRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -11757,6 +12609,9 @@ export type UserUncheckedUpdateWithoutWithdrawalRequestsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -11808,6 +12663,7 @@ export type UserUncheckedUpdateWithoutWithdrawalRequestsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -11852,6 +12708,9 @@ export type UserCreateWithoutCreatedViolationTypesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -11902,6 +12761,7 @@ export type UserCreateWithoutCreatedViolationTypesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -11947,6 +12807,9 @@ export type UserUncheckedCreateWithoutCreatedViolationTypesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -11998,6 +12861,7 @@ export type UserUncheckedCreateWithoutCreatedViolationTypesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -12058,6 +12922,9 @@ export type UserUpdateWithoutCreatedViolationTypesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -12108,6 +12975,7 @@ export type UserUpdateWithoutCreatedViolationTypesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -12153,6 +13021,9 @@ export type UserUncheckedUpdateWithoutCreatedViolationTypesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -12204,6 +13075,7 @@ export type UserUncheckedUpdateWithoutCreatedViolationTypesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -12248,6 +13120,9 @@ export type UserCreateWithoutViolationsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -12298,6 +13173,7 @@ export type UserCreateWithoutViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -12343,6 +13219,9 @@ export type UserUncheckedCreateWithoutViolationsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -12394,6 +13273,7 @@ export type UserUncheckedCreateWithoutViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -12443,6 +13323,9 @@ export type UserCreateWithoutIssuedViolationsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -12493,6 +13376,7 @@ export type UserCreateWithoutIssuedViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -12538,6 +13422,9 @@ export type UserUncheckedCreateWithoutIssuedViolationsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -12589,6 +13476,7 @@ export type UserUncheckedCreateWithoutIssuedViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -12649,6 +13537,9 @@ export type UserUpdateWithoutViolationsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -12699,6 +13590,7 @@ export type UserUpdateWithoutViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -12744,6 +13636,9 @@ export type UserUncheckedUpdateWithoutViolationsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -12795,6 +13690,7 @@ export type UserUncheckedUpdateWithoutViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -12850,6 +13746,9 @@ export type UserUpdateWithoutIssuedViolationsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -12900,6 +13799,7 @@ export type UserUpdateWithoutIssuedViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -12945,6 +13845,9 @@ export type UserUncheckedUpdateWithoutIssuedViolationsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -12996,6 +13899,7 @@ export type UserUncheckedUpdateWithoutIssuedViolationsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -13040,6 +13944,9 @@ export type UserCreateWithoutViolationAppealsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -13090,6 +13997,7 @@ export type UserCreateWithoutViolationAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -13135,6 +14043,9 @@ export type UserUncheckedCreateWithoutViolationAppealsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -13186,6 +14097,7 @@ export type UserUncheckedCreateWithoutViolationAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -13235,6 +14147,9 @@ export type UserCreateWithoutReviewedAppealsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -13285,6 +14200,7 @@ export type UserCreateWithoutReviewedAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -13330,6 +14246,9 @@ export type UserUncheckedCreateWithoutReviewedAppealsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -13381,6 +14300,7 @@ export type UserUncheckedCreateWithoutReviewedAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -13441,6 +14361,9 @@ export type UserUpdateWithoutViolationAppealsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -13491,6 +14414,7 @@ export type UserUpdateWithoutViolationAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -13536,6 +14460,9 @@ export type UserUncheckedUpdateWithoutViolationAppealsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -13587,6 +14514,7 @@ export type UserUncheckedUpdateWithoutViolationAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -13642,6 +14570,9 @@ export type UserUpdateWithoutReviewedAppealsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -13692,6 +14623,7 @@ export type UserUpdateWithoutReviewedAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -13737,6 +14669,9 @@ export type UserUncheckedUpdateWithoutReviewedAppealsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -13788,6 +14723,7 @@ export type UserUncheckedUpdateWithoutReviewedAppealsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -13832,6 +14768,9 @@ export type UserCreateWithoutPenaltyActionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -13882,6 +14821,7 @@ export type UserCreateWithoutPenaltyActionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -13927,6 +14867,9 @@ export type UserUncheckedCreateWithoutPenaltyActionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -13978,6 +14921,7 @@ export type UserUncheckedCreateWithoutPenaltyActionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -14027,6 +14971,9 @@ export type UserCreateWithoutApprovedPenaltiesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -14077,6 +15024,7 @@ export type UserCreateWithoutApprovedPenaltiesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -14122,6 +15070,9 @@ export type UserUncheckedCreateWithoutApprovedPenaltiesInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -14173,6 +15124,7 @@ export type UserUncheckedCreateWithoutApprovedPenaltiesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -14233,6 +15185,9 @@ export type UserUpdateWithoutPenaltyActionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -14283,6 +15238,7 @@ export type UserUpdateWithoutPenaltyActionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -14328,6 +15284,9 @@ export type UserUncheckedUpdateWithoutPenaltyActionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -14379,6 +15338,7 @@ export type UserUncheckedUpdateWithoutPenaltyActionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -14434,6 +15394,9 @@ export type UserUpdateWithoutApprovedPenaltiesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -14484,6 +15447,7 @@ export type UserUpdateWithoutApprovedPenaltiesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -14529,6 +15493,9 @@ export type UserUncheckedUpdateWithoutApprovedPenaltiesInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -14580,6 +15547,7 @@ export type UserUncheckedUpdateWithoutApprovedPenaltiesInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -14624,6 +15592,9 @@ export type UserCreateWithoutScoreLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -14674,6 +15645,7 @@ export type UserCreateWithoutScoreLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -14719,6 +15691,9 @@ export type UserUncheckedCreateWithoutScoreLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -14770,6 +15745,7 @@ export type UserUncheckedCreateWithoutScoreLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -14830,6 +15806,9 @@ export type UserUpdateWithoutScoreLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -14880,6 +15859,7 @@ export type UserUpdateWithoutScoreLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -14925,6 +15905,9 @@ export type UserUncheckedUpdateWithoutScoreLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -14976,6 +15959,7 @@ export type UserUncheckedUpdateWithoutScoreLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -15020,6 +16004,9 @@ export type UserCreateWithoutAdminActivityLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -15070,6 +16057,7 @@ export type UserCreateWithoutAdminActivityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -15115,6 +16103,9 @@ export type UserUncheckedCreateWithoutAdminActivityLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -15166,6 +16157,7 @@ export type UserUncheckedCreateWithoutAdminActivityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -15226,6 +16218,9 @@ export type UserUpdateWithoutAdminActivityLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -15276,6 +16271,7 @@ export type UserUpdateWithoutAdminActivityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -15321,6 +16317,9 @@ export type UserUncheckedUpdateWithoutAdminActivityLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -15372,6 +16371,7 @@ export type UserUncheckedUpdateWithoutAdminActivityLogsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -15416,6 +16416,9 @@ export type UserCreateWithoutLoyaltyReviewAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -15466,6 +16469,7 @@ export type UserCreateWithoutLoyaltyReviewAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -15511,6 +16515,9 @@ export type UserUncheckedCreateWithoutLoyaltyReviewAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -15562,6 +16569,7 @@ export type UserUncheckedCreateWithoutLoyaltyReviewAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -15611,6 +16619,9 @@ export type UserCreateWithoutDecidedLoyaltyAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -15661,6 +16672,7 @@ export type UserCreateWithoutDecidedLoyaltyAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -15706,6 +16718,9 @@ export type UserUncheckedCreateWithoutDecidedLoyaltyAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -15757,6 +16772,7 @@ export type UserUncheckedCreateWithoutDecidedLoyaltyAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -15817,6 +16833,9 @@ export type UserUpdateWithoutLoyaltyReviewAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -15867,6 +16886,7 @@ export type UserUpdateWithoutLoyaltyReviewAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -15912,6 +16932,9 @@ export type UserUncheckedUpdateWithoutLoyaltyReviewAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -15963,6 +16986,7 @@ export type UserUncheckedUpdateWithoutLoyaltyReviewAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -16018,6 +17042,9 @@ export type UserUpdateWithoutDecidedLoyaltyAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -16068,6 +17095,7 @@ export type UserUpdateWithoutDecidedLoyaltyAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -16113,6 +17141,9 @@ export type UserUncheckedUpdateWithoutDecidedLoyaltyAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -16164,6 +17195,7 @@ export type UserUncheckedUpdateWithoutDecidedLoyaltyAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -16208,6 +17240,9 @@ export type UserCreateWithoutRiskAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -16258,6 +17293,7 @@ export type UserCreateWithoutRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -16303,6 +17339,9 @@ export type UserUncheckedCreateWithoutRiskAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -16354,6 +17393,7 @@ export type UserUncheckedCreateWithoutRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -16403,6 +17443,9 @@ export type UserCreateWithoutReviewedRiskAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -16453,6 +17496,7 @@ export type UserCreateWithoutReviewedRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -16498,6 +17542,9 @@ export type UserUncheckedCreateWithoutReviewedRiskAlertsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -16549,6 +17596,7 @@ export type UserUncheckedCreateWithoutReviewedRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -16609,6 +17657,9 @@ export type UserUpdateWithoutRiskAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -16659,6 +17710,7 @@ export type UserUpdateWithoutRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -16704,6 +17756,9 @@ export type UserUncheckedUpdateWithoutRiskAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -16755,6 +17810,7 @@ export type UserUncheckedUpdateWithoutRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -16810,6 +17866,9 @@ export type UserUpdateWithoutReviewedRiskAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -16860,6 +17919,7 @@ export type UserUpdateWithoutReviewedRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -16905,6 +17965,9 @@ export type UserUncheckedUpdateWithoutReviewedRiskAlertsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -16956,6 +18019,7 @@ export type UserUncheckedUpdateWithoutReviewedRiskAlertsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -17000,6 +18064,9 @@ export type UserCreateWithoutAdminPermissionInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -17050,6 +18117,7 @@ export type UserCreateWithoutAdminPermissionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
   referredBy?: Prisma.UserCreateNestedOneWithoutReferredUsersInput
@@ -17095,6 +18163,9 @@ export type UserUncheckedCreateWithoutAdminPermissionInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -17146,6 +18217,7 @@ export type UserUncheckedCreateWithoutAdminPermissionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
   referredUsers?: Prisma.UserUncheckedCreateNestedManyWithoutReferredByInput
@@ -17195,6 +18267,9 @@ export type UserCreateWithoutCreatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -17245,6 +18320,7 @@ export type UserCreateWithoutCreatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
   referredBy?: Prisma.UserCreateNestedOneWithoutReferredUsersInput
@@ -17290,6 +18366,9 @@ export type UserUncheckedCreateWithoutCreatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -17341,6 +18420,7 @@ export type UserUncheckedCreateWithoutCreatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
   referredUsers?: Prisma.UserUncheckedCreateNestedManyWithoutReferredByInput
@@ -17390,6 +18470,9 @@ export type UserCreateWithoutUpdatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -17440,6 +18523,7 @@ export type UserCreateWithoutUpdatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   referredBy?: Prisma.UserCreateNestedOneWithoutReferredUsersInput
@@ -17485,6 +18569,9 @@ export type UserUncheckedCreateWithoutUpdatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -17536,6 +18623,7 @@ export type UserUncheckedCreateWithoutUpdatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   referredUsers?: Prisma.UserUncheckedCreateNestedManyWithoutReferredByInput
@@ -17596,6 +18684,9 @@ export type UserUpdateWithoutAdminPermissionInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -17646,6 +18737,7 @@ export type UserUpdateWithoutAdminPermissionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
   referredBy?: Prisma.UserUpdateOneWithoutReferredUsersNestedInput
@@ -17691,6 +18783,9 @@ export type UserUncheckedUpdateWithoutAdminPermissionInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -17742,6 +18837,7 @@ export type UserUncheckedUpdateWithoutAdminPermissionInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
   referredUsers?: Prisma.UserUncheckedUpdateManyWithoutReferredByNestedInput
@@ -17797,6 +18893,9 @@ export type UserUpdateWithoutCreatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -17847,6 +18946,7 @@ export type UserUpdateWithoutCreatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
   referredBy?: Prisma.UserUpdateOneWithoutReferredUsersNestedInput
@@ -17892,6 +18992,9 @@ export type UserUncheckedUpdateWithoutCreatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -17943,6 +19046,7 @@ export type UserUncheckedUpdateWithoutCreatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
   referredUsers?: Prisma.UserUncheckedUpdateManyWithoutReferredByNestedInput
@@ -17998,6 +19102,9 @@ export type UserUpdateWithoutUpdatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -18048,6 +19155,7 @@ export type UserUpdateWithoutUpdatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   referredBy?: Prisma.UserUpdateOneWithoutReferredUsersNestedInput
@@ -18093,6 +19201,9 @@ export type UserUncheckedUpdateWithoutUpdatedAdminPermissionsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -18144,6 +19255,7 @@ export type UserUncheckedUpdateWithoutUpdatedAdminPermissionsInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   referredUsers?: Prisma.UserUncheckedUpdateManyWithoutReferredByNestedInput
@@ -18188,6 +19300,9 @@ export type UserCreateWithoutVerificationTasksAssignedInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -18237,6 +19352,7 @@ export type UserCreateWithoutVerificationTasksAssignedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -18283,6 +19399,9 @@ export type UserUncheckedCreateWithoutVerificationTasksAssignedInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -18333,6 +19452,7 @@ export type UserUncheckedCreateWithoutVerificationTasksAssignedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -18383,6 +19503,9 @@ export type UserCreateWithoutVerificationTasksCreatedInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -18432,6 +19555,7 @@ export type UserCreateWithoutVerificationTasksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -18478,6 +19602,9 @@ export type UserUncheckedCreateWithoutVerificationTasksCreatedInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -18528,6 +19655,7 @@ export type UserUncheckedCreateWithoutVerificationTasksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -18589,6 +19717,9 @@ export type UserUpdateWithoutVerificationTasksAssignedInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -18638,6 +19769,7 @@ export type UserUpdateWithoutVerificationTasksAssignedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -18684,6 +19816,9 @@ export type UserUncheckedUpdateWithoutVerificationTasksAssignedInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -18734,6 +19869,7 @@ export type UserUncheckedUpdateWithoutVerificationTasksAssignedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -18790,6 +19926,9 @@ export type UserUpdateWithoutVerificationTasksCreatedInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -18839,6 +19978,7 @@ export type UserUpdateWithoutVerificationTasksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -18885,6 +20025,9 @@ export type UserUncheckedUpdateWithoutVerificationTasksCreatedInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -18935,6 +20078,7 @@ export type UserUncheckedUpdateWithoutVerificationTasksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -18980,6 +20124,9 @@ export type UserCreateWithoutVerificationTaskPhotosInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -19029,6 +20176,7 @@ export type UserCreateWithoutVerificationTaskPhotosInput = {
   verificationLinksCreated?: Prisma.VerificationLinkCreateNestedManyWithoutCreatedByInput
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -19075,6 +20223,9 @@ export type UserUncheckedCreateWithoutVerificationTaskPhotosInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -19125,6 +20276,7 @@ export type UserUncheckedCreateWithoutVerificationTaskPhotosInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUncheckedCreateNestedManyWithoutCreatedByInput
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -19186,6 +20338,9 @@ export type UserUpdateWithoutVerificationTaskPhotosInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -19235,6 +20390,7 @@ export type UserUpdateWithoutVerificationTaskPhotosInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUpdateManyWithoutCreatedByNestedInput
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -19281,6 +20437,9 @@ export type UserUncheckedUpdateWithoutVerificationTaskPhotosInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -19331,6 +20490,7 @@ export type UserUncheckedUpdateWithoutVerificationTaskPhotosInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUncheckedUpdateManyWithoutCreatedByNestedInput
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -19376,6 +20536,9 @@ export type UserCreateWithoutVerificationLinksCreatedInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -19425,6 +20588,7 @@ export type UserCreateWithoutVerificationLinksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -19471,6 +20635,9 @@ export type UserUncheckedCreateWithoutVerificationLinksCreatedInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -19521,6 +20688,7 @@ export type UserUncheckedCreateWithoutVerificationLinksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedCreateNestedManyWithoutOfficerInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -19582,6 +20750,9 @@ export type UserUpdateWithoutVerificationLinksCreatedInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -19631,6 +20802,7 @@ export type UserUpdateWithoutVerificationLinksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -19677,6 +20849,9 @@ export type UserUncheckedUpdateWithoutVerificationLinksCreatedInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -19727,6 +20902,7 @@ export type UserUncheckedUpdateWithoutVerificationLinksCreatedInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -19772,6 +20948,9 @@ export type UserCreateWithoutVerificationActivityLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -19821,6 +21000,7 @@ export type UserCreateWithoutVerificationActivityLogsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkCreateNestedManyWithoutCreatedByInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionCreateNestedManyWithoutUpdatedByInput
@@ -19867,6 +21047,9 @@ export type UserUncheckedCreateWithoutVerificationActivityLogsInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -19917,6 +21100,7 @@ export type UserUncheckedCreateWithoutVerificationActivityLogsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUncheckedCreateNestedManyWithoutCreatedByInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedCreateNestedManyWithoutOfficerInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedCreateNestedManyWithoutIssuerInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedCreateNestedManyWithoutRecipientUserInput
   adminPermission?: Prisma.AdminPermissionUncheckedCreateNestedOneWithoutUserInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutCreatedByInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedCreateNestedManyWithoutUpdatedByInput
@@ -19978,6 +21162,9 @@ export type UserUpdateWithoutVerificationActivityLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -20027,6 +21214,7 @@ export type UserUpdateWithoutVerificationActivityLogsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUpdateManyWithoutCreatedByNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -20073,6 +21261,9 @@ export type UserUncheckedUpdateWithoutVerificationActivityLogsInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -20123,6 +21314,7 @@ export type UserUncheckedUpdateWithoutVerificationActivityLogsInput = {
   verificationLinksCreated?: Prisma.VerificationLinkUncheckedUpdateManyWithoutCreatedByNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -20168,6 +21360,9 @@ export type UserCreateManyReferredByInput = {
   withdrawalsFrozenUntil?: Date | string | null
   lastLoginIp?: string | null
   lastLoginDevice?: string | null
+  widersContactId?: string | null
+  whatsappOptIn?: boolean
+  widersSyncedAt?: Date | string | null
   adminNotes?: string | null
   suspendedUntil?: Date | string | null
   suspendReason?: string | null
@@ -20219,6 +21414,9 @@ export type UserUpdateWithoutReferredByInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -20269,6 +21467,7 @@ export type UserUpdateWithoutReferredByInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUpdateManyWithoutUpdatedByNestedInput
@@ -20314,6 +21513,9 @@ export type UserUncheckedUpdateWithoutReferredByInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -20364,6 +21566,7 @@ export type UserUncheckedUpdateWithoutReferredByInput = {
   verificationActivityLogs?: Prisma.VerificationActivityLogUncheckedUpdateManyWithoutOfficerNestedInput
   verificationTaskPhotos?: Prisma.VerificationTaskPhotoUncheckedUpdateManyWithoutOfficerNestedInput
   shippingWaybills?: Prisma.ShippingWaybillUncheckedUpdateManyWithoutIssuerNestedInput
+  whatsAppMessageLogs?: Prisma.WhatsAppMessageLogUncheckedUpdateManyWithoutRecipientUserNestedInput
   adminPermission?: Prisma.AdminPermissionUncheckedUpdateOneWithoutUserNestedInput
   createdAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutCreatedByNestedInput
   updatedAdminPermissions?: Prisma.AdminPermissionUncheckedUpdateManyWithoutUpdatedByNestedInput
@@ -20409,6 +21612,9 @@ export type UserUncheckedUpdateManyWithoutReferredByInput = {
   withdrawalsFrozenUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   lastLoginIp?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastLoginDevice?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  widersContactId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  whatsappOptIn?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  widersSyncedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   adminNotes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   suspendedUntil?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   suspendReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -20465,6 +21671,7 @@ export type UserCountOutputType = {
   verificationActivityLogs: number
   verificationTaskPhotos: number
   shippingWaybills: number
+  whatsAppMessageLogs: number
   createdAdminPermissions: number
   updatedAdminPermissions: number
   referredUsers: number
@@ -20509,6 +21716,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   verificationActivityLogs?: boolean | UserCountOutputTypeCountVerificationActivityLogsArgs
   verificationTaskPhotos?: boolean | UserCountOutputTypeCountVerificationTaskPhotosArgs
   shippingWaybills?: boolean | UserCountOutputTypeCountShippingWaybillsArgs
+  whatsAppMessageLogs?: boolean | UserCountOutputTypeCountWhatsAppMessageLogsArgs
   createdAdminPermissions?: boolean | UserCountOutputTypeCountCreatedAdminPermissionsArgs
   updatedAdminPermissions?: boolean | UserCountOutputTypeCountUpdatedAdminPermissionsArgs
   referredUsers?: boolean | UserCountOutputTypeCountReferredUsersArgs
@@ -20674,6 +21882,13 @@ export type UserCountOutputTypeCountVerificationTaskPhotosArgs<ExtArgs extends r
  */
 export type UserCountOutputTypeCountShippingWaybillsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.ShippingWaybillWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountWhatsAppMessageLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.WhatsAppMessageLogWhereInput
 }
 
 /**
@@ -20851,6 +22066,9 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   withdrawalsFrozenUntil?: boolean
   lastLoginIp?: boolean
   lastLoginDevice?: boolean
+  widersContactId?: boolean
+  whatsappOptIn?: boolean
+  widersSyncedAt?: boolean
   adminNotes?: boolean
   suspendedUntil?: boolean
   suspendReason?: boolean
@@ -20902,6 +22120,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   verificationActivityLogs?: boolean | Prisma.User$verificationActivityLogsArgs<ExtArgs>
   verificationTaskPhotos?: boolean | Prisma.User$verificationTaskPhotosArgs<ExtArgs>
   shippingWaybills?: boolean | Prisma.User$shippingWaybillsArgs<ExtArgs>
+  whatsAppMessageLogs?: boolean | Prisma.User$whatsAppMessageLogsArgs<ExtArgs>
   adminPermission?: boolean | Prisma.User$adminPermissionArgs<ExtArgs>
   createdAdminPermissions?: boolean | Prisma.User$createdAdminPermissionsArgs<ExtArgs>
   updatedAdminPermissions?: boolean | Prisma.User$updatedAdminPermissionsArgs<ExtArgs>
@@ -20949,6 +22168,9 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   withdrawalsFrozenUntil?: boolean
   lastLoginIp?: boolean
   lastLoginDevice?: boolean
+  widersContactId?: boolean
+  whatsappOptIn?: boolean
+  widersSyncedAt?: boolean
   adminNotes?: boolean
   suspendedUntil?: boolean
   suspendReason?: boolean
@@ -21002,6 +22224,9 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   withdrawalsFrozenUntil?: boolean
   lastLoginIp?: boolean
   lastLoginDevice?: boolean
+  widersContactId?: boolean
+  whatsappOptIn?: boolean
+  widersSyncedAt?: boolean
   adminNotes?: boolean
   suspendedUntil?: boolean
   suspendReason?: boolean
@@ -21055,6 +22280,9 @@ export type UserSelectScalar = {
   withdrawalsFrozenUntil?: boolean
   lastLoginIp?: boolean
   lastLoginDevice?: boolean
+  widersContactId?: boolean
+  whatsappOptIn?: boolean
+  widersSyncedAt?: boolean
   adminNotes?: boolean
   suspendedUntil?: boolean
   suspendReason?: boolean
@@ -21087,7 +22315,7 @@ export type UserSelectScalar = {
   restrictionAlertMessage?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "phone" | "passwordHash" | "countryCode" | "country" | "role" | "status" | "name" | "emailVerifiedAt" | "otpCode" | "otpExpiresAt" | "createdAt" | "updatedAt" | "avatar" | "recoveryStatus" | "withdrawalsFrozenUntil" | "lastLoginIp" | "lastLoginDevice" | "adminNotes" | "suspendedUntil" | "suspendReason" | "bankName" | "bankAccountHolder" | "bankIban" | "bankSwift" | "bankDetailsVerified" | "stripeAccountId" | "stripeOnboarded" | "stripeCustomerId" | "customerBalance" | "loyaltyTier" | "pointsLastResetAt" | "totalSpent" | "loyaltyPoints" | "referralCount" | "referralCode" | "referredById" | "referralStartsAt" | "violationScore" | "totalDeliveredOrders" | "totalReturnDisputeOrders" | "cachedReturnRate" | "withdrawalsFrozen" | "withdrawalFreezeNote" | "withdrawalFreezeSignature" | "orderLimit" | "dailyOrderCount" | "restrictionAlertMessage", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "phone" | "passwordHash" | "countryCode" | "country" | "role" | "status" | "name" | "emailVerifiedAt" | "otpCode" | "otpExpiresAt" | "createdAt" | "updatedAt" | "avatar" | "recoveryStatus" | "withdrawalsFrozenUntil" | "lastLoginIp" | "lastLoginDevice" | "widersContactId" | "whatsappOptIn" | "widersSyncedAt" | "adminNotes" | "suspendedUntil" | "suspendReason" | "bankName" | "bankAccountHolder" | "bankIban" | "bankSwift" | "bankDetailsVerified" | "stripeAccountId" | "stripeOnboarded" | "stripeCustomerId" | "customerBalance" | "loyaltyTier" | "pointsLastResetAt" | "totalSpent" | "loyaltyPoints" | "referralCount" | "referralCode" | "referredById" | "referralStartsAt" | "violationScore" | "totalDeliveredOrders" | "totalReturnDisputeOrders" | "cachedReturnRate" | "withdrawalsFrozen" | "withdrawalFreezeNote" | "withdrawalFreezeSignature" | "orderLimit" | "dailyOrderCount" | "restrictionAlertMessage", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   store?: boolean | Prisma.User$storeArgs<ExtArgs>
   orders?: boolean | Prisma.User$ordersArgs<ExtArgs>
@@ -21110,6 +22338,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   verificationActivityLogs?: boolean | Prisma.User$verificationActivityLogsArgs<ExtArgs>
   verificationTaskPhotos?: boolean | Prisma.User$verificationTaskPhotosArgs<ExtArgs>
   shippingWaybills?: boolean | Prisma.User$shippingWaybillsArgs<ExtArgs>
+  whatsAppMessageLogs?: boolean | Prisma.User$whatsAppMessageLogsArgs<ExtArgs>
   adminPermission?: boolean | Prisma.User$adminPermissionArgs<ExtArgs>
   createdAdminPermissions?: boolean | Prisma.User$createdAdminPermissionsArgs<ExtArgs>
   updatedAdminPermissions?: boolean | Prisma.User$updatedAdminPermissionsArgs<ExtArgs>
@@ -21167,6 +22396,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     verificationActivityLogs: Prisma.$VerificationActivityLogPayload<ExtArgs>[]
     verificationTaskPhotos: Prisma.$VerificationTaskPhotoPayload<ExtArgs>[]
     shippingWaybills: Prisma.$ShippingWaybillPayload<ExtArgs>[]
+    whatsAppMessageLogs: Prisma.$WhatsAppMessageLogPayload<ExtArgs>[]
     adminPermission: Prisma.$AdminPermissionPayload<ExtArgs> | null
     createdAdminPermissions: Prisma.$AdminPermissionPayload<ExtArgs>[]
     updatedAdminPermissions: Prisma.$AdminPermissionPayload<ExtArgs>[]
@@ -21212,6 +22442,9 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     withdrawalsFrozenUntil: Date | null
     lastLoginIp: string | null
     lastLoginDevice: string | null
+    widersContactId: string | null
+    whatsappOptIn: boolean
+    widersSyncedAt: Date | null
     adminNotes: string | null
     suspendedUntil: Date | null
     suspendReason: string | null
@@ -21657,6 +22890,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   verificationActivityLogs<T extends Prisma.User$verificationActivityLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$verificationActivityLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VerificationActivityLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   verificationTaskPhotos<T extends Prisma.User$verificationTaskPhotosArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$verificationTaskPhotosArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VerificationTaskPhotoPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   shippingWaybills<T extends Prisma.User$shippingWaybillsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$shippingWaybillsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ShippingWaybillPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  whatsAppMessageLogs<T extends Prisma.User$whatsAppMessageLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$whatsAppMessageLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$WhatsAppMessageLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   adminPermission<T extends Prisma.User$adminPermissionArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$adminPermissionArgs<ExtArgs>>): Prisma.Prisma__AdminPermissionClient<runtime.Types.Result.GetResult<Prisma.$AdminPermissionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   createdAdminPermissions<T extends Prisma.User$createdAdminPermissionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$createdAdminPermissionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminPermissionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   updatedAdminPermissions<T extends Prisma.User$updatedAdminPermissionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$updatedAdminPermissionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AdminPermissionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -21729,6 +22963,9 @@ export interface UserFieldRefs {
   readonly withdrawalsFrozenUntil: Prisma.FieldRef<"User", 'DateTime'>
   readonly lastLoginIp: Prisma.FieldRef<"User", 'String'>
   readonly lastLoginDevice: Prisma.FieldRef<"User", 'String'>
+  readonly widersContactId: Prisma.FieldRef<"User", 'String'>
+  readonly whatsappOptIn: Prisma.FieldRef<"User", 'Boolean'>
+  readonly widersSyncedAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly adminNotes: Prisma.FieldRef<"User", 'String'>
   readonly suspendedUntil: Prisma.FieldRef<"User", 'DateTime'>
   readonly suspendReason: Prisma.FieldRef<"User", 'String'>
@@ -22651,6 +23888,30 @@ export type User$shippingWaybillsArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   distinct?: Prisma.ShippingWaybillScalarFieldEnum | Prisma.ShippingWaybillScalarFieldEnum[]
+}
+
+/**
+ * User.whatsAppMessageLogs
+ */
+export type User$whatsAppMessageLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the WhatsAppMessageLog
+   */
+  select?: Prisma.WhatsAppMessageLogSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the WhatsAppMessageLog
+   */
+  omit?: Prisma.WhatsAppMessageLogOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.WhatsAppMessageLogInclude<ExtArgs> | null
+  where?: Prisma.WhatsAppMessageLogWhereInput
+  orderBy?: Prisma.WhatsAppMessageLogOrderByWithRelationInput | Prisma.WhatsAppMessageLogOrderByWithRelationInput[]
+  cursor?: Prisma.WhatsAppMessageLogWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.WhatsAppMessageLogScalarFieldEnum | Prisma.WhatsAppMessageLogScalarFieldEnum[]
 }
 
 /**

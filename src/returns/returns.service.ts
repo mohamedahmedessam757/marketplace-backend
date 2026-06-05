@@ -12,6 +12,8 @@ import {
     computeAdjudicationFinancials,
     AdjudicationFinancialResult,
 } from './adjudication-financial.util';
+import { OfferFulfillmentService } from '../orders/offer-fulfillment.service';
+import { OfferFulfillmentStatus } from '@prisma/client';
 
 @Injectable()
 export class ReturnsService {
@@ -23,7 +25,98 @@ export class ReturnsService {
         private usersService: UsersService,
         private escrowService: EscrowService,
         private violationsService: ViolationsService,
+        private offerFulfillment: OfferFulfillmentService,
     ) { }
+
+    private isMultiItemOrder(order: { requestType?: string | null; parts?: { id: string }[] }) {
+        return this.offerFulfillment.isMultiItemOrder(order);
+    }
+
+    private async resolveAcceptedOfferForCase(
+        orderId: string,
+        orderPartId: string | undefined,
+        tx?: Prisma.TransactionClient,
+    ) {
+        const db = tx || this.prisma;
+        if (!orderPartId) {
+            return db.offer.findFirst({
+                where: { orderId, status: 'accepted' },
+                include: { orderPart: true, payments: { where: { status: 'SUCCESS' } } },
+            });
+        }
+        return db.offer.findFirst({
+            where: { orderId, orderPartId, status: 'accepted' },
+            include: { orderPart: true, payments: { where: { status: 'SUCCESS' } } },
+        });
+    }
+
+    private async validateReturnDisputeEligibility(
+        order: { id: string; customerId: string; requestType?: string | null; parts: { id: string }[]; status: string; deliveredAt?: Date | null; updatedAt: Date },
+        orderPartId: string | undefined,
+        mode: 'return' | 'dispute',
+    ) {
+        const isMulti = this.isMultiItemOrder(order);
+
+        if (isMulti && !orderPartId) {
+            throw new BadRequestException(
+                'orderPartId is required for multi-item orders. Select the specific part.',
+            );
+        }
+
+        if (orderPartId) {
+            const partExists = order.parts.some((p) => p.id === orderPartId);
+            if (!partExists) throw new BadRequestException('Invalid Order Part ID');
+        }
+
+        const acceptedOffer = await this.resolveAcceptedOfferForCase(order.id, orderPartId);
+        if (!acceptedOffer) {
+            throw new BadRequestException('No accepted offer found for the selected part');
+        }
+
+        if (isMulti) {
+            this.offerFulfillment.assertOfferReturnWindow(acceptedOffer);
+        } else if (order.status === 'DELIVERED') {
+            const deliveryMoment = order.deliveredAt ?? order.updatedAt;
+            const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
+            if (deliveryMoment < new Date(Date.now() - windowMs)) {
+                throw new BadRequestException(
+                    `${mode === 'return' ? 'Return' : 'Dispute'} window (${POST_DELIVERY_RETURN_DISPUTE_HOURS} hours) has expired for this order`,
+                );
+            }
+        } else if (mode === 'dispute') {
+            if (['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status)) {
+                throw new BadRequestException('Cannot dispute a closed order');
+            }
+        } else if (!['SHIPPED', 'DELIVERED', 'PARTIALLY_DELIVERED'].includes(order.status)) {
+            throw new BadRequestException('Order must be delivered or shipped to request a return');
+        }
+
+        return acceptedOffer;
+    }
+
+    private async freezeEscrowForCase(
+        order: { id: string; requestType?: string | null; parts?: { id: string }[] },
+        acceptedOffer: { id: string; payments?: { id: string; status: string }[] },
+        reason: string,
+    ): Promise<void> {
+        const payment =
+            acceptedOffer.payments?.find((p) => p.status === 'SUCCESS') ??
+            (await this.prisma.paymentTransaction.findFirst({
+                where: { offerId: acceptedOffer.id, status: 'SUCCESS' },
+            }));
+
+        if (!payment) {
+            throw new BadRequestException(
+                'No successful payment found for this item — cannot open case safely.',
+            );
+        }
+
+        if (this.isMultiItemOrder(order)) {
+            await this.escrowService.freezeFundsForPayment(payment.id, reason);
+        } else {
+            await this.escrowService.freezeFundsForPayment(payment.id, reason);
+        }
+    }
 
     // --- Case Messaging (Phase 4) ---
 
@@ -49,14 +142,21 @@ export class ReturnsService {
         const model = caseType === 'return' ? this.prisma.returnRequest : this.prisma.dispute;
         const record = await (model as any).findUnique({
             where: { id: caseId },
-            include: { order: { include: { acceptedOffer: { include: { store: true } } } } }
+            include: {
+                order: true,
+                offer: { include: { store: true } },
+                store: true,
+            },
         });
 
         if (!record) return;
 
+        const store = await this.resolveCaseStore(record);
+        const merchantOwnerId = store?.ownerId;
+
         const parties = [
             { id: record.customerId, role: 'CUSTOMER' },
-            { id: record.order.acceptedOffer?.store.ownerId, role: 'MERCHANT' }
+            { id: merchantOwnerId, role: 'MERCHANT' },
         ];
 
         // Notify Admins if sender is not Admin
@@ -117,15 +217,29 @@ export class ReturnsService {
         }
     }
     async getCaseMessages(userId: string, userRole: string, caseId: string) {
-        // SEC-2: Verify the caller is a party to this case or an admin
         if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN' && userRole !== 'SUPPORT') {
-            const isParty = await this.prisma.caseMessage.findFirst({
-                where: { caseId, senderId: userId }
+            const returnCase = await this.prisma.returnRequest.findFirst({
+                where: { id: caseId },
+                include: { store: true, offer: { include: { store: true } } },
             });
-            // Also check if user is customer or merchant of the case
-            const returnCase = await this.prisma.returnRequest.findFirst({ where: { id: caseId, customerId: userId } });
-            const disputeCase = await this.prisma.dispute.findFirst({ where: { id: caseId, customerId: userId } });
-            if (!isParty && !returnCase && !disputeCase) {
+            const disputeCase = returnCase
+                ? null
+                : await this.prisma.dispute.findFirst({
+                      where: { id: caseId },
+                      include: { store: true, offer: { include: { store: true } } },
+                  });
+            const caseRecord = returnCase || disputeCase;
+
+            const isCustomer = caseRecord?.customerId === userId;
+            const storeOwnerId =
+                caseRecord?.store?.ownerId ||
+                (caseRecord as any)?.offer?.store?.ownerId;
+            const isMerchant = storeOwnerId === userId;
+            const isPriorMessenger = await this.prisma.caseMessage.findFirst({
+                where: { caseId, senderId: userId },
+            });
+
+            if (!isCustomer && !isMerchant && !isPriorMessenger) {
                 throw new ForbiddenException('Access denied - You are not a party to this case');
             }
         }
@@ -182,22 +296,11 @@ export class ReturnsService {
             throw new ForbiddenException('You do not own this order');
         }
 
-        if (order.status === 'DELIVERED') {
-            const deliveryMoment = order.deliveredAt ?? order.updatedAt;
-            const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
-            if (deliveryMoment < new Date(Date.now() - windowMs)) {
-                throw new BadRequestException(
-                    `Return window (${POST_DELIVERY_RETURN_DISPUTE_HOURS} hours) has expired for this order`,
-                );
-            }
-        } else if (!['SHIPPED', 'DELIVERED'].includes(order.status)) {
-            throw new BadRequestException('Order must be delivered or shipped to request a return');
-        }
-
-        if (orderPartId) {
-            const partExists = order.parts.some(p => p.id === orderPartId);
-            if (!partExists) throw new BadRequestException('Invalid Order Part ID');
-        }
+        const acceptedOfferPreview = await this.validateReturnDisputeEligibility(
+            order,
+            orderPartId,
+            'return',
+        );
 
         // Prevent Duplicate Returns for the same part/order
         const existingReturn = await this.prisma.returnRequest.findFirst({
@@ -218,11 +321,31 @@ export class ReturnsService {
         );
         const evidenceUrls = await Promise.all(uploadPromises);
 
+        // Freeze escrow BEFORE creating case — fail fast if funds cannot be secured
+        await this.freezeEscrowForCase(
+            order,
+            {
+                id: acceptedOfferPreview.id,
+                payments: acceptedOfferPreview.payments,
+            },
+            'Return request opened — escrow frozen pending review',
+        );
+
         // 3. Create Return Record (Transaction)
         const result = await this.prisma.$transaction(async (tx) => {
-            // Find relevant Store, Invoice, and Shipment for linkage
-            const invoice = await tx.invoice.findFirst({ where: { orderId: orderId } });
-            const shipment = await tx.shipment.findFirst({ where: { orderId: orderId } });
+            const acceptedOffer = await this.resolveAcceptedOfferForCase(orderId, orderPartId, tx);
+            const offerPayment = acceptedOffer?.payments?.[0]
+                ?? (acceptedOffer
+                    ? await tx.paymentTransaction.findFirst({
+                          where: { offerId: acceptedOffer.id, status: 'SUCCESS' },
+                      })
+                    : null);
+            const invoice = offerPayment
+                ? await tx.invoice.findFirst({ where: { paymentId: offerPayment.id } })
+                : await tx.invoice.findFirst({ where: { orderId: orderId } });
+            const shipment = acceptedOffer?.cartShipmentId
+                ? await tx.shipment.findFirst({ where: { id: acceptedOffer.cartShipmentId } })
+                : await tx.shipment.findFirst({ where: { orderId: orderId } });
 
             // Determine if this is a Warranty Return (Exchange Only) Ref: Spec §5
             let returnType = 'REFUND';
@@ -244,7 +367,7 @@ export class ReturnsService {
             }
 
             // Resolve relevant Offer & Store
-            const acceptedOffer = await tx.offer.findFirst({
+            const acceptedOfferResolved = acceptedOffer ?? await tx.offer.findFirst({
                 where: {
                     orderId: orderId,
                     ...(orderPartId ? { orderPartId: orderPartId } : {}),
@@ -260,8 +383,8 @@ export class ReturnsService {
                 data: {
                     orderId: orderId,
                     orderPartId: orderPartId || null,
-                    offerId: acceptedOffer?.id || order.acceptedOffer?.id || null,
-                    storeId: acceptedOffer?.storeId || order.acceptedOffer?.storeId || null,
+                    offerId: acceptedOfferResolved?.id || order.acceptedOffer?.id || null,
+                    storeId: acceptedOfferResolved?.storeId || order.acceptedOffer?.storeId || null,
                     invoiceId: invoice?.id || null,
                     shipmentId: shipment?.id || null,
                     customerId: userId,
@@ -275,20 +398,27 @@ export class ReturnsService {
                 }
             });
 
-            // Update Order Status
-            await tx.order.update({
-                where: { id: orderId },
-                data: { status: shouldAutoApprove ? 'RETURN_APPROVED' : 'RETURN_REQUESTED' }
-            });
+            const isMulti = this.isMultiItemOrder(order);
+            if (!isMulti) {
+                await tx.order.update({
+                    where: { id: orderId },
+                    data: { status: shouldAutoApprove ? 'RETURN_APPROVED' : 'RETURN_REQUESTED' }
+                });
+            } else if (acceptedOfferResolved?.id) {
+                await tx.offer.update({
+                    where: { id: acceptedOfferResolved.id },
+                    data: { resolutionLocked: true },
+                });
+            }
 
             // --- 2026 Risk Management: Update Customer Return Stats ---
-            const wasDelivered = ['DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE'].includes(order.status);
+            const wasDelivered = ['DELIVERED', 'PARTIALLY_DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE'].includes(order.status);
             if (wasDelivered) {
                 await this.usersService.updateCustomerReturnStats(userId, true, tx);
             }
             // -----------------------------------------------------------
 
-            return { returnRecord, shouldAutoApprove, acceptedOffer, handoverDeadline };
+            return { returnRecord, shouldAutoApprove, acceptedOffer: acceptedOfferResolved, handoverDeadline };
         });
 
         const { returnRecord, shouldAutoApprove, acceptedOffer, handoverDeadline } = result;
@@ -327,13 +457,71 @@ export class ReturnsService {
             },
         }).catch((e) => console.error('[ReturnsService] Audit log failed (return)', e));
 
-        void this.escrowService
-            .freezeFunds(orderId, 'Return request opened — escrow frozen pending review')
-            .catch((e) =>
-                console.warn(`[ReturnsService] Escrow freeze skipped for order ${orderId}:`, e?.message),
-            );
-
         return returnRecord;
+    }
+
+    async cancelReturn(customerId: string, returnId: string) {
+        const returnRequest = await this.prisma.returnRequest.findUnique({
+            where: { id: returnId },
+            include: { order: { include: { parts: true } } },
+        });
+
+        if (!returnRequest) throw new NotFoundException('Return request not found');
+        if (returnRequest.customerId !== customerId) {
+            throw new ForbiddenException('You do not own this return request');
+        }
+        if (returnRequest.status !== 'PENDING') {
+            throw new BadRequestException('Only pending return requests can be cancelled');
+        }
+
+        const payment = returnRequest.offerId
+            ? await this.prisma.paymentTransaction.findFirst({
+                  where: { offerId: returnRequest.offerId, status: 'SUCCESS' },
+              })
+            : await this.prisma.paymentTransaction.findFirst({
+                  where: { orderId: returnRequest.orderId, status: 'SUCCESS' },
+              });
+
+        await this.prisma.$transaction(async (tx) => {
+            await tx.returnRequest.update({
+                where: { id: returnId },
+                data: { status: 'CANCELLED' },
+            });
+
+            const isMulti = this.isMultiItemOrder(returnRequest.order);
+            if (isMulti && returnRequest.offerId) {
+                await tx.offer.update({
+                    where: { id: returnRequest.offerId },
+                    data: { resolutionLocked: false },
+                });
+            } else if (!isMulti) {
+                await tx.order.update({
+                    where: { id: returnRequest.orderId },
+                    data: { status: 'DELIVERED' },
+                });
+            }
+        });
+
+        if (payment) {
+            await this.escrowService.unfreezeFundsForPayment(
+                payment.id,
+                'Return cancelled by customer',
+            );
+        }
+
+        if (this.isMultiItemOrder(returnRequest.order)) {
+            await this.offerFulfillment.recomputeOrderStatus(returnRequest.orderId);
+        }
+
+        void this.auditLogs.logAction({
+            entity: 'RETURN_REQUEST',
+            action: 'RETURN_CANCELLED',
+            actorType: 'CUSTOMER',
+            actorId: customerId,
+            metadata: { returnId, orderId: returnRequest.orderId },
+        });
+
+        return { success: true, returnId };
     }
 
     async escalateDispute(userId: string, orderId: string, orderPartId: string | undefined, reason: string, description: string, usageCondition: string | undefined, files: Express.Multer.File[]) {
@@ -354,22 +542,11 @@ export class ReturnsService {
             throw new ForbiddenException('You do not own this order');
         }
 
-        if (order.status === 'DELIVERED') {
-            const deliveryMoment = order.deliveredAt ?? order.updatedAt;
-            const windowMs = POST_DELIVERY_RETURN_DISPUTE_HOURS * 60 * 60 * 1000;
-            if (deliveryMoment < new Date(Date.now() - windowMs)) {
-                throw new BadRequestException(
-                    `Dispute window (${POST_DELIVERY_RETURN_DISPUTE_HOURS} hours) has expired for this order`,
-                );
-            }
-        } else if (['COMPLETED', 'CANCELLED', 'REFUNDED'].includes(order.status)) {
-            throw new BadRequestException('Cannot dispute a closed order');
-        }
-
-        if (orderPartId) {
-            const partExists = order.parts.some(p => p.id === orderPartId);
-            if (!partExists) throw new BadRequestException('Invalid Order Part ID');
-        }
+        const acceptedOfferPreview = await this.validateReturnDisputeEligibility(
+            order,
+            orderPartId,
+            'dispute',
+        );
 
         // Prevent Duplicate Disputes for the same part/order
         const existingDispute = await this.prisma.dispute.findFirst({
@@ -390,19 +567,27 @@ export class ReturnsService {
         );
         const evidenceUrls = await Promise.all(uploadPromises);
 
+        await this.freezeEscrowForCase(
+            order,
+            { id: acceptedOfferPreview.id, payments: acceptedOfferPreview.payments },
+            'Dispute opened — escrow frozen pending review',
+        );
+
         // 3. Create Dispute Record (Transaction)
         const result = await this.prisma.$transaction(async (tx) => {
-            const invoice = await tx.invoice.findFirst({ where: { orderId: orderId } });
-            const shipment = await tx.shipment.findFirst({ where: { orderId: orderId } });
-
-            // Resolve relevant Offer & Store
-            const acceptedOffer = await tx.offer.findFirst({
-                where: {
-                    orderId: orderId,
-                    ...(orderPartId ? { orderPartId: orderPartId } : {}),
-                    status: 'accepted'
-                }
-            });
+            const acceptedOffer = await this.resolveAcceptedOfferForCase(orderId, orderPartId, tx);
+            const offerPayment = acceptedOffer?.payments?.[0]
+                ?? (acceptedOffer
+                    ? await tx.paymentTransaction.findFirst({
+                          where: { offerId: acceptedOffer.id, status: 'SUCCESS' },
+                      })
+                    : null);
+            const invoice = offerPayment
+                ? await tx.invoice.findFirst({ where: { paymentId: offerPayment.id } })
+                : await tx.invoice.findFirst({ where: { orderId: orderId } });
+            const shipment = acceptedOffer?.cartShipmentId
+                ? await tx.shipment.findFirst({ where: { id: acceptedOffer.cartShipmentId } })
+                : await tx.shipment.findFirst({ where: { orderId: orderId } });
 
             // Create Dispute
             const disputeRecord = await tx.dispute.create({
@@ -422,14 +607,21 @@ export class ReturnsService {
                 }
             });
 
-            // Update Order Status
-            await tx.order.update({
-                where: { id: orderId },
-                data: { status: 'DISPUTED' }
-            });
+            const isMulti = this.isMultiItemOrder(order);
+            if (!isMulti) {
+                await tx.order.update({
+                    where: { id: orderId },
+                    data: { status: 'DISPUTED' }
+                });
+            } else if (acceptedOffer?.id) {
+                await tx.offer.update({
+                    where: { id: acceptedOffer.id },
+                    data: { resolutionLocked: true },
+                });
+            }
 
             // --- 2026 Risk Management: Update Customer Return Stats ---
-            const wasDelivered = ['DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE'].includes(order.status);
+            const wasDelivered = ['DELIVERED', 'PARTIALLY_DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE'].includes(order.status);
             if (wasDelivered) {
                 await this.usersService.updateCustomerReturnStats(userId, true, tx);
             }
@@ -440,8 +632,11 @@ export class ReturnsService {
 
         this.notifyResolutionCenter(orderId, result.id, 'DISPUTE', order.orderNumber, userId).catch(e => console.error('Failed to notify dispute', e));
 
-        if (order.acceptedOffer?.storeId) {
-            this.checkMerchantRiskAlert(order.acceptedOffer.storeId).catch(console.error);
+        const disputeStoreId =
+            result.storeId ??
+            (await this.resolveCaseStore({ ...result, order }))?.id;
+        if (disputeStoreId) {
+            this.checkMerchantRiskAlert(disputeStoreId).catch(console.error);
         }
 
         void this.auditLogs.logAction({
@@ -455,12 +650,6 @@ export class ReturnsService {
                 reason,
             },
         }).catch((e) => console.error('[ReturnsService] Audit log failed (dispute)', e));
-
-        void this.escrowService
-            .freezeFunds(orderId, 'Dispute opened — escrow frozen pending review')
-            .catch((e) =>
-                console.warn(`[ReturnsService] Escrow freeze skipped for order ${orderId}:`, e?.message),
-            );
 
         return result;
     }
@@ -1056,7 +1245,7 @@ export class ReturnsService {
             storeId?: string | null;
             offerId?: string | null;
             offer?: { store?: unknown } | null;
-            order?: { acceptedOffer?: { store?: unknown } | null } | null;
+            order?: unknown;
         },
         tx?: Prisma.TransactionClient,
     ) {
@@ -1067,7 +1256,8 @@ export class ReturnsService {
             if (byId) return byId;
         }
         if ((caseRecord.offer as any)?.store) return (caseRecord.offer as any).store;
-        if (caseRecord.order?.acceptedOffer?.store) return caseRecord.order.acceptedOffer.store as any;
+        const orderAny = caseRecord.order as { acceptedOffer?: { store?: unknown } | null } | null | undefined;
+        if (orderAny?.acceptedOffer?.store) return orderAny.acceptedOffer.store as any;
         if (caseRecord.offerId) {
             const offer = await db.offer.findUnique({
                 where: { id: caseRecord.offerId },
@@ -1082,6 +1272,7 @@ export class ReturnsService {
     private async computeAdjudicationStripeRefund(
         caseRecord: {
             orderId: string;
+            offerId?: string | null;
             order?: { invoices?: { total?: unknown }[]; price?: unknown; totalAmount?: unknown } | null;
         },
         extra: Record<string, unknown>,
@@ -1093,7 +1284,10 @@ export class ReturnsService {
         }
     > {
         const orderAmount = await this.resolveAdjudicationOrderAmount(caseRecord.orderId, caseRecord);
-        const maxRefundable = await this.escrowService.resolveMaxRefundableAmount(caseRecord.orderId);
+        const maxRefundable = await this.resolveAdjudicationMaxRefundable(
+            caseRecord.orderId,
+            caseRecord,
+        );
 
         const fin = computeAdjudicationFinancials({
             orderPaidTotal: orderAmount,
@@ -1117,17 +1311,37 @@ export class ReturnsService {
         };
     }
 
-    /** Paid capture amount for adjudication (Stripe/payment row), not catalog order price. */
+    /** Paid capture amount for adjudication — offer-scoped when case has offerId. */
     private async resolveAdjudicationOrderAmount(
         orderId: string,
-        caseRecord: { order?: { invoices?: { total?: unknown }[]; price?: unknown; totalAmount?: unknown } | null },
+        caseRecord: {
+            offerId?: string | null;
+            order?: { invoices?: { total?: unknown }[]; price?: unknown; totalAmount?: unknown } | null;
+        },
     ): Promise<number> {
+        if (caseRecord.offerId) {
+            const offerBase = await this.escrowService.resolveOfferPaymentBase(caseRecord.offerId);
+            if (offerBase.paidTotal > 0) return offerBase.paidTotal;
+        }
         const base = await this.escrowService.resolveOrderPaymentBase(orderId);
         if (base.paidTotal > 0) return base.paidTotal;
         const mainInvoice = caseRecord.order?.invoices?.[0];
         return Number(
             mainInvoice?.total ?? caseRecord.order?.price ?? caseRecord.order?.totalAmount ?? 0,
         );
+    }
+
+    private async resolveAdjudicationMaxRefundable(
+        orderId: string,
+        caseRecord: { offerId?: string | null },
+    ): Promise<number> {
+        if (caseRecord.offerId) {
+            const offerBase = await this.escrowService.resolveOfferPaymentBase(caseRecord.offerId);
+            if (offerBase.paymentId) {
+                return this.escrowService.resolveMaxRefundableAmountForPayment(offerBase.paymentId);
+            }
+        }
+        return this.escrowService.resolveMaxRefundableAmount(orderId);
     }
 
     async issueVerdict(adminId: string, caseId: string, type: 'return' | 'dispute', verdict: 'REFUND' | 'RELEASE_FUNDS' | 'DENY', notes: string, extra?: any) {
@@ -1169,7 +1383,10 @@ export class ReturnsService {
 
         if (verdict === 'REFUND') {
             const orderAmount = await this.resolveAdjudicationOrderAmount(caseRecord.orderId, caseRecord);
-            const maxRefundablePre = await this.escrowService.resolveMaxRefundableAmount(caseRecord.orderId);
+            const maxRefundablePre = await this.resolveAdjudicationMaxRefundable(
+                caseRecord.orderId,
+                caseRecord,
+            );
             const preFin = computeAdjudicationFinancials({
                 orderPaidTotal: orderAmount,
                 gatewayFeePct: Number(extra?.gatewayFeePct ?? 3),
@@ -1225,6 +1442,9 @@ export class ReturnsService {
                 const refundReason = isCloseCompleteRefund
                     ? notes || 'إغلاق الطلب كمنتهٍ مع استرداد صافي المبلغ للعميل'
                     : notes || 'Administrative Refund';
+                const offerPaymentBase = caseRecord.offerId
+                    ? await this.escrowService.resolveOfferPaymentBase(caseRecord.offerId)
+                    : null;
                 stripeRefundCtx = await this.escrowService.executeStripeRefundOnly(
                     caseRecord.orderId,
                     refundFinancials.customerStripeRefund,
@@ -1236,6 +1456,7 @@ export class ReturnsService {
                           : isMerchantFault
                             ? 'MERCHANT'
                             : 'CUSTOMER',
+                    offerPaymentBase?.paymentId ?? undefined,
                 );
             }
         }
@@ -1462,21 +1683,40 @@ export class ReturnsService {
                     }
                 }
 
-                // RELEASE_FUNDS / DENY: Move funds to merchant balance (Spec §17.2)
+                // RELEASE_FUNDS / DENY: Move funds to merchant balance (per-offer escrow)
                 if (verdict === 'RELEASE_FUNDS' || verdict === 'DENY') {
-                    const escrow = await tx.escrowTransaction.findFirst({
-                        where: { orderId: caseRecord.orderId, status: 'HELD' }
-                    });
+                    let paymentId: string | null = null;
+                    if (caseRecord.offerId) {
+                        const offerBase = await this.escrowService.resolveOfferPaymentBase(
+                            caseRecord.offerId,
+                        );
+                        paymentId = offerBase?.paymentId ?? null;
+                    }
+                    if (!paymentId) {
+                        const fallbackPayment = await tx.paymentTransaction.findFirst({
+                            where: { orderId: caseRecord.orderId, status: 'SUCCESS' },
+                            orderBy: { paidAt: 'asc' },
+                        });
+                        paymentId = fallbackPayment?.id ?? null;
+                    }
+
+                    const escrow = paymentId
+                        ? await tx.escrowTransaction.findFirst({
+                              where: {
+                                  paymentId,
+                                  status: { in: ['HELD', 'FROZEN'] },
+                              },
+                          })
+                        : null;
 
                     if (escrow) {
-                        // 1. Mark Escrow as Released
                         await tx.escrowTransaction.update({
                             where: { id: escrow.id },
                             data: {
                                 status: 'RELEASED',
                                 releaseCondition: 'ADMIN_RELEASE',
-                                releasedAt: new Date()
-                            }
+                                releasedAt: new Date(),
+                            },
                         });
 
                         const releaseStore = await this.resolveCaseStore(caseRecord, tx);
@@ -1487,12 +1727,22 @@ export class ReturnsService {
                             where: { id: releaseStore.id },
                             select: { balance: true, ownerId: true },
                         });
+
+                        const merchantAmount = Number(escrow.merchantAmount);
+                        const storeUpdate =
+                            escrow.status === 'FROZEN'
+                                ? {
+                                      frozenBalance: { decrement: merchantAmount },
+                                      balance: { increment: merchantAmount },
+                                  }
+                                : {
+                                      pendingBalance: { decrement: merchantAmount },
+                                      balance: { increment: merchantAmount },
+                                  };
+
                         await tx.store.update({
                             where: { id: releaseStore.id },
-                            data: {
-                                pendingBalance: { decrement: Number(escrow.merchantAmount) },
-                                balance: { increment: Number(escrow.merchantAmount) },
-                            },
+                            data: storeUpdate,
                         });
 
                         if (storeBeforeRelease?.ownerId) {
@@ -1595,15 +1845,42 @@ export class ReturnsService {
             });
 
             if (type === 'return' && verdict === 'REFUND' && !isCloseCompleteRefund) {
-                await tx.order.update({
-                    where: { id: caseRecord.orderId },
-                    data: { status: 'RETURN_APPROVED' },
-                });
+                const isMultiReturn = this.isMultiItemOrder(caseRecord.order);
+                if (isMultiReturn && caseRecord.offerId) {
+                    await tx.offer.update({
+                        where: { id: caseRecord.offerId },
+                        data: { resolutionLocked: true },
+                    });
+                } else if (!isMultiReturn) {
+                    await tx.order.update({
+                        where: { id: caseRecord.orderId },
+                        data: { status: 'RETURN_APPROVED' },
+                    });
+                }
             } else {
-                await tx.order.update({
-                    where: { id: caseRecord.orderId },
-                    data: { status: orderStatus },
-                });
+                const isMulti = this.isMultiItemOrder(caseRecord.order);
+                if (isMulti && caseRecord.offerId) {
+                    await tx.offer.update({
+                        where: { id: caseRecord.offerId },
+                        data: {
+                            resolutionLocked: true,
+                            ...(verdict === 'REFUND'
+                                ? { fulfillmentStatus: OfferFulfillmentStatus.CANCELLED }
+                                : {}),
+                            ...(verdict !== 'REFUND' && !isCloseCompleteRefund
+                                ? {
+                                      fulfillmentStatus: OfferFulfillmentStatus.COMPLETED,
+                                      completedAt: new Date(),
+                                  }
+                                : {}),
+                        },
+                    });
+                } else {
+                    await tx.order.update({
+                        where: { id: caseRecord.orderId },
+                        data: { status: orderStatus },
+                    });
+                }
             }
 
             const auditMetadata: Record<string, unknown> = { verdict, ...extra };
@@ -1650,6 +1927,17 @@ export class ReturnsService {
 
             return updated;
         }, { timeout: 30000 });
+
+        if (this.isMultiItemOrder(caseRecord.order) && caseRecord.offerId) {
+            await this.offerFulfillment
+                .recomputeOrderStatus(caseRecord.orderId)
+                .catch((e) =>
+                    console.warn(
+                        `[ReturnsService] recomputeOrderStatus after verdict failed for ${caseRecord.orderId}:`,
+                        e?.message,
+                    ),
+                );
+        }
 
         if (stripeRefundCtx) {
             this.escrowService.dispatchRefundNotifications(stripeRefundCtx);
@@ -2097,43 +2385,72 @@ export class ReturnsService {
         const expiredReturns = await this.prisma.returnRequest.findMany({
             where: {
                 status: 'APPROVED',
-                handoverDeadline: { lt: now }
+                handoverDeadline: { lt: now },
             },
-            include: { order: true }
+            include: {
+                order: { include: { parts: true } },
+            },
         });
 
         for (const record of expiredReturns) {
             await this.prisma.$transaction(async (tx) => {
                 await tx.returnRequest.update({
                     where: { id: record.id },
-                    data: { 
-                        status: 'CLOSED', 
+                    data: {
+                        status: 'CLOSED',
                         updatedAt: new Date(),
                         verdictIssuedAt: new Date(),
-                        verdictLocked: true
+                        verdictLocked: true,
+                    },
+                });
+
+                const isMulti = this.isMultiItemOrder(record.order);
+
+                if (isMulti && record.offerId) {
+                    await tx.offer.update({
+                        where: { id: record.offerId },
+                        data: { resolutionLocked: true },
+                    });
+                } else if (!isMulti) {
+                    const nextStatus = await this.offerFulfillment.recomputeOrderStatus(
+                        record.orderId,
+                    );
+                    if (nextStatus) {
+                        await tx.order.update({
+                            where: { id: record.orderId },
+                            data: { status: nextStatus },
+                        });
                     }
-                });
-
-                // Update Order back to COMPLETED or original state? 
-                // Spec §9: "يسقط حقه في الإرجاع" -> Means it stays with the customer.
-                await tx.order.update({
-                    where: { id: record.orderId },
-                    data: { status: 'COMPLETED' }
-                });
-
-                // Note: Removed invalid shippingWaybill updateMany (field 'status' does not exist)
+                } else {
+                    const nextStatus = await this.offerFulfillment.recomputeOrderStatus(
+                        record.orderId,
+                    );
+                    if (nextStatus) {
+                        await tx.order.update({
+                            where: { id: record.orderId },
+                            data: { status: nextStatus },
+                        });
+                    }
+                }
             });
 
-            // Notify Customer
+            const partLabel = record.orderPartId
+                ? record.order.parts?.find((p) => p.id === record.orderPartId)?.name
+                : null;
+
             await this.notificationsService.create({
                 recipientId: record.customerId,
                 recipientRole: 'CUSTOMER',
                 titleAr: 'إلغاء طلب الإرجاع لتجاوز المهلة',
                 titleEn: 'Return Cancelled: Deadline Missed',
-                messageAr: `تم إلغاء طلب الإرجاع للطلب #${record.order.orderNumber} لتجاوز مهلة الـ 3 أيام المحددة لتسليم القطعة.`,
-                messageEn: `Your return request for Order #${record.order.orderNumber} has been cancelled as the 3-day handover deadline was exceeded.`,
+                messageAr: partLabel
+                    ? `تم إلغاء طلب الإرجاع للقطعة «${partLabel}» في الطلب #${record.order.orderNumber} لتجاوز مهلة الـ 3 أيام.`
+                    : `تم إلغاء طلب الإرجاع للطلب #${record.order.orderNumber} لتجاوز مهلة الـ 3 أيام المحددة لتسليم القطعة.`,
+                messageEn: partLabel
+                    ? `Your return for "${partLabel}" in order #${record.order.orderNumber} was cancelled — 3-day handover deadline exceeded.`
+                    : `Your return request for Order #${record.order.orderNumber} has been cancelled as the 3-day handover deadline was exceeded.`,
                 type: 'system_alert',
-                link: `/dashboard/orders`
+                link: `/dashboard/orders/${record.orderId}`,
             });
         }
     }

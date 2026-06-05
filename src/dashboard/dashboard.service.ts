@@ -53,13 +53,23 @@ export class DashboardService {
             this.prisma.order.count({ where: orderDateFilter }),
             this.prisma.user.count({ where: { role: UserRole.CUSTOMER } }),
             this.prisma.store.count({ where: { status: StoreStatus.ACTIVE } }),
-            this.prisma.order.count({
-                where: {
-                    status: {
-                        in: [OrderStatus.DISPUTED, OrderStatus.RETURN_REQUESTED],
-                    },
-                },
-            }),
+            (async () => {
+                const [openReturns, openDisputes] = await Promise.all([
+                    this.prisma.returnRequest.count({
+                        where: {
+                            status: {
+                                notIn: ['CLOSED', 'REJECTED', 'CANCELLED', 'REFUNDED', 'RESOLVED'],
+                            },
+                        },
+                    }),
+                    this.prisma.dispute.count({
+                        where: {
+                            status: { notIn: ['CLOSED', 'RESOLVED', 'CANCELLED'] },
+                        },
+                    }),
+                ]);
+                return openReturns + openDisputes;
+            })(),
             computeAdminFinancialKpis(this.prisma, range),
             computeAdminFinancialKpis(this.prisma, prevRange),
             computeSalesTrend(this.prisma, range),

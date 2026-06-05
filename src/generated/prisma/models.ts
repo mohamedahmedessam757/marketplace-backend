@@ -8,6 +8,9 @@
  *
  * 🟢 You can import this file directly.
  */
+export type * from './models/OtpChallenge'
+export type * from './models/WhatsAppMessageLog'
+export type * from './models/WidersWebhookEvent'
 export type * from './models/User'
 export type * from './models/UserSettings'
 export type * from './models/Store'

@@ -4,6 +4,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { ActorType } from '@prisma/client';
+import { OtpService } from './otp.service';
+import { OtpPurpose } from './otp-purpose';
 
 @Injectable()
 export class RecoveryService {
@@ -11,15 +13,9 @@ export class RecoveryService {
         private prisma: PrismaService,
         private notifications: NotificationsService,
         private auditLogs: AuditLogsService,
-        private platformSettings: PlatformSettingsService
+        private platformSettings: PlatformSettingsService,
+        private otpService: OtpService,
     ) { }
-
-    // In a real app, this would use Redis for rate limiting and OTP storage.
-    // For this MVP, we will use a local Map or a clean DB structure if needed,
-    // but since we are following the requirements of just returning 123456 for now,
-    // we will simulate the cache.
-
-    private otpCache = new Map<string, { otp: string, expires: number, attempts: number, role: string }>();
 
     async requestEmailOtp(email: string, role: 'customer' | 'merchant') {
         const userRole = role === 'merchant' ? 'VENDOR' : 'CUSTOMER';
@@ -29,13 +25,17 @@ export class RecoveryService {
             throw new BadRequestException('Email not found in our records');
         }
 
-        // Generate OTP and store in cache with 10 min expiration
-        const otp = '123456'; // Dev OTP as requested
-        this.otpCache.set(`${role}_${email}`, {
-            otp,
-            expires: Date.now() + 10 * 60 * 1000,
-            attempts: 0,
-            role
+        if (!user.phone) {
+            throw new BadRequestException('No phone on file for this account');
+        }
+
+        await this.otpService.issueAndSend({
+            phone: user.phone,
+            email: user.email,
+            purpose: OtpPurpose.RECOVERY_STEP1,
+            audience: role === 'merchant' ? 'vendor' : 'customer',
+            name: user.name ?? undefined,
+            role,
         });
 
         // Log action
@@ -59,73 +59,68 @@ export class RecoveryService {
             metadata: { email, role }
         });
 
-        return { success: true, message: 'An OTP has been sent to your email.' };
+        return {
+            success: true,
+            message: 'Verification code sent to your WhatsApp number on file.',
+            channel: 'whatsapp',
+        };
     }
 
     async verifyEmailOtp(email: string, otp: string, role: 'customer' | 'merchant', ip?: string) {
-        const cached = this.otpCache.get(`${role}_${email}`);
-
-        if (!cached || cached.expires < Date.now()) {
-            await this.logSecurityEvent(email, `RECOVERY_EMAIL_OTP_EXPIRED_${role.toUpperCase()}`, false, ip);
-            throw new BadRequestException('OTP expired or not requested');
+        const userRole = role === 'merchant' ? 'VENDOR' : 'CUSTOMER';
+        const user = await this.prisma.user.findFirst({ where: { email, role: userRole } });
+        if (!user?.phone) {
+            throw new BadRequestException('User not found');
         }
 
-        if (cached.attempts >= 5) {
-            await this.logSecurityEvent(email, 'RECOVERY_BLOCKED_BRUTE_FORCE', false, ip);
-            throw new UnauthorizedException('Too many failed attempts. Please try again later.');
-        }
-
-        if (cached.otp !== otp) {
-            cached.attempts += 1;
+        try {
+            await this.otpService.verify({
+                phone: user.phone,
+                email: user.email,
+                purpose: OtpPurpose.RECOVERY_STEP1,
+                code: otp,
+            });
+        } catch (err) {
             await this.logSecurityEvent(email, `RECOVERY_EMAIL_OTP_FAILED_${role.toUpperCase()}`, false, ip);
-            throw new BadRequestException(`Invalid OTP. Attempts remaining: ${5 - cached.attempts}`);
+            throw err;
         }
 
-        // Success
-        this.otpCache.delete(`${role}_${email}`); // Clear OTP after success
         await this.logSecurityEvent(email, `RECOVERY_EMAIL_OTP_VERIFIED_${role.toUpperCase()}`, true, ip);
-
-        // Set a session flag in cache to allow step 2
-        this.otpCache.set(`${role}_${email}_verified`, { otp: 'true', expires: Date.now() + 15 * 60 * 1000, attempts: 0, role });
-
         return { success: true };
     }
 
     async requestPhoneOtp(email: string, newPhone: string, role: 'customer' | 'merchant', ip?: string) {
-        const isVerified = this.otpCache.get(`${role}_${email}_verified`);
-        if (!isVerified || isVerified.expires < Date.now()) {
-            throw new UnauthorizedException('Session expired. Please restart the recovery process.');
-        }
+        await this.otpService.assertRecoveryStep1Verified(email, role);
 
-        // Generate phone OTP
-        const phoneOtp = '123456'; // Dev OTP
-        this.otpCache.set(`${role}_${email}_phone`, {
-            otp: phoneOtp,
-            expires: Date.now() + 10 * 60 * 1000,
-            attempts: 0,
-            role
+        const userRole = role === 'merchant' ? 'VENDOR' : 'CUSTOMER';
+        const user = await this.prisma.user.findFirst({ where: { email, role: userRole } });
+
+        await this.otpService.issueAndSend({
+            phone: newPhone,
+            email,
+            purpose: OtpPurpose.RECOVERY_PHONE,
+            audience: role === 'merchant' ? 'vendor' : 'customer',
+            name: user?.name ?? undefined,
+            role,
+            metadata: { newPhone },
         });
 
         await this.logSecurityEvent(email, `RECOVERY_PHONE_OTP_SENT_${role.toUpperCase()}`, true, ip);
-        return { success: true, message: 'OTP sent to new phone number' };
+        return { success: true, message: 'OTP sent to new phone number via WhatsApp', channel: 'whatsapp' };
     }
 
     async submitRecovery(email: string, newPhone: string, phoneOtp: string, role: 'customer' | 'merchant', ip?: string, device?: string) {
-        const isSessionValid = this.otpCache.get(`${role}_${email}_verified`);
-        if (!isSessionValid) throw new UnauthorizedException('Session expired');
+        await this.otpService.assertRecoveryStep1Verified(email, role);
 
-        const cachedPhone = this.otpCache.get(`${role}_${email}_phone`);
-        if (!cachedPhone || cachedPhone.expires < Date.now()) {
-            throw new BadRequestException('Phone OTP expired');
-        }
-
-        if (cachedPhone.attempts >= 5) {
-            throw new UnauthorizedException('Too many failed attempts.');
-        }
-
-        if (cachedPhone.otp !== phoneOtp) {
-            cachedPhone.attempts += 1;
-            throw new BadRequestException(`Invalid OTP. Attempts remaining: ${5 - cachedPhone.attempts}`);
+        try {
+            await this.otpService.verify({
+                phone: newPhone,
+                email,
+                purpose: OtpPurpose.RECOVERY_PHONE,
+                code: phoneOtp,
+            });
+        } catch (err) {
+            throw err;
         }
 
         const userRole = role === 'merchant' ? 'VENDOR' : 'CUSTOMER';
@@ -205,10 +200,6 @@ export class RecoveryService {
                 link: '/admin/account-recovery'
             });
 
-            // Clear sessions
-            this.otpCache.delete(`${role}_${email}_verified`);
-            this.otpCache.delete(`${role}_${email}_phone`);
-
             await this.logSecurityEvent(email, `RECOVERY_QUEUED_FOR_ADMIN_${role.toUpperCase()}`, true, ip, device);
 
             // 2026 Global Audit
@@ -260,10 +251,6 @@ export class RecoveryService {
                 reason: 'Account recovery auto-approved (Low Risk)',
                 metadata: { email, newPhone }
             });
-
-            // Clear sessions
-            this.otpCache.delete(`${role}_${email}_verified`);
-            this.otpCache.delete(`${role}_${email}_phone`);
 
             await this.logSecurityEvent(email, `RECOVERY_AUTO_APPROVED_${role.toUpperCase()}`, true, ip, device);
 

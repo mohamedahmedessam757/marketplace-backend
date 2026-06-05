@@ -25,6 +25,7 @@ export class UploadsController {
         @Body('orderId') orderId: string
     ) {
         if (!orderId) throw new BadRequestException('Order ID is required');
+        if (!this.isUuid(orderId)) throw new BadRequestException('Invalid order ID');
         await this.resourceAccess.assertUserCanAccessOrder(this.actor(req), orderId);
 
         const url = await this.uploadsService.uploadFile(file, `returns/${orderId}`);
@@ -40,9 +41,30 @@ export class UploadsController {
         @Body('orderId') orderId: string
     ) {
         if (!orderId) throw new BadRequestException('Order ID is required');
+        if (!this.isUuid(orderId)) throw new BadRequestException('Invalid order ID');
         await this.resourceAccess.assertUserCanAccessOrder(this.actor(req), orderId);
 
         const url = await this.uploadsService.uploadFile(file, `disputes/${orderId}`);
+        return { url };
+    }
+
+    /** Support ticket attachments (customer / merchant) — not tied to an order UUID */
+    @Post('support')
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(FileInterceptor('file', multerMemoryOptions))
+    async uploadSupportAttachment(
+        @Request() req,
+        @UploadedFile() file: Express.Multer.File,
+        @Body('folder') folder: string,
+    ) {
+        if (!file) throw new BadRequestException('File is required');
+        const allowed = new Set(['customer-tickets', 'merchant-tickets']);
+        const safeFolder = allowed.has(folder) ? folder : 'support';
+        const url = await this.uploadsService.uploadFile(
+            file,
+            `${safeFolder}/${req.user.id}`,
+            'support-files',
+        );
         return { url };
     }
 
@@ -56,6 +78,9 @@ export class UploadsController {
         @Body('folder') folder: string
     ) {
         if (!orderId) throw new BadRequestException('Order ID is required');
+        if (!this.isUuid(orderId)) {
+            throw new BadRequestException('Invalid order ID');
+        }
         await this.resourceAccess.assertUserCanAccessOrder(this.actor(req), orderId);
         const subFolder = folder || 'misc';
 
@@ -130,5 +155,11 @@ export class UploadsController {
 
         const url = await this.uploadsService.uploadFile(file, `appeals/${violationId}`, 'appeals');
         return { url };
+    }
+
+    private isUuid(value: string): boolean {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            value.trim(),
+        );
     }
 }

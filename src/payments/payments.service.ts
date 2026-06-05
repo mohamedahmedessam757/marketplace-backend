@@ -311,7 +311,13 @@ export class PaymentsService {
                 messageAr: `اختيار رائع! 👌 تم دفع ${totalAmount} درهم بنجاح للعرض #${offer.offerNumber}. نحن الآن بصدد البدء في تجهيز طلبك.`,
                 messageEn: `Great choice! 👌 Payment of AED ${totalAmount} successful for offer #${offer.offerNumber}. We are now starting to prepare your order.`,
                 link: 'checkout',
-                metadata: { orderId, offerId, amount: totalAmount },
+                metadata: {
+                    orderId,
+                    offerId,
+                    amount: totalAmount,
+                    invoiceNumber: result.invoiceNumber,
+                    orderNumber: order.orderNumber,
+                },
             });
 
             // Notify merchant with professional financial alert
@@ -325,7 +331,13 @@ export class PaymentsService {
                     messageAr: `ممتاز! تم دفع الطلب #${order.orderNumber}. المبلغ المضاف لحسابك: ${unitPrice + shippingCost} درهم. يرجى البدء في التجهيز.`,
                     messageEn: `Excellent! Payment received for Order #${order.orderNumber}. Amount credited: AED ${unitPrice + shippingCost}. Please start preparation.`,
                     link: 'active-orders',
-                    metadata: { orderId, amount: unitPrice + shippingCost },
+                    metadata: {
+                        orderId,
+                        offerId,
+                        amount: unitPrice + shippingCost,
+                        invoiceNumber: result.invoiceNumber,
+                        orderNumber: order.orderNumber,
+                    },
                 });
             }
         } catch (notifError) {
@@ -901,7 +913,14 @@ export class PaymentsService {
                 messageAr: `تم دفع ${totalAmount} درهم بنجاح للعرض #${offerNumber}. نحن الآن نجهز طلبك.`,
                 messageEn: `Payment of AED ${totalAmount} successful for offer #${offerNumber}. Preparation started.`,
                 link: 'checkout',
-                metadata: { orderId, offerId: payment.offerId, amount: totalAmount, paymentIntentId },
+                metadata: {
+                    orderId,
+                    offerId: payment.offerId,
+                    amount: totalAmount,
+                    paymentIntentId,
+                    invoiceNumber,
+                    orderNumber,
+                },
             }).catch(() => {});
         }
     }
@@ -1949,8 +1968,45 @@ export class PaymentsService {
         });
     }
 
-    async releaseEscrowManually(adminId: string, orderId: string) {
-        await this.escrowService.releaseFunds(orderId, 'ADMIN_RELEASE', adminId);
+    async releaseEscrowManually(
+        adminId: string,
+        body: { orderId?: string; paymentId?: string; offerId?: string },
+    ) {
+        let paymentId = body.paymentId;
+        let orderId = body.orderId;
+
+        if (body.offerId && !paymentId) {
+            const base = await this.escrowService.resolveOfferPaymentBase(body.offerId);
+            paymentId = base.paymentId ?? undefined;
+            orderId = base.orderId ?? orderId;
+        }
+
+        if (!paymentId && orderId) {
+            const heldCount = await this.prisma.escrowTransaction.count({
+                where: {
+                    orderId,
+                    status: { in: ['HELD', 'FROZEN', 'RELEASING'] },
+                },
+            });
+            if (heldCount > 1) {
+                throw new BadRequestException(
+                    'Multi-payment order: specify paymentId or offerId to release a specific escrow row.',
+                );
+            }
+        }
+
+        if (paymentId && !orderId) {
+            const escrow = await this.prisma.escrowTransaction.findFirst({
+                where: { paymentId },
+            });
+            orderId = escrow?.orderId;
+        }
+
+        if (!orderId) {
+            throw new BadRequestException('Could not resolve order for escrow release.');
+        }
+
+        await this.escrowService.releaseFunds(orderId, 'ADMIN_RELEASE', adminId, paymentId);
         return { success: true, message: 'Funds released successfully.' };
     }
 

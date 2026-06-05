@@ -22,29 +22,30 @@ export class ReviewsService {
 
   async create(customerId: string, createReviewDto: CreateReviewDto) {
     const orderId = createReviewDto.orderId;
+    const offerId = createReviewDto.offerId?.trim() || null;
 
-    const [order, existingReview] = await Promise.all([
-      this.prisma.order.findUnique({
-        where: { id: orderId },
-        select: {
-          id: true,
-          customerId: true,
-          status: true,
-          orderNumber: true,
-          storeId: true,
-          offers: {
-            where: { status: { in: ['accepted', 'ACCEPTED'] } },
-            orderBy: { createdAt: 'asc' },
-            take: 1,
-            select: { storeId: true },
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        customerId: true,
+        status: true,
+        orderNumber: true,
+        storeId: true,
+        requestType: true,
+        parts: { select: { id: true } },
+        offers: {
+          where: { status: { in: ['accepted', 'ACCEPTED'] } },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            storeId: true,
+            orderPartId: true,
+            fulfillmentStatus: true,
           },
         },
-      }),
-      this.prisma.review.findUnique({
-        where: { orderId },
-        select: { id: true },
-      }),
-    ]);
+      },
+    });
 
     if (!order) {
       throw new NotFoundException('Order not found');
@@ -54,18 +55,60 @@ export class ReviewsService {
       throw new BadRequestException('You do not have permission to review this order');
     }
 
-    const reviewableStatuses = ['CLOSED', 'DELIVERED', 'COMPLETED', 'WARRANTY_ACTIVE', 'WARRANTY_EXPIRED'];
+    const isMultiPart =
+      order.requestType === 'multiple' || (order.parts?.length ?? 0) > 1;
+
+    const reviewableStatuses = [
+      'CLOSED',
+      'DELIVERED',
+      'PARTIALLY_DELIVERED',
+      'COMPLETED',
+      'WARRANTY_ACTIVE',
+      'WARRANTY_EXPIRED',
+    ];
     if (!reviewableStatuses.includes(String(order.status))) {
       throw new BadRequestException('Order must be delivered or closed to be reviewed');
     }
 
+    let targetOffer = offerId
+      ? order.offers.find((o) => o.id === offerId)
+      : order.offers[0];
+
+    if (isMultiPart && !offerId) {
+      throw new BadRequestException(
+        'offerId is required for multi-part orders. Select the specific part to review.',
+      );
+    }
+
+    if (offerId && !targetOffer) {
+      throw new BadRequestException('Offer does not belong to this order');
+    }
+
+    if (isMultiPart && targetOffer) {
+      const eligibleFulfillment = ['DELIVERED', 'COMPLETED'];
+      if (!eligibleFulfillment.includes(String(targetOffer.fulfillmentStatus))) {
+        throw new BadRequestException(
+          'This part must be delivered or completed before it can be reviewed',
+        );
+      }
+    }
+
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        orderId,
+        offerId: targetOffer?.id ?? null,
+      },
+      select: { id: true },
+    });
+
     if (existingReview) {
-      throw new BadRequestException('You have already reviewed this order');
+      throw new BadRequestException('You have already reviewed this item');
     }
 
     let storeId = createReviewDto.storeId?.trim();
     if (!storeId) {
       storeId =
+        targetOffer?.storeId ||
         order.offers?.[0]?.storeId ||
         (order.storeId && String(order.storeId)) ||
         undefined;
@@ -76,10 +119,10 @@ export class ReviewsService {
       );
     }
 
-    // 3. Create the review as PENDING
     const review = await this.prisma.review.create({
       data: {
         orderId: createReviewDto.orderId,
+        offerId: targetOffer?.id ?? null,
         customerId,
         storeId,
         rating: createReviewDto.rating,

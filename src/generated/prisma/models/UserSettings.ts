@@ -28,6 +28,7 @@ export type UserSettingsMinAggregateOutputType = {
   id: string | null
   userId: string | null
   autoTranslateChat: boolean | null
+  preferredLanguage: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -36,6 +37,7 @@ export type UserSettingsMaxAggregateOutputType = {
   id: string | null
   userId: string | null
   autoTranslateChat: boolean | null
+  preferredLanguage: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -44,6 +46,7 @@ export type UserSettingsCountAggregateOutputType = {
   id: number
   userId: number
   autoTranslateChat: number
+  preferredLanguage: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -54,6 +57,7 @@ export type UserSettingsMinAggregateInputType = {
   id?: true
   userId?: true
   autoTranslateChat?: true
+  preferredLanguage?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -62,6 +66,7 @@ export type UserSettingsMaxAggregateInputType = {
   id?: true
   userId?: true
   autoTranslateChat?: true
+  preferredLanguage?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -70,6 +75,7 @@ export type UserSettingsCountAggregateInputType = {
   id?: true
   userId?: true
   autoTranslateChat?: true
+  preferredLanguage?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -151,6 +157,7 @@ export type UserSettingsGroupByOutputType = {
   id: string
   userId: string
   autoTranslateChat: boolean
+  preferredLanguage: string
   createdAt: Date
   updatedAt: Date
   _count: UserSettingsCountAggregateOutputType | null
@@ -180,6 +187,7 @@ export type UserSettingsWhereInput = {
   id?: Prisma.UuidFilter<"UserSettings"> | string
   userId?: Prisma.UuidFilter<"UserSettings"> | string
   autoTranslateChat?: Prisma.BoolFilter<"UserSettings"> | boolean
+  preferredLanguage?: Prisma.StringFilter<"UserSettings"> | string
   createdAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -189,6 +197,7 @@ export type UserSettingsOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   autoTranslateChat?: Prisma.SortOrder
+  preferredLanguage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -201,6 +210,7 @@ export type UserSettingsWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.UserSettingsWhereInput[]
   NOT?: Prisma.UserSettingsWhereInput | Prisma.UserSettingsWhereInput[]
   autoTranslateChat?: Prisma.BoolFilter<"UserSettings"> | boolean
+  preferredLanguage?: Prisma.StringFilter<"UserSettings"> | string
   createdAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -210,6 +220,7 @@ export type UserSettingsOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   autoTranslateChat?: Prisma.SortOrder
+  preferredLanguage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.UserSettingsCountOrderByAggregateInput
@@ -224,6 +235,7 @@ export type UserSettingsScalarWhereWithAggregatesInput = {
   id?: Prisma.UuidWithAggregatesFilter<"UserSettings"> | string
   userId?: Prisma.UuidWithAggregatesFilter<"UserSettings"> | string
   autoTranslateChat?: Prisma.BoolWithAggregatesFilter<"UserSettings"> | boolean
+  preferredLanguage?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"UserSettings"> | Date | string
 }
@@ -231,6 +243,7 @@ export type UserSettingsScalarWhereWithAggregatesInput = {
 export type UserSettingsCreateInput = {
   id?: string
   autoTranslateChat?: boolean
+  preferredLanguage?: string
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutSettingsInput
@@ -240,6 +253,7 @@ export type UserSettingsUncheckedCreateInput = {
   id?: string
   userId: string
   autoTranslateChat?: boolean
+  preferredLanguage?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -247,6 +261,7 @@ export type UserSettingsUncheckedCreateInput = {
 export type UserSettingsUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   autoTranslateChat?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  preferredLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutSettingsNestedInput
@@ -256,6 +271,7 @@ export type UserSettingsUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   autoTranslateChat?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  preferredLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -264,6 +280,7 @@ export type UserSettingsCreateManyInput = {
   id?: string
   userId: string
   autoTranslateChat?: boolean
+  preferredLanguage?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -271,6 +288,7 @@ export type UserSettingsCreateManyInput = {
 export type UserSettingsUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   autoTranslateChat?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  preferredLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -279,6 +297,7 @@ export type UserSettingsUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   autoTranslateChat?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  preferredLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -292,6 +311,7 @@ export type UserSettingsCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   autoTranslateChat?: Prisma.SortOrder
+  preferredLanguage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -300,6 +320,7 @@ export type UserSettingsMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   autoTranslateChat?: Prisma.SortOrder
+  preferredLanguage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -308,6 +329,7 @@ export type UserSettingsMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   autoTranslateChat?: Prisma.SortOrder
+  preferredLanguage?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -347,6 +369,7 @@ export type UserSettingsUncheckedUpdateOneWithoutUserNestedInput = {
 export type UserSettingsCreateWithoutUserInput = {
   id?: string
   autoTranslateChat?: boolean
+  preferredLanguage?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -354,6 +377,7 @@ export type UserSettingsCreateWithoutUserInput = {
 export type UserSettingsUncheckedCreateWithoutUserInput = {
   id?: string
   autoTranslateChat?: boolean
+  preferredLanguage?: string
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -377,6 +401,7 @@ export type UserSettingsUpdateToOneWithWhereWithoutUserInput = {
 export type UserSettingsUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   autoTranslateChat?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  preferredLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -384,6 +409,7 @@ export type UserSettingsUpdateWithoutUserInput = {
 export type UserSettingsUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   autoTranslateChat?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  preferredLanguage?: Prisma.StringFieldUpdateOperationsInput | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -394,6 +420,7 @@ export type UserSettingsSelect<ExtArgs extends runtime.Types.Extensions.Internal
   id?: boolean
   userId?: boolean
   autoTranslateChat?: boolean
+  preferredLanguage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -403,6 +430,7 @@ export type UserSettingsSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   id?: boolean
   userId?: boolean
   autoTranslateChat?: boolean
+  preferredLanguage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -412,6 +440,7 @@ export type UserSettingsSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   id?: boolean
   userId?: boolean
   autoTranslateChat?: boolean
+  preferredLanguage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -421,11 +450,12 @@ export type UserSettingsSelectScalar = {
   id?: boolean
   userId?: boolean
   autoTranslateChat?: boolean
+  preferredLanguage?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "autoTranslateChat" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
+export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "autoTranslateChat" | "preferredLanguage" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
 export type UserSettingsInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -445,6 +475,7 @@ export type $UserSettingsPayload<ExtArgs extends runtime.Types.Extensions.Intern
     id: string
     userId: string
     autoTranslateChat: boolean
+    preferredLanguage: string
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["userSettings"]>
@@ -874,6 +905,7 @@ export interface UserSettingsFieldRefs {
   readonly id: Prisma.FieldRef<"UserSettings", 'String'>
   readonly userId: Prisma.FieldRef<"UserSettings", 'String'>
   readonly autoTranslateChat: Prisma.FieldRef<"UserSettings", 'Boolean'>
+  readonly preferredLanguage: Prisma.FieldRef<"UserSettings", 'String'>
   readonly createdAt: Prisma.FieldRef<"UserSettings", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"UserSettings", 'DateTime'>
 }
