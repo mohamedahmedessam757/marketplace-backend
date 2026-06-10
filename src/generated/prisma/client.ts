@@ -41,7 +41,7 @@ export { Prisma }
 
 /**
  * Model OtpChallenge
- * Short-lived WhatsApp OTP challenges (register, login, recovery)
+ * Short-lived OTP challenges — email (Resend) or WhatsApp (Widers)
  */
 export type OtpChallenge = Prisma.OtpChallengeModel
 /**

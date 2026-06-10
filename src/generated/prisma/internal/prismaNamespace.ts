@@ -4571,6 +4571,7 @@ export const OtpChallengeScalarFieldEnum = {
   id: 'id',
   phone: 'phone',
   email: 'email',
+  channel: 'channel',
   purpose: 'purpose',
   role: 'role',
   codeHash: 'codeHash',

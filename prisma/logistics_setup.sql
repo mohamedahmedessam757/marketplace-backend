@@ -36,7 +36,7 @@ VALUES (
     '{
         "general": {
             "platformName": "e-tashleh",
-            "contactEmail": "cs@e-tashleh.net",
+            "contactEmail": "shop@e-tashleh.shop",
             "supportPhone": "0525700525",
             "enablePreferencesStep": true
         },

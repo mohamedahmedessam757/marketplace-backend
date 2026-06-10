@@ -12,7 +12,12 @@ export class MaintenanceGuard implements CanActivate {
     const url = request.url;
 
     // 1. Whitelist Auth, Public System Endpoints & Settings (Necessary to login or see status)
-    if (url.includes('/auth/') || url.includes('/platform-settings') || url.includes('/system/')) {
+    if (
+      url.includes('/auth/') ||
+      url.includes('/platform-settings') ||
+      url.includes('/system/') ||
+      url.includes('/public/documents/')
+    ) {
       return true;
     }
 

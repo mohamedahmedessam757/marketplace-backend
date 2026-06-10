@@ -14,7 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace"
 
 /**
  * Model OtpChallenge
- * Short-lived WhatsApp OTP challenges (register, login, recovery)
+ * Short-lived OTP challenges — email (Resend) or WhatsApp (Widers)
  */
 export type OtpChallengeModel = runtime.Types.Result.DefaultSelection<Prisma.$OtpChallengePayload>
 
@@ -38,6 +38,7 @@ export type OtpChallengeMinAggregateOutputType = {
   id: string | null
   phone: string | null
   email: string | null
+  channel: string | null
   purpose: string | null
   role: string | null
   codeHash: string | null
@@ -51,6 +52,7 @@ export type OtpChallengeMaxAggregateOutputType = {
   id: string | null
   phone: string | null
   email: string | null
+  channel: string | null
   purpose: string | null
   role: string | null
   codeHash: string | null
@@ -64,6 +66,7 @@ export type OtpChallengeCountAggregateOutputType = {
   id: number
   phone: number
   email: number
+  channel: number
   purpose: number
   role: number
   codeHash: number
@@ -88,6 +91,7 @@ export type OtpChallengeMinAggregateInputType = {
   id?: true
   phone?: true
   email?: true
+  channel?: true
   purpose?: true
   role?: true
   codeHash?: true
@@ -101,6 +105,7 @@ export type OtpChallengeMaxAggregateInputType = {
   id?: true
   phone?: true
   email?: true
+  channel?: true
   purpose?: true
   role?: true
   codeHash?: true
@@ -114,6 +119,7 @@ export type OtpChallengeCountAggregateInputType = {
   id?: true
   phone?: true
   email?: true
+  channel?: true
   purpose?: true
   role?: true
   codeHash?: true
@@ -213,8 +219,9 @@ export type OtpChallengeGroupByArgs<ExtArgs extends runtime.Types.Extensions.Int
 
 export type OtpChallengeGroupByOutputType = {
   id: string
-  phone: string
+  phone: string | null
   email: string | null
+  channel: string
   purpose: string
   role: string | null
   codeHash: string
@@ -250,8 +257,9 @@ export type OtpChallengeWhereInput = {
   OR?: Prisma.OtpChallengeWhereInput[]
   NOT?: Prisma.OtpChallengeWhereInput | Prisma.OtpChallengeWhereInput[]
   id?: Prisma.UuidFilter<"OtpChallenge"> | string
-  phone?: Prisma.StringFilter<"OtpChallenge"> | string
+  phone?: Prisma.StringNullableFilter<"OtpChallenge"> | string | null
   email?: Prisma.StringNullableFilter<"OtpChallenge"> | string | null
+  channel?: Prisma.StringFilter<"OtpChallenge"> | string
   purpose?: Prisma.StringFilter<"OtpChallenge"> | string
   role?: Prisma.StringNullableFilter<"OtpChallenge"> | string | null
   codeHash?: Prisma.StringFilter<"OtpChallenge"> | string
@@ -264,8 +272,9 @@ export type OtpChallengeWhereInput = {
 
 export type OtpChallengeOrderByWithRelationInput = {
   id?: Prisma.SortOrder
-  phone?: Prisma.SortOrder
+  phone?: Prisma.SortOrderInput | Prisma.SortOrder
   email?: Prisma.SortOrderInput | Prisma.SortOrder
+  channel?: Prisma.SortOrder
   purpose?: Prisma.SortOrder
   role?: Prisma.SortOrderInput | Prisma.SortOrder
   codeHash?: Prisma.SortOrder
@@ -281,8 +290,9 @@ export type OtpChallengeWhereUniqueInput = Prisma.AtLeast<{
   AND?: Prisma.OtpChallengeWhereInput | Prisma.OtpChallengeWhereInput[]
   OR?: Prisma.OtpChallengeWhereInput[]
   NOT?: Prisma.OtpChallengeWhereInput | Prisma.OtpChallengeWhereInput[]
-  phone?: Prisma.StringFilter<"OtpChallenge"> | string
+  phone?: Prisma.StringNullableFilter<"OtpChallenge"> | string | null
   email?: Prisma.StringNullableFilter<"OtpChallenge"> | string | null
+  channel?: Prisma.StringFilter<"OtpChallenge"> | string
   purpose?: Prisma.StringFilter<"OtpChallenge"> | string
   role?: Prisma.StringNullableFilter<"OtpChallenge"> | string | null
   codeHash?: Prisma.StringFilter<"OtpChallenge"> | string
@@ -295,8 +305,9 @@ export type OtpChallengeWhereUniqueInput = Prisma.AtLeast<{
 
 export type OtpChallengeOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
-  phone?: Prisma.SortOrder
+  phone?: Prisma.SortOrderInput | Prisma.SortOrder
   email?: Prisma.SortOrderInput | Prisma.SortOrder
+  channel?: Prisma.SortOrder
   purpose?: Prisma.SortOrder
   role?: Prisma.SortOrderInput | Prisma.SortOrder
   codeHash?: Prisma.SortOrder
@@ -317,8 +328,9 @@ export type OtpChallengeScalarWhereWithAggregatesInput = {
   OR?: Prisma.OtpChallengeScalarWhereWithAggregatesInput[]
   NOT?: Prisma.OtpChallengeScalarWhereWithAggregatesInput | Prisma.OtpChallengeScalarWhereWithAggregatesInput[]
   id?: Prisma.UuidWithAggregatesFilter<"OtpChallenge"> | string
-  phone?: Prisma.StringWithAggregatesFilter<"OtpChallenge"> | string
+  phone?: Prisma.StringNullableWithAggregatesFilter<"OtpChallenge"> | string | null
   email?: Prisma.StringNullableWithAggregatesFilter<"OtpChallenge"> | string | null
+  channel?: Prisma.StringWithAggregatesFilter<"OtpChallenge"> | string
   purpose?: Prisma.StringWithAggregatesFilter<"OtpChallenge"> | string
   role?: Prisma.StringNullableWithAggregatesFilter<"OtpChallenge"> | string | null
   codeHash?: Prisma.StringWithAggregatesFilter<"OtpChallenge"> | string
@@ -331,8 +343,9 @@ export type OtpChallengeScalarWhereWithAggregatesInput = {
 
 export type OtpChallengeCreateInput = {
   id?: string
-  phone: string
+  phone?: string | null
   email?: string | null
+  channel?: string
   purpose: string
   role?: string | null
   codeHash: string
@@ -345,8 +358,9 @@ export type OtpChallengeCreateInput = {
 
 export type OtpChallengeUncheckedCreateInput = {
   id?: string
-  phone: string
+  phone?: string | null
   email?: string | null
+  channel?: string
   purpose: string
   role?: string | null
   codeHash: string
@@ -359,8 +373,9 @@ export type OtpChallengeUncheckedCreateInput = {
 
 export type OtpChallengeUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  channel?: Prisma.StringFieldUpdateOperationsInput | string
   purpose?: Prisma.StringFieldUpdateOperationsInput | string
   role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codeHash?: Prisma.StringFieldUpdateOperationsInput | string
@@ -373,8 +388,9 @@ export type OtpChallengeUpdateInput = {
 
 export type OtpChallengeUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  channel?: Prisma.StringFieldUpdateOperationsInput | string
   purpose?: Prisma.StringFieldUpdateOperationsInput | string
   role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codeHash?: Prisma.StringFieldUpdateOperationsInput | string
@@ -387,8 +403,9 @@ export type OtpChallengeUncheckedUpdateInput = {
 
 export type OtpChallengeCreateManyInput = {
   id?: string
-  phone: string
+  phone?: string | null
   email?: string | null
+  channel?: string
   purpose: string
   role?: string | null
   codeHash: string
@@ -401,8 +418,9 @@ export type OtpChallengeCreateManyInput = {
 
 export type OtpChallengeUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  channel?: Prisma.StringFieldUpdateOperationsInput | string
   purpose?: Prisma.StringFieldUpdateOperationsInput | string
   role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codeHash?: Prisma.StringFieldUpdateOperationsInput | string
@@ -415,8 +433,9 @@ export type OtpChallengeUpdateManyMutationInput = {
 
 export type OtpChallengeUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
-  phone?: Prisma.StringFieldUpdateOperationsInput | string
+  phone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   email?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  channel?: Prisma.StringFieldUpdateOperationsInput | string
   purpose?: Prisma.StringFieldUpdateOperationsInput | string
   role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   codeHash?: Prisma.StringFieldUpdateOperationsInput | string
@@ -431,6 +450,7 @@ export type OtpChallengeCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   email?: Prisma.SortOrder
+  channel?: Prisma.SortOrder
   purpose?: Prisma.SortOrder
   role?: Prisma.SortOrder
   codeHash?: Prisma.SortOrder
@@ -449,6 +469,7 @@ export type OtpChallengeMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   email?: Prisma.SortOrder
+  channel?: Prisma.SortOrder
   purpose?: Prisma.SortOrder
   role?: Prisma.SortOrder
   codeHash?: Prisma.SortOrder
@@ -462,6 +483,7 @@ export type OtpChallengeMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   phone?: Prisma.SortOrder
   email?: Prisma.SortOrder
+  channel?: Prisma.SortOrder
   purpose?: Prisma.SortOrder
   role?: Prisma.SortOrder
   codeHash?: Prisma.SortOrder
@@ -505,6 +527,7 @@ export type OtpChallengeSelect<ExtArgs extends runtime.Types.Extensions.Internal
   id?: boolean
   phone?: boolean
   email?: boolean
+  channel?: boolean
   purpose?: boolean
   role?: boolean
   codeHash?: boolean
@@ -519,6 +542,7 @@ export type OtpChallengeSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   id?: boolean
   phone?: boolean
   email?: boolean
+  channel?: boolean
   purpose?: boolean
   role?: boolean
   codeHash?: boolean
@@ -533,6 +557,7 @@ export type OtpChallengeSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   id?: boolean
   phone?: boolean
   email?: boolean
+  channel?: boolean
   purpose?: boolean
   role?: boolean
   codeHash?: boolean
@@ -547,6 +572,7 @@ export type OtpChallengeSelectScalar = {
   id?: boolean
   phone?: boolean
   email?: boolean
+  channel?: boolean
   purpose?: boolean
   role?: boolean
   codeHash?: boolean
@@ -557,15 +583,16 @@ export type OtpChallengeSelectScalar = {
   createdAt?: boolean
 }
 
-export type OtpChallengeOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "phone" | "email" | "purpose" | "role" | "codeHash" | "expiresAt" | "attempts" | "verifiedAt" | "metadata" | "createdAt", ExtArgs["result"]["otpChallenge"]>
+export type OtpChallengeOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "phone" | "email" | "channel" | "purpose" | "role" | "codeHash" | "expiresAt" | "attempts" | "verifiedAt" | "metadata" | "createdAt", ExtArgs["result"]["otpChallenge"]>
 
 export type $OtpChallengePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "OtpChallenge"
   objects: {}
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
-    phone: string
+    phone: string | null
     email: string | null
+    channel: string
     purpose: string
     role: string | null
     codeHash: string
@@ -1000,6 +1027,7 @@ export interface OtpChallengeFieldRefs {
   readonly id: Prisma.FieldRef<"OtpChallenge", 'String'>
   readonly phone: Prisma.FieldRef<"OtpChallenge", 'String'>
   readonly email: Prisma.FieldRef<"OtpChallenge", 'String'>
+  readonly channel: Prisma.FieldRef<"OtpChallenge", 'String'>
   readonly purpose: Prisma.FieldRef<"OtpChallenge", 'String'>
   readonly role: Prisma.FieldRef<"OtpChallenge", 'String'>
   readonly codeHash: Prisma.FieldRef<"OtpChallenge", 'String'>

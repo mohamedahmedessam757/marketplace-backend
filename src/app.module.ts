@@ -35,11 +35,15 @@ import { APP_GUARD } from '@nestjs/core';
 import { MaintenanceGuard } from './platform-settings/maintenance.guard';
 import { AuthorizationModule } from './common/authorization/authorization.module';
 import { WidersModule } from './widers/widers.module';
+import { EmailModule } from './email/email.module';
+import { PublicDocumentsModule } from './public-documents/public-documents.module';
 
 @Module({
     imports: [
         AuthorizationModule,
         WidersModule,
+        EmailModule,
+        PublicDocumentsModule,
         ThrottlerModule.forRoot([
             { name: 'short', ttl: 60_000, limit: 150 },
         ]),

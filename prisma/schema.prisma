@@ -117,11 +117,12 @@ enum DocType {
   @@map("doc_type")
 }
 
-/// Short-lived WhatsApp OTP challenges (register, login, recovery)
+/// Short-lived OTP challenges — email (Resend) or WhatsApp (Widers)
 model OtpChallenge {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  phone      String
+  phone      String?
   email      String?
+  channel    String    @default("whatsapp") @db.VarChar(16)
   purpose    String    @db.VarChar(32)
   role       String?   @db.VarChar(16)
   codeHash   String    @map("code_hash")
@@ -131,8 +132,8 @@ model OtpChallenge {
   metadata   Json      @default("{}")
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  @@index([phone, purpose])
-  @@index([email, purpose])
+  @@index([phone, purpose, channel])
+  @@index([email, purpose, channel])
   @@map("otp_challenges")
 }
 

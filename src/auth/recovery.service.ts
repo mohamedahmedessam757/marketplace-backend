@@ -30,8 +30,9 @@ export class RecoveryService {
         }
 
         await this.otpService.issueAndSend({
-            phone: user.phone,
+            channel: 'email',
             email: user.email,
+            phone: user.phone ?? undefined,
             purpose: OtpPurpose.RECOVERY_STEP1,
             audience: role === 'merchant' ? 'vendor' : 'customer',
             name: user.name ?? undefined,
@@ -61,8 +62,8 @@ export class RecoveryService {
 
         return {
             success: true,
-            message: 'Verification code sent to your WhatsApp number on file.',
-            channel: 'whatsapp',
+            message: 'Verification code sent to your email address on file.',
+            channel: 'email',
         };
     }
 
@@ -75,7 +76,7 @@ export class RecoveryService {
 
         try {
             await this.otpService.verify({
-                phone: user.phone,
+                channel: 'email',
                 email: user.email,
                 purpose: OtpPurpose.RECOVERY_STEP1,
                 code: otp,
@@ -96,6 +97,7 @@ export class RecoveryService {
         const user = await this.prisma.user.findFirst({ where: { email, role: userRole } });
 
         await this.otpService.issueAndSend({
+            channel: 'whatsapp',
             phone: newPhone,
             email,
             purpose: OtpPurpose.RECOVERY_PHONE,
@@ -114,6 +116,7 @@ export class RecoveryService {
 
         try {
             await this.otpService.verify({
+                channel: 'whatsapp',
                 phone: newPhone,
                 email,
                 purpose: OtpPurpose.RECOVERY_PHONE,

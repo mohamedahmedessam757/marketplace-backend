@@ -9,6 +9,9 @@ import {
     RegisterResendOtpDto,
     RegisterVerifyOtpDto,
     MobileLoginResendOtpDto,
+    RegisterInitDto,
+    StaffOtpDto,
+    StaffOtpVerifyDto,
 } from './dto/otp.dto';
 
 @Controller('auth')
@@ -69,17 +72,26 @@ export class AuthController {
 
     @Post('register-init')
     @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    async initRegistration(
-        @Body() body: { email: string; phone: string; name?: string; role?: 'customer' | 'vendor' },
-    ) {
+    async initRegistration(@Body() body: RegisterInitDto) {
         const audience = body.role === 'vendor' ? 'vendor' : 'customer';
-        return this.authService.initRegistration(body.email, body.phone, body.name, audience);
+        return this.authService.initRegistration(
+            body.email,
+            body.phone,
+            body.channel,
+            body.name,
+            audience,
+        );
     }
 
     @Post('register-verify-otp')
     @Throttle({ default: { limit: 10, ttl: 60_000 } })
     async verifyRegistrationOtp(@Body() body: RegisterVerifyOtpDto) {
-        return this.authService.verifyRegistrationOtp(body.email, body.phone, body.code);
+        return this.authService.verifyRegistrationOtp(
+            body.email,
+            body.phone,
+            body.code,
+            body.channel,
+        );
     }
 
     @Post('register-resend-otp')
@@ -88,7 +100,13 @@ export class AuthController {
         @Body() body: RegisterResendOtpDto & { role?: 'customer' | 'vendor' },
     ) {
         const audience = body.role === 'vendor' ? 'vendor' : 'customer';
-        return this.authService.resendRegistrationOtp(body.email, body.phone, body.name, audience);
+        return this.authService.resendRegistrationOtp(
+            body.email,
+            body.phone,
+            body.channel,
+            body.name,
+            audience,
+        );
     }
 
     @Post('mobile-login-resend')
@@ -97,23 +115,29 @@ export class AuthController {
         return this.authService.resendMobileLoginOtp(body.phone);
     }
 
+    @Post('email-login-resend')
+    @Throttle({ default: { limit: 5, ttl: 60_000 } })
+    async resendEmailLoginOtp(@Body() body: { email: string }) {
+        return this.authService.resendEmailLoginOtp(body.email);
+    }
+
     /** Staff 2FA — Admin / Super Admin / Support / Verification Officer */
     @Post('otp/send')
     @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    async sendStaffOtp(@Body() body: { email: string }) {
-        return this.authService.sendStaffOtp(body.email);
+    async sendStaffOtp(@Body() body: StaffOtpDto) {
+        return this.authService.sendStaffOtp(body.email, body.channel);
     }
 
     @Post('otp/verify')
     @Throttle({ default: { limit: 10, ttl: 60_000 } })
-    async verifyStaffOtp(@Body() body: { email: string; code: string }) {
-        return this.authService.verifyStaffOtp(body.email, body.code);
+    async verifyStaffOtp(@Body() body: StaffOtpVerifyDto) {
+        return this.authService.verifyStaffOtp(body.email, body.code, body.channel);
     }
 
     @Post('otp/resend')
     @Throttle({ default: { limit: 5, ttl: 60_000 } })
-    async resendStaffOtp(@Body() body: { email: string }) {
-        return this.authService.resendStaffOtp(body.email);
+    async resendStaffOtp(@Body() body: StaffOtpDto) {
+        return this.authService.resendStaffOtp(body.email, body.channel);
     }
 
     @Post('register/customer')

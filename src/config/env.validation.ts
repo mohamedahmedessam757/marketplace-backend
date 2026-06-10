@@ -23,4 +23,16 @@ export function validateProductionEnv(): void {
   if (process.env.WIDERS_ENABLED === 'true' && !process.env.WIDERS_WEBHOOK_SECRET?.trim()) {
     throw new Error('WIDERS_WEBHOOK_SECRET must be set when WIDERS_ENABLED is true in production');
   }
+
+  const widersOn = process.env.WIDERS_ENABLED === 'true';
+  const resendOn = process.env.RESEND_ENABLED === 'true';
+  if (!widersOn && !resendOn) {
+    throw new Error(
+      'At least one OTP channel must be enabled in production (WIDERS_ENABLED or RESEND_ENABLED)',
+    );
+  }
+
+  if (resendOn && !process.env.RESEND_API_KEY?.trim()) {
+    throw new Error('RESEND_API_KEY must be set when RESEND_ENABLED is true in production');
+  }
 }

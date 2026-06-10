@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum, IsNumber, IsArray, ValidateNested, IsObject } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsEnum, IsNumber, IsArray, ValidateNested, IsObject, IsIn } from 'class-validator';
 import { UserRole, DocType } from '@prisma/client';
 import { Type } from 'class-transformer';
 
@@ -131,5 +131,10 @@ export class CreateUserDto {
     @IsOptional()
     @IsString()
     referralCode?: string;
+
+    /** Channel used during register-init OTP (email | whatsapp) */
+    @IsOptional()
+    @IsIn(['email', 'whatsapp'])
+    otpChannel?: 'email' | 'whatsapp';
 }
 

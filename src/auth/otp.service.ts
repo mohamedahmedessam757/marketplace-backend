@@ -8,12 +8,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsAppChannelService } from '../widers/whatsapp-channel.service';
-import { WidersService } from '../widers/widers.service';
 import { WidersConfig } from '../widers/widers.config';
+import { EmailChannelService } from '../email/email-channel.service';
+import { EmailConfig } from '../email/email.config';
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 import {
     OtpPurpose,
+    OtpChannel,
     OTP_DEV_BYPASS_CODE,
     OTP_EXPIRY_MINUTES,
     OTP_ISSUE_WINDOW_MINUTES,
@@ -22,19 +24,22 @@ import {
 } from './otp-purpose';
 
 export interface IssueOtpParams {
-    phone: string;
+    channel: OtpChannel;
     purpose: OtpPurpose;
     audience: 'customer' | 'vendor';
+    phone?: string;
     name?: string;
     email?: string;
     role?: string;
+    language?: 'ar' | 'en';
     metadata?: Record<string, unknown>;
 }
 
 export interface VerifyOtpParams {
-    phone: string;
+    channel: OtpChannel;
     purpose: OtpPurpose;
     code: string;
+    phone?: string;
     email?: string;
 }
 
@@ -45,12 +50,13 @@ export class OtpService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly whatsapp: WhatsAppChannelService,
-        private readonly widers: WidersService,
         private readonly widersConfig: WidersConfig,
+        private readonly email: EmailChannelService,
+        private readonly emailConfig: EmailConfig,
     ) {}
 
     private normalizePhone(phone: string): string {
-        return this.widers.normalizePhone(phone);
+        return phone.replace(/\s+/g, '').trim();
     }
 
     private generateCode(): string {
@@ -59,31 +65,47 @@ export class OtpService {
 
     private isDevBypassActive(): boolean {
         if (process.env.OTP_DEV_BYPASS === 'false') return false;
-        return !this.widersConfig.enabled || process.env.OTP_DEV_BYPASS === 'true';
+        const anyChannelLive =
+            this.widersConfig.enabled || this.emailConfig.enabled;
+        return !anyChannelLive || process.env.OTP_DEV_BYPASS === 'true';
     }
 
     private logOtpToConsole(
-        phone: string,
+        target: string,
+        channel: OtpChannel,
         purpose: OtpPurpose,
         plainCode: string,
-        context?: { role?: string; audience?: string; whatsappSent?: boolean; error?: string },
+        context?: { role?: string; audience?: string; sent?: boolean; error?: string },
     ): void {
         const roleLabel = context?.role ?? context?.audience ?? 'user';
-        const channelNote = context?.whatsappSent
+        const channelNote = context?.sent
             ? ''
             : context?.error
-              ? ` (whatsapp failed: ${context.error})`
-              : ' (whatsapp disabled — use console code or 123456 until templates APPROVED)';
+              ? ` (${channel} failed: ${context.error})`
+              : ` (${channel} disabled — use console code or 123456)`;
         this.logger.warn(
-            `[OTP] phone=${phone} purpose=${purpose} role=${roleLabel}: ${plainCode}${channelNote}`,
+            `[OTP] ${channel}=${target} purpose=${purpose} role=${roleLabel}: ${plainCode}${channelNote}`,
         );
     }
 
-    private async enforceIssueRateLimit(phone: string, purpose: OtpPurpose): Promise<void> {
+    private async enforceIssueRateLimit(
+        channel: OtpChannel,
+        purpose: OtpPurpose,
+        phone?: string,
+        email?: string,
+    ): Promise<void> {
         const since = new Date(Date.now() - OTP_ISSUE_WINDOW_MINUTES * 60 * 1000);
-        const count = await this.prisma.otpChallenge.count({
-            where: { phone, purpose, createdAt: { gte: since } },
-        });
+        const where =
+            channel === 'email' && email
+                ? { email, channel, purpose, createdAt: { gte: since } }
+                : {
+                      phone: phone ? this.normalizePhone(phone) : undefined,
+                      channel,
+                      purpose,
+                      createdAt: { gte: since },
+                  };
+
+        const count = await this.prisma.otpChallenge.count({ where });
         if (count >= OTP_MAX_ISSUE_PER_WINDOW) {
             throw new HttpException(
                 'Too many OTP requests. Please wait before trying again.',
@@ -92,26 +114,51 @@ export class OtpService {
         }
     }
 
-    async issueAndSend(params: IssueOtpParams): Promise<{ sent: boolean; expiresInMinutes: number }> {
-        const phone = this.normalizePhone(params.phone);
-        await this.enforceIssueRateLimit(phone, params.purpose);
+    private validateIssueParams(params: IssueOtpParams): void {
+        if (params.channel === 'email' && !params.email?.trim()) {
+            throw new BadRequestException('Email is required for email OTP');
+        }
+        if (params.channel === 'whatsapp' && !params.phone?.trim()) {
+            throw new BadRequestException('Phone is required for WhatsApp OTP');
+        }
+    }
+
+    async issueAndSend(
+        params: IssueOtpParams,
+    ): Promise<{ sent: boolean; channel: OtpChannel; expiresInMinutes: number }> {
+        this.validateIssueParams(params);
+
+        const phone =
+            params.channel === 'whatsapp' && params.phone
+                ? this.normalizePhone(params.phone)
+                : params.phone
+                  ? this.normalizePhone(params.phone)
+                  : null;
+        const email = params.email?.trim().toLowerCase() ?? null;
+
+        await this.enforceIssueRateLimit(params.channel, params.purpose, phone ?? undefined, email ?? undefined);
 
         const plainCode = this.generateCode();
         const codeHash = await bcrypt.hash(plainCode, 10);
         const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-        await this.prisma.otpChallenge.deleteMany({
-            where: {
-                phone,
-                purpose: params.purpose,
-                verifiedAt: null,
-            },
-        });
+        const deleteWhere =
+            params.channel === 'email' && email
+                ? { email, channel: params.channel, purpose: params.purpose, verifiedAt: null }
+                : {
+                      phone: phone ?? undefined,
+                      channel: params.channel,
+                      purpose: params.purpose,
+                      verifiedAt: null,
+                  };
+
+        await this.prisma.otpChallenge.deleteMany({ where: deleteWhere });
 
         await this.prisma.otpChallenge.create({
             data: {
                 phone,
-                email: params.email ?? null,
+                email,
+                channel: params.channel,
                 purpose: params.purpose,
                 role: params.role ?? null,
                 codeHash,
@@ -121,43 +168,76 @@ export class OtpService {
         });
 
         const audience = params.audience === 'vendor' ? 'vendor' : 'customer';
+        const displayName = params.name?.trim() || 'مستخدم';
         let sendResult: { sent: boolean; error?: string } = { sent: false };
 
-        if (this.widersConfig.enabled) {
-            sendResult = await this.whatsapp.sendOtp(
-                audience,
-                phone,
-                params.name?.trim() || 'مستخدم',
-                plainCode,
-                'ar',
-            );
-            if (!sendResult.sent) {
-                this.logger.error(
-                    `WhatsApp OTP send failed (${params.purpose}) → ${phone}: ${sendResult.error}`,
+        if (params.channel === 'whatsapp') {
+            if (this.widersConfig.enabled && phone) {
+                sendResult = await this.whatsapp.sendOtp(
+                    audience,
+                    phone,
+                    displayName,
+                    plainCode,
+                    params.language ?? 'ar',
                 );
+                if (!sendResult.sent) {
+                    this.logger.error(
+                        `WhatsApp OTP send failed (${params.purpose}) → ${phone}: ${sendResult.error}`,
+                    );
+                }
+            }
+        } else if (params.channel === 'email' && email) {
+            if (this.emailConfig.enabled) {
+                sendResult = await this.email.sendOtp({
+                    to: email,
+                    name: displayName,
+                    otpCode: plainCode,
+                    language: params.language ?? 'ar',
+                    purpose: params.purpose,
+                });
+                if (!sendResult.sent) {
+                    this.logger.error(
+                        `Email OTP send failed (${params.purpose}) → ${email}: ${sendResult.error}`,
+                    );
+                }
             }
         }
 
         if (!sendResult.sent) {
-            this.logOtpToConsole(phone, params.purpose, plainCode, {
+            const target = params.channel === 'email' ? (email ?? '') : (phone ?? '');
+            this.logOtpToConsole(target, params.channel, params.purpose, plainCode, {
                 role: params.role,
                 audience,
-                whatsappSent: false,
+                sent: false,
                 error: sendResult.error,
             });
         }
 
-        return { sent: sendResult.sent, expiresInMinutes: OTP_EXPIRY_MINUTES };
+        return {
+            sent: sendResult.sent,
+            channel: params.channel,
+            expiresInMinutes: OTP_EXPIRY_MINUTES,
+        };
     }
 
     private async findActiveChallenge(params: VerifyOtpParams) {
-        const phone = this.normalizePhone(params.phone);
+        const where =
+            params.channel === 'email' && params.email
+                ? {
+                      email: params.email.trim().toLowerCase(),
+                      channel: params.channel,
+                      purpose: params.purpose,
+                      verifiedAt: null,
+                  }
+                : {
+                      phone: params.phone ? this.normalizePhone(params.phone) : undefined,
+                      channel: params.channel,
+                      purpose: params.purpose,
+                      verifiedAt: null,
+                  };
+
         return this.prisma.otpChallenge.findFirst({
-            where: {
-                phone,
-                purpose: params.purpose,
-                verifiedAt: null,
-            },
+            where,
             orderBy: { createdAt: 'desc' },
         });
     }
@@ -170,14 +250,24 @@ export class OtpService {
     }
 
     async verify(params: VerifyOtpParams): Promise<{ verified: boolean }> {
-        const phone = this.normalizePhone(params.phone);
+        if (params.channel === 'email' && !params.email?.trim()) {
+            throw new BadRequestException('Email is required for email OTP verification');
+        }
+        if (params.channel === 'whatsapp' && !params.phone?.trim()) {
+            throw new BadRequestException('Phone is required for WhatsApp OTP verification');
+        }
+
         const challenge = await this.findActiveChallenge(params);
 
         if (!challenge) {
             throw new BadRequestException('OTP expired or not requested');
         }
 
-        if (params.email && challenge.email && challenge.email !== params.email) {
+        if (
+            params.email &&
+            challenge.email &&
+            challenge.email !== params.email.trim().toLowerCase()
+        ) {
             throw new UnauthorizedException('Invalid verification context');
         }
 
@@ -195,7 +285,7 @@ export class OtpService {
 
         if (devBypass) {
             this.logger.warn(
-                `[OTP] Dev bypass code accepted for ${phone} (${params.purpose}) — disable when WIDERS templates are live`,
+                `[OTP] Dev bypass code accepted (${params.channel}, ${params.purpose})`,
             );
             await this.markChallengeVerified(challenge.id);
             return { verified: true };
@@ -218,26 +308,35 @@ export class OtpService {
     }
 
     /**
-     * Registration gate — phone OTP must be verified within the last 30 minutes.
+     * Registration gate — OTP must be verified within the last 30 minutes on the chosen channel.
      */
-    async assertRegisterVerified(phone: string, email: string): Promise<void> {
-        const normalized = this.normalizePhone(phone);
+    async assertRegisterVerified(
+        phone: string,
+        email: string,
+        channel: OtpChannel,
+    ): Promise<void> {
         const since = new Date(Date.now() - 30 * 60 * 1000);
+        const normalizedPhone = this.normalizePhone(phone);
+        const normalizedEmail = email.trim().toLowerCase();
 
         const verified = await this.prisma.otpChallenge.findFirst({
             where: {
-                phone: normalized,
-                email,
+                channel,
                 purpose: OtpPurpose.REGISTER,
                 verifiedAt: { gte: since },
+                ...(channel === 'email'
+                    ? { email: normalizedEmail }
+                    : { phone: normalizedPhone, email: normalizedEmail }),
             },
             orderBy: { verifiedAt: 'desc' },
         });
 
         if (!verified) {
-            throw new UnauthorizedException(
-                'Phone verification required. Please complete WhatsApp OTP first.',
-            );
+            const hint =
+                channel === 'email'
+                    ? 'Email verification required. Please complete OTP first.'
+                    : 'Phone verification required. Please complete WhatsApp OTP first.';
+            throw new UnauthorizedException(hint);
         }
     }
 
@@ -245,7 +344,8 @@ export class OtpService {
         const since = new Date(Date.now() - 15 * 60 * 1000);
         const verified = await this.prisma.otpChallenge.findFirst({
             where: {
-                email,
+                email: email.trim().toLowerCase(),
+                channel: 'email',
                 role,
                 purpose: OtpPurpose.RECOVERY_STEP1,
                 verifiedAt: { gte: since },
@@ -258,7 +358,7 @@ export class OtpService {
         }
     }
 
-    async resend(params: IssueOtpParams): Promise<{ sent: boolean; expiresInMinutes: number }> {
+    async resend(params: IssueOtpParams): Promise<{ sent: boolean; channel: OtpChannel; expiresInMinutes: number }> {
         return this.issueAndSend(params);
     }
 }
