@@ -286,6 +286,7 @@ export class AuthService {
                     ? 'Verification code sent to your email'
                     : 'Verification code sent via WhatsApp',
             channel: result.channel,
+            expiresInMinutes: result.expiresInMinutes,
         };
     }
 
@@ -346,6 +347,7 @@ export class AuthService {
                     ? 'Verification code resent to your email'
                     : 'Verification code resent via WhatsApp',
             channel: result.channel,
+            expiresInMinutes: result.expiresInMinutes,
         };
     }
 
@@ -360,7 +362,7 @@ export class AuthService {
             throw new BadRequestException('Account has no phone number on file');
         }
 
-        await this.otpService.issueAndSend({
+        const result = await this.otpService.issueAndSend({
             channel: 'whatsapp',
             phone: user.phone,
             purpose: OtpPurpose.LOGIN,
@@ -373,6 +375,7 @@ export class AuthService {
             exists: true,
             otpSent: true,
             channel: 'whatsapp',
+            expiresInMinutes: result.expiresInMinutes,
             user: {
                 id: user.id,
                 name: user.name,
@@ -390,7 +393,7 @@ export class AuthService {
             return null;
         }
 
-        await this.otpService.issueAndSend({
+        const result = await this.otpService.issueAndSend({
             channel: 'email',
             email: user.email,
             phone: user.phone ?? undefined,
@@ -403,6 +406,7 @@ export class AuthService {
             exists: true,
             otpSent: true,
             channel: 'email',
+            expiresInMinutes: result.expiresInMinutes,
             maskedEmail: user.email.replace(
                 /^(.{1,2})(.*)(@.*)$/,
                 (_, a, _mid, domain) => `${a}***${domain}`,
@@ -423,7 +427,7 @@ export class AuthService {
             throw new UnauthorizedException('Account not found');
         }
 
-        await this.otpService.resend({
+        const result = await this.otpService.resend({
             channel: 'whatsapp',
             phone: user.phone,
             purpose: OtpPurpose.LOGIN,
@@ -432,7 +436,12 @@ export class AuthService {
             email: user.email,
         });
 
-        return { success: true, message: 'Verification code resent via WhatsApp', channel: 'whatsapp' };
+        return {
+            success: true,
+            message: 'Verification code resent via WhatsApp',
+            channel: 'whatsapp',
+            expiresInMinutes: result.expiresInMinutes,
+        };
     }
 
     async resendEmailLoginOtp(email: string) {
@@ -441,7 +450,7 @@ export class AuthService {
             throw new UnauthorizedException('Account not found');
         }
 
-        await this.otpService.resend({
+        const result = await this.otpService.resend({
             channel: 'email',
             email: user.email,
             phone: user.phone ?? undefined,
@@ -450,7 +459,12 @@ export class AuthService {
             name: user.name ?? undefined,
         });
 
-        return { success: true, message: 'Verification code resent to your email', channel: 'email' };
+        return {
+            success: true,
+            message: 'Verification code resent to your email',
+            channel: 'email',
+            expiresInMinutes: result.expiresInMinutes,
+        };
     }
 
     async verifyEmailLogin(email: string, code: string, ip?: string, userAgent?: string, fingerprint?: string) {
@@ -500,7 +514,7 @@ export class AuthService {
             );
         }
 
-        await this.otpService.issueAndSend({
+        const result = await this.otpService.issueAndSend({
             channel,
             phone: channel === 'whatsapp' ? user.phone! : undefined,
             email: user.email,
@@ -513,6 +527,7 @@ export class AuthService {
         return {
             success: true,
             channel,
+            expiresInMinutes: result.expiresInMinutes,
             maskedPhone:
                 channel === 'whatsapp' && user.phone
                     ? user.phone.replace(/.(?=.{4})/g, '*')
