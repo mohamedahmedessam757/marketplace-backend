@@ -25,7 +25,7 @@ const COLORS = {
     textDim: '#78716C',
 } as const;
 
-const BRAND_AR = 'E-Tshaleh | أي تشليح';
+const BRAND_AR = 'E-Tshaleh | إي تشليح';
 const BRAND_EN = 'E-Tshaleh';
 const EXPIRY_MINUTES = 10;
 
@@ -170,7 +170,7 @@ function buildHtml(p: HtmlParams): string {
                 E-Tshaleh
               </div>
               <div style="font-size:12px;color:${COLORS.gold};margin-top:4px;opacity:0.9;">
-                ${p.lang === 'ar' ? 'أي تشليح — سوق قطع الغيار' : 'Auto Parts Marketplace'}
+                ${p.lang === 'ar' ? 'إي تشليح — سوق قطع الغيار' : 'Auto Parts Marketplace'}
               </div>
             </td>
           </tr>
